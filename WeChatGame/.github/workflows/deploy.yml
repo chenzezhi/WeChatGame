@@ -1,0 +1,36 @@
+name: Deploy WeChat Mini Program
+
+on:
+  push:
+    branches:
+      - main  # 如果你的默认分支是 master，请把这里改成 master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install miniprogram-ci
+        run: npm install miniprogram-ci --save-dev
+
+      - name: Create Private Key File
+        run: |
+          echo "${{ secrets.MINIPROGRAM_PRIVATE_KEY }}" > private.key
+
+      - name: Upload to WeChat
+        run: |
+          npx miniprogram-ci upload \
+            --pp ./ \
+            --appid ${{ secrets.MINIPROGRAM_APPID }} \
+            --pv "1.0.0" \
+            --desc "Actions Auto Upload" \
+            --pk ./private.key \
+            --setting "{ \"es6\": true, \"minify\": true }"
