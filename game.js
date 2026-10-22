@@ -35,7 +35,7 @@ function loop() {
   if (y <= 0 || y + size >= height) vy = -vy;
 
   // 绘制方块
-  ctx.fillStyle = '#fcd964';
+  ctx.fillStyle = '#fcf9ff';
   ctx.fillRect(x, y, size, size);
 
   // 绘制文字

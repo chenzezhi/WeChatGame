@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 微信小游戏一键全自动部署、推送、智能轮询等待与二维码拉取脚本
+# 微信小游戏一键全自动部署、推送、等待与二维码拉取脚本
 # ==============================================================================
 set -e
 
@@ -11,9 +11,11 @@ echo "================================================================"
 echo "[0/5] 预检与清理潜在的 Git 残留状态..."
 echo "================================================================"
 if [ -d ".git/rebase-merge" ]; then
+  echo "清理残留的 rebase-merge 目录..."
   rm -fr ".git/rebase-merge"
 fi
 if [ -d ".git/rebase-apply" ]; then
+  echo "清理残留的 rebase-apply 目录..."
   rm -fr ".git/rebase-apply"
 fi
 
@@ -47,62 +49,39 @@ echo ""
 echo "================================================================"
 echo "[3/5] 推送代码到 GitHub 远程仓库..."
 echo "================================================================"
-# 记录推送前的最新 Artifact ID（如果存在的话），用于对比是否更新
-OLD_ARTIFACT_ID=$(curl -s -H "Authorization: token $TOKEN" \
-  "https://api.github.com/repos/$REPO/actions/artifacts" \
-  | grep -o '"id": *[0-9]*' | head -n 1 | awk '{print $2}')
-
 git push origin main
-echo "✨ 推送成功！GitHub Actions 正在云端编译..."
+echo "✨ 推送成功！GitHub Actions 正在云端为你编译并生成预览二维码..."
 
 echo ""
 echo "================================================================"
-echo "[4/5] 智能轮询等待云端生成更新的二维码..."
+echo "[4/5] 等待云端构建 (预计等待 60 秒)..."
+echo "================================================================"
+for i in {60..1}; do
+  echo -n "$i... "
+  sleep 1
+done
+echo ""
+
+echo ""
+echo "================================================================"
+echo "[5/5] 正在从云端拉取最新二维码并打开..."
 echo "================================================================"
 
-MAX_WAIT=60  # 最多等待 60 秒
-ELAPSED=0
-NEW_DOWNLOAD_URL=""
+DOWNLOAD_URL=$(curl -s -H "Authorization: token $TOKEN" \
+  "https://api.github.com/repos/$REPO/actions/artifacts" \
+  | grep -o '"archive_download_url": *"[^"]*"' | head -n 1 | cut -d'"' -f4)
 
-while [ $ELAPSED -lt $MAX_WAIT ]; do
-  sleep 3
-  ELAPSED=$((ELAPSED + 3))
-  
-  # 获取当前云端最新的 Artifact 信息 (ID 和 下载链接)
-  API_RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
-    "https://api.github.com/repos/$REPO/actions/artifacts")
-  
-  CURRENT_ID=$(echo "$API_RESPONSE" | grep -o '"id": *[0-9]*' | head -n 1 | awk '{print $2}')
-  
-  # 如果云端最新的 Artifact ID 变了，说明新构建已经产生！
-  if [ -n "$CURRENT_ID" ] && [ "$CURRENT_ID" != "$OLD_ARTIFACT_ID" ]; then
-    NEW_DOWNLOAD_URL=$(echo "$API_RESPONSE" | grep -o '"archive_download_url": *"[^"]*"' | head -n 1 | cut -d'"' -f4)
-    if [ -n "$NEW_DOWNLOAD_URL" ]; then
-      echo "🎉 检测到云端已生成新的构建产物 (耗时约 ${ELAPSED} 秒)！"
-      break
-    fi
-  fi
-  
-  echo -n "."
-done
-
-if [ -z "$NEW_DOWNLOAD_URL" ]; then
-  echo ""
-  echo "[错误] 等待超时（超过 60 秒未检测到新产物），请检查 GitHub Actions 运行状态。"
+if [ -z "$DOWNLOAD_URL" ]; then
+  echo "[错误] 未能获取到下载链接，可能云端还在打包中，请稍后单独运行获取脚本！"
   exit 1
 fi
 
-echo ""
-echo "================================================================"
-echo "[5/5] 正在从云端下载最新二维码并打开..."
-echo "================================================================"
-
-curl -s -L -H "Authorization: token $TOKEN" "$NEW_DOWNLOAD_URL" -o artifact.zip
+curl -s -L -H "Authorization: token $TOKEN" "$DOWNLOAD_URL" -o artifact.zip
 unzip -o artifact.zip qrcode.jpg > /dev/null
 rm -f artifact.zip
 
 if [ -f "qrcode.jpg" ]; then
-  echo "🚀 成功！正在唤起手机图片查看器展示二维码..."
+  echo "🎉 成功！正在唤起手机图片查看器展示二维码..."
   if command -v termux-open &> /dev/null; then
     termux-open qrcode.jpg
   else
