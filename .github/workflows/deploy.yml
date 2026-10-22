@@ -27,10 +27,14 @@ jobs:
 
       - name: Upload to WeChat
         run: |
+          # 1. 将 Secrets 里的密钥写入临时文件
+          echo "${{ secrets.WECHAT_PRIVATE_KEY }}" > private.key
+
+          # 2. 调用 miniprogram-ci 上传
           npx miniprogram-ci upload \
-            --pp ./ \
-            --appid ${{ secrets.MINIPROGRAM_APPID }} \
-            --pv "1.0.0" \
-            --desc "Actions Auto Upload" \
-            --pk ./private.key \
-            --setting "{ \"es6\": true, \"minify\": true }"
+          --pp ./ \
+          --pkp ./private.key \
+          --appid ${{ secrets.WECHAT_APPID }} \
+          --uv 1.0.0 \
+          --ud "Automated deployment via GitHub Actions" \
+          -r 1
