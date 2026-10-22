@@ -3,7 +3,7 @@ name: Deploy WeChat Mini Program
 on:
   push:
     branches:
-      - main  # 如果你的默认分支是 master，请把这里改成 master
+      - main
 
 jobs:
   deploy:
@@ -16,25 +16,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: 18
 
-      - name: Install miniprogram-ci
-        run: npm install miniprogram-ci --save-dev
+      - name: Install Dependencies
+        run: npm install miniprogram-ci
 
-      - name: Create Private Key File
+      - name: Create Private Key Files
         run: |
-          echo "${{ secrets.MINIPROGRAM_PRIVATE_KEY }}" > private.key
+          # 1. 生成通用名的 private.key
+          cat << 'EOF' > private.key
+          ${{ secrets.WECHAT_PRIVATE_KEY }}
+          EOF
 
-      - name: Upload to WeChat
-        run: |
-          # 1. 将 Secrets 里的密钥写入临时文件
-          echo "${{ secrets.WECHAT_PRIVATE_KEY }}" > private.key
+          # 2. 同时生成带 AppID 前缀的文件名（确保微信默认查找规则能匹配到）
+          cp private.key private.${{ secrets.WECHAT_APPID }}.key
 
-          # 2. 调用 miniprogram-ci 上传
-          npx miniprogram-ci upload \
-          --pp ./ \
-          --pkp ./private.key \
-          --appid ${{ secrets.WECHAT_APPID }} \
-          --uv 1.0.0 \
-          --ud "Automated deployment via GitHub Actions" \
-          -r 1
+      - name: Run Upload Script
+        run: node upload.js
