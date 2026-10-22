@@ -3,7 +3,7 @@ name: Deploy WeChat Mini Program
 on:
   push:
     branches:
-      - main  # 如果你的主分支叫 master，请改成 master
+      - main
 
 jobs:
   deploy:
@@ -26,8 +26,15 @@ jobs:
           cat << 'EOF' > private.key
           ${{ secrets.WECHAT_PRIVATE_KEY }}
           EOF
+          cp private.key private.${{ secrets.WECHAT_APPID }}.key
 
-      - name: Run Upload & Preview Script
+      - name: Run Preview Script
         run: node upload.js
         env:
-          WECHAT_APPID: ${{ secrets.WECHAT_APPID }}
+          WX_APPID: ${{ secrets.WECHAT_APPID }}
+
+      - name: Upload QR Code Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-qr-code
+          path: qrcode.jpg
