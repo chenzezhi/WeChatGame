@@ -21,15 +21,21 @@ jobs:
       - name: Install Dependencies
         run: npm install miniprogram-ci
 
-      - name: Create Private Key Files
+      - name: Create Private Key File
         run: |
-          # 1. 生成通用名的 private.key
           cat << 'EOF' > private.key
           ${{ secrets.WECHAT_PRIVATE_KEY }}
           EOF
 
-          # 2. 同时生成带 AppID 前缀的文件名（确保微信默认查找规则能匹配到）
-          cp private.key private.${{ secrets.WECHAT_APPID }}.key
-
-      - name: Run Upload Script
-        run: node upload.js
+      - name: Generate Preview QR Code
+        run: |
+          # 使用 preview 命令生成带二维码的预览，并直接在终端以字符画形式输出
+          npx miniprogram-ci preview \
+            --pp ./ \
+            --pkp ./private.key \
+            --appid ${{ secrets.WECHAT_APPID }} \
+            --uv 1.0.0 \
+            --ud "CI Preview QR Code" \
+            --qrcode-format terminal \
+            --qrcode-output-dest terminal \
+            -r 1
