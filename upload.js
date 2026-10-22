@@ -86,6 +86,24 @@ async function preview() {
     version: '1.0.0',
     desc: 'CI 自动预览二维码',
     robot: 1,
-    // 修改这里：保存为图片格式并输出到 qrcode.jpg
     qrcodeFormat: 'image',
     qrcodeOutputDest: path.join(projectPath, 'qrcode.jpg'),
+    setting: {
+      es6: false,
+      es7: false,
+      minify: false,
+    },
+    onProgressUpdate: function (info) {
+      console.log(typeof info === 'string' ? info : JSON.stringify(info));
+    },
+  });
+
+  console.log('预览二维码生成成功！');
+}
+
+preview().catch(function (error) {
+  console.error('===== 预览失败 =====');
+  console.error('message: ' + (error && error.message));
+  console.error('code   : ' + (error && error.code));
+  process.exitCode = 1;
+});
