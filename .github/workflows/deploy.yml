@@ -10,35 +10,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取仓库代码
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. 配置 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # 3. 安装 miniprogram-ci 依赖
       - name: Install Dependencies
         run: npm install miniprogram-ci
 
-      # 4. 生成私钥文件并直接渲染终端预览二维码
-      - name: Generate Preview QR Code
+      - name: Create Private Key File
         run: |
-          # 将 Secrets 里的私钥安全写入当前目录的 private.key
-          cat << 'EOF' > ./private.key
+          cat << 'EOF' > private.key
           ${{ secrets.WECHAT_PRIVATE_KEY }}
           EOF
 
-          # 使用 preview 命令生成预览，并显式指定密钥路径与终端字符画输出
-          npx miniprogram-ci preview \
-            --pp ./ \
-            --pkp ./private.key \
-            --appid ${{ secrets.WECHAT_APPID }} \
-            --uv 1.0.0 \
-            --ud "CI Preview QR Code" \
-            --qrcode-format terminal \
-            --qrcode-output-dest terminal \
-            -r 1
+      - name: Run Upload & Preview Script
+        run: node upload.js
+        env:
+          WECHAT_APPID: ${{ secrets.WECHAT_APPID }}
