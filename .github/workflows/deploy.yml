@@ -3,33 +3,36 @@ name: Deploy WeChat Mini Program
 on:
   push:
     branches:
-      - main
+      - main  # 如果你的主分支叫 master，请改成 master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 拉取仓库代码
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2. 配置 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
+      # 3. 安装 miniprogram-ci 依赖
       - name: Install Dependencies
         run: npm install miniprogram-ci
 
-      - name: Create Private Key File
+      # 4. 生成私钥文件并直接渲染终端预览二维码
+      - name: Generate Preview QR Code
         run: |
-          cat << 'EOF' > private.key
+          # 将 Secrets 里的私钥安全写入当前目录的 private.key
+          cat << 'EOF' > ./private.key
           ${{ secrets.WECHAT_PRIVATE_KEY }}
           EOF
 
-      - name: Generate Preview QR Code
-        run: |
-          # 使用 preview 命令生成带二维码的预览，并直接在终端以字符画形式输出
+          # 使用 preview 命令生成预览，并显式指定密钥路径与终端字符画输出
           npx miniprogram-ci preview \
             --pp ./ \
             --pkp ./private.key \
