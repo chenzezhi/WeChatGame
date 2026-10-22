@@ -1,0 +1,12 @@
+*.key
+node_modules/
+
+# 构建/缓存产物
+.DS_Store
+*.log
+
+# 本地上传工具产物
+wx-upload/
+
+# 版本备份目录（本地回滚用，不进仓库也不进上传包）
+backup/

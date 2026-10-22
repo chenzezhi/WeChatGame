@@ -1,0 +1,33 @@
+{
+  "description": "最简单的微信小游戏模板",
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "backup" },
+      { "type": "folder", "value": "node_modules" },
+      { "type": "folder", "value": ".git" },
+      { "type": "suffix", "value": ".key" },
+      { "type": "file", "value": "upload.js" },
+      { "type": "file", "value": "upload.sh" },
+      { "type": "file", "value": "upload-auto.sh" },
+      { "type": "file", "value": "upload-proot.sh" },
+      { "type": "file", "value": "backup.sh" },
+      { "type": "file", "value": "node-android-fix.js" },
+      { "type": "file", "value": "forktest.js" },
+      { "type": "file", "value": "forkchild.js" },
+      { "type": "file", "value": "README.md" },
+      { "type": "file", "value": "README-Termux.md" }
+    ]
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": false,
+    "postcss": false,
+    "minified": false,
+    "newFeature": true
+  },
+  "compileType": "game",
+  "libVersion": "2.19.4",
+  "appid": "wx03f8c7b1fb104183",
+  "projectname": "WeChatGame",
+  "condition": {}
+}
