@@ -12,8 +12,8 @@ const height = canvas.height;
 // 方块初始位置与速度
 let x = width / 2 - 25;
 let y = height / 2 - 25;
-let vx = 3;
-let vy = 3;
+let vx = 100;
+let vy = 100;
 const size = 50;
 
 // 简单的触摸交互提示
