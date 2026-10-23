@@ -3,7 +3,7 @@
 const canvasKit = require('../core/canvas.js');
 
 // 版本标记，用于确认真机跑的是哪一版
-const BUILD = 'menu-2';
+const BUILD = 'menu-3';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -47,12 +47,12 @@ function drawTitle(ctx, width, height) {
   ctx.textBaseline = 'alphabetic';
 
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 34px sans-serif';
-  ctx.fillText('弹跳小球', width / 2, height * 0.24);
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText('冒险之旅', width / 2, height * 0.24);
 
   ctx.font = '15px sans-serif';
   ctx.fillStyle = COLOR.textDim;
-  ctx.fillText('按住屏幕左右滑动，挡板跟着移动', width / 2, height * 0.24 + 32);
+  ctx.fillText('点击开始你的冒险', width / 2, height * 0.24 + 32);
 }
 
 // 右上角金币
@@ -97,7 +97,7 @@ function drawButtons(ctx, state) {
     ctx.stroke();
 
     ctx.fillStyle = disabled ? COLOR.disabledText : COLOR.text;
-    ctx.font = 'bold 20px sans-serif';
+    ctx.font = 'bold 19px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1);
@@ -112,7 +112,7 @@ function drawFooter(ctx, width, height, state) {
   ctx.textBaseline = 'alphabetic';
   ctx.font = '14px sans-serif';
   ctx.fillStyle = COLOR.textFaint;
-  ctx.fillText('最佳距离 ' + state.best + ' m', width / 2, height * 0.92);
+  ctx.fillText('最佳距离 ' + state.best + ' m', width / 2, height * 0.95);
 }
 
 function drawBuildTag(ctx) {

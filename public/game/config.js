@@ -12,6 +12,7 @@ const START_X = Math.round(WIDTH * 0.3);
 const GRAVITY = 0.0016;
 const MAX_FALL = 1.25;
 const JUMP_V = -0.80;
+const JUMP_SIDE_V = 0.22;      // 斜跳时的水平初速度
 const RUN_ACCEL = 0.0032;
 const RUN_MAX = 0.34;
 const GROUND_FRICTION = 0.0028;
@@ -33,7 +34,8 @@ const JOY_CY = HEIGHT - JOY_MARGIN - JOY_RADIUS;
 const JOY_GRAB_R = Math.round(JOY_RADIUS * 1.5);
 const JOY_KNOB_RATIO = 0.46;
 const JOY_DEAD = 0.22;
-const JOY_JUMP_Y = 0.62;
+const JOY_JUMP_Y = 0.62;              // 上推超过这个比例才起跳
+const JOY_JUMP_STRAIGHT_DEG = 30;     // 正上方 ±30° 内算「竖直跳」，超出则斜跳
 
 // ---------------- 瞄准摇杆（右下角固定，左右对称） ----------------
 const AIM_RADIUS = Math.round(Math.min(WIDTH * 0.17, 78));
@@ -77,10 +79,10 @@ const LEVEL_MULTI_EVERY = 3;
 const LEVEL_HP_MAX = 60;
 
 // ---------------- 商店属性加成 ----------------
-const SHOP_HP_GAIN = 2;          // 每级生命上限 +2
-const SHOP_FIRE_RATIO = 0.92;    // 每级射击间隔 ×0.92
-const SHOP_MULTI_GAIN = 1;       // 每级子弹数 +1
-const SHOP_DAMAGE_GAIN = 0.1;    // 每级伤害 +0.1
+const SHOP_HP_GAIN = 2;
+const SHOP_FIRE_RATIO = 0.92;
+const SHOP_MULTI_GAIN = 1;
+const SHOP_DAMAGE_GAIN = 0.1;
 
 // 分身升级价格 = 主体 × 该倍率
 const CLONE_COST_MULT = 2;
@@ -117,7 +119,7 @@ const ENEMY_IDLE_CHANCE = 0.30;
 // 碰撞伤害：冷却越大，被打得越少
 const ENEMY_CONTACT_DMG_STEP_M = 350;
 const ENEMY_CONTACT_DMG_MAX = 6;
-const ENEMY_CONTACT_COOLDOWN_MS = 2000;  // 撞上后 2 秒内不再扣血
+const ENEMY_CONTACT_COOLDOWN_MS = 2000;
 
 // ---------------- Boss ----------------
 const BOSS_EVERY_M = 1000;
@@ -175,21 +177,19 @@ const COIN_VALUE_GROWTH = 1;
 const COIN_VALUE_MAX = 10;
 
 // ---------------- 分身 ----------------
-const CLONE_MAX = 8;                 // 同时最多 8 个分身
+const CLONE_MAX = 8;
 
-// 生存时间：默认 10 秒，主体商店每级 +2 秒
 const CLONE_LIFE_BASE_MS = 10000;
 const CLONE_LIFE_STEP_MS = 2000;
 const CLONE_LIFE_MAX_MS = 60000;
 
-// 永久分身（每局开局自动生成，价格递增）
 const PERM_CLONE_BASE_COST = 1000;
 const PERM_CLONE_COST_STEP = 1000;
 
 const CLONE_FIRE_MS = 260;
 const CLONE_JUMP_MIN_MS = 900;
 const CLONE_JUMP_MAX_MS = 2600;
-const CLONE_HP_BASE = 3;      // 分身基础血量
+const CLONE_HP_BASE = 3;
 const CLONE_HP_STEP_M = 400;
 const CLONE_HP_MAX = 12;
 
@@ -206,6 +206,7 @@ module.exports = {
   GRAVITY: GRAVITY,
   MAX_FALL: MAX_FALL,
   JUMP_V: JUMP_V,
+  JUMP_SIDE_V: JUMP_SIDE_V,
   RUN_ACCEL: RUN_ACCEL,
   RUN_MAX: RUN_MAX,
   GROUND_FRICTION: GROUND_FRICTION,
@@ -224,6 +225,7 @@ module.exports = {
   JOY_KNOB_RATIO: JOY_KNOB_RATIO,
   JOY_DEAD: JOY_DEAD,
   JOY_JUMP_Y: JOY_JUMP_Y,
+  JOY_JUMP_STRAIGHT_DEG: JOY_JUMP_STRAIGHT_DEG,
   AIM_RADIUS: AIM_RADIUS,
   AIM_CX: AIM_CX,
   AIM_CY: AIM_CY,

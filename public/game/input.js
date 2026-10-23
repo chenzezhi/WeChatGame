@@ -1,9 +1,9 @@
 // 操作层：双摇杆，多点触控。
 //
 //   左摇杆（左下）：左右推 = 移动；上推过阈值 = 跳跃。
+//                   跳跃方向按角度分流：正上方 ±JOY_JUMP_STRAIGHT_DEG 内算竖直跳，
+//                   再偏就变成左上 / 右上斜跳（方向取自触发那一刻）。
 //   右摇杆（右下）：推动方向 = 子弹发射方向；推过死区即持续开火，回中停火。
-//
-// 两个摇杆可同时操作，互不干扰。手指落在两个抓取范围重叠处时，取更近的那个。
 
 const cfg = require('./config.js');
 
@@ -16,6 +16,7 @@ const state = {
   joyDY: 0,
   joyJumpDone: false,
   jumpRequested: false,
+  jumpDir: 0,          // -1 左上 / 0 竖直 / 1 右上
 
   aimId: -1,
   aimDX: 0,
@@ -29,6 +30,7 @@ function reset() {
   state.joyDY = 0;
   state.joyJumpDone = false;
   state.jumpRequested = false;
+  state.jumpDir = 0;
   state.aimId = -1;
   state.aimDX = 0;
   state.aimDY = 0;
@@ -45,6 +47,19 @@ function distTo(x, y, cx, cy) {
   const dx = x - cx;
   const dy = y - cy;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+// 由摇杆偏移判断跳跃方向：0 = 竖直，-1 = 左上，1 = 右上
+function jumpDirFrom(dx, dy) {
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+
+  if (ady < 0.0001) return 0;
+
+  const limit = ady * Math.tan((cfg.JOY_JUMP_STRAIGHT_DEG * Math.PI) / 180);
+  if (adx <= limit) return 0;
+
+  return dx > 0 ? 1 : -1;
 }
 
 // 根据摇杆手指位置更新偏移量与「上推跳跃」
@@ -65,6 +80,7 @@ function updateJoy(p) {
     if (!state.joyJumpDone) {
       state.joyJumpDone = true;
       state.jumpRequested = true;
+      state.jumpDir = jumpDirFrom(dx, dy);
     }
   } else if (dy > -cfg.JOY_JUMP_Y * 0.5) {
     state.joyJumpDone = false; // 回中后重新上膛，允许连跳
@@ -162,7 +178,6 @@ function touchStart(e) {
 
   for (let i = 0; i < changed.length; i++) addPointer(changed[i]);
 
-  // 兜底：某些机型 changed 可能为空
   if (!changed.length) {
     for (let i = 0; i < all.length; i++) addPointer(all[i]);
   }
@@ -189,7 +204,6 @@ function touchEnd(e) {
 
   for (let i = 0; i < changed.length; i++) removePointer(changed[i].id);
 
-  // 兜底：全部手指都离开
   if (!(e.touches && e.touches.length) && !changed.length) reset();
 }
 
@@ -226,10 +240,16 @@ function getJoystick() {
   };
 }
 
+// 有跳跃请求就返回 { dir }（dir: -1 左上 / 0 竖直 / 1 右上），否则 null
 function consumeJump() {
-  if (!state.jumpRequested) return false;
+  if (!state.jumpRequested) return null;
+
   state.jumpRequested = false;
-  return true;
+
+  const dir = state.jumpDir || 0;
+  state.jumpDir = 0;
+
+  return { dir: dir };
 }
 
 module.exports = {

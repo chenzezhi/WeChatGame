@@ -1,6 +1,6 @@
 // 人物：状态 + 物理积分 + 动画状态机（不含绘制）。
 // 手感接近冒险岛：加速/摩擦明显，跳跃带缓冲和土狼时间。
-// 另外维护随机眨眼计时器，以及「按实际位移推进」的跑步相位（驱动手脚摆动）。
+// 跳跃支持方向：requestJump(p, now, dir)，dir = -1 左上 / 0 竖直 / 1 右上。
 
 const cfg = require('./config.js');
 
@@ -24,30 +24,29 @@ function create(startX) {
     h: cfg.PLAYER_H,
     onGround: true,
     facing: 1,
-    runPhase: 0,     // 0~1 循环，1 = 迈完一整套步（左右各一步）
+    runPhase: 0,
     lastGroundAt: NEVER,
     jumpQueuedAt: NEVER,
+    jumpDir: 0,
     alive: true,
     anim: 'idle',
 
-    // 血量
     hp: cfg.PLAYER_MAX_HP,
     maxHp: cfg.PLAYER_MAX_HP,
-    hurtAt: 0,       // 最近一次受伤的时间点（用于闪红）
+    hurtAt: 0,
 
-    // 眨眼状态
     blinking: false,
     blinkUntil: 0,
-    nextBlinkAt: 0, // 0 = 首次 update 时随机安排
+    nextBlinkAt: 0,
   };
 }
 
-// 登记一次跳跃意图（真正起跳由 update 判断，带缓冲）
-function requestJump(p, now) {
+// 登记一次跳跃意图（真正起跳由 update 判断，带缓冲）。dir = -1/0/1
+function requestJump(p, now, dir) {
   p.jumpQueuedAt = now;
+  p.jumpDir = (dir === 1 || dir === -1) ? dir : 0;
 }
 
-// 眨眼：到点闭眼一小会儿，然后重新安排下一次
 function updateBlink(p, now) {
   if (!p.nextBlinkAt) {
     p.nextBlinkAt = now + randBlinkDelay();
@@ -71,10 +70,8 @@ function updateBlink(p, now) {
 function update(p, dir, now, dt) {
   if (!p.alive) return;
 
-  // ---------- 眨眼 ----------
   updateBlink(p, now);
 
-  // ---------- 受伤闪红计时 ----------
   if (p.hurtAt && now - p.hurtAt > 220) p.hurtAt = 0;
 
   // ---------- 水平：加速 / 摩擦 ----------
@@ -94,8 +91,17 @@ function update(p, dir, now, dt) {
 
   if (wantJump && canJump) {
     p.vy = cfg.JUMP_V;
+
+    // 斜跳：给一个水平初速度，并把朝向转过去
+    if (p.jumpDir) {
+      const side = Math.abs(p.vx) > cfg.JUMP_SIDE_V ? Math.abs(p.vx) : cfg.JUMP_SIDE_V;
+      p.vx = p.jumpDir * side;
+      p.facing = p.jumpDir;
+    }
+
     p.onGround = false;
     p.jumpQueuedAt = NEVER;
+    p.jumpDir = 0;
     p.lastGroundAt = NEVER;
   }
 
@@ -133,8 +139,7 @@ function update(p, dir, now, dt) {
     p.anim = 'idle';
   }
 
-  // ---------- 跑步相位：按实际位移推进，走得越快迈得越快 ----------
-  // stride = 迈完一整套步（左右各一步）走过的距离
+  // ---------- 跑步相位：按实际位移推进 ----------
   if (p.anim === 'run') {
     const stride = Math.max(20, p.h * 1.8);
     p.runPhase += (Math.abs(p.vx) * dt) / stride;
