@@ -1,5 +1,6 @@
 // 人物：状态 + 物理积分 + 动画状态机（不含绘制）。
 // 手感接近冒险岛：加速/摩擦明显，跳跃带缓冲和土狼时间。
+// 另外维护一个随机眨眼计时器，绘制层据此决定眼睛是睁开还是闭合。
 
 const cfg = require('./config.js');
 
@@ -7,6 +8,10 @@ const NEVER = -99999;
 
 function clamp(v, a, b) {
   return v < a ? a : v > b ? b : v;
+}
+
+function randBlinkDelay() {
+  return cfg.BLINK_MIN_MS + Math.random() * (cfg.BLINK_MAX_MS - cfg.BLINK_MIN_MS);
 }
 
 function create(startX) {
@@ -24,6 +29,11 @@ function create(startX) {
     jumpQueuedAt: NEVER,
     alive: true,
     anim: 'idle',
+
+    // 眨眼状态
+    blinking: false,
+    blinkUntil: 0,
+    nextBlinkAt: 0, // 0 = 首次 update 时随机安排
   };
 }
 
@@ -32,8 +42,32 @@ function requestJump(p, now) {
   p.jumpQueuedAt = now;
 }
 
+// 眨眼：到点闭眼一小会儿，然后重新安排下一次
+function updateBlink(p, now) {
+  if (!p.nextBlinkAt) {
+    p.nextBlinkAt = now + randBlinkDelay();
+    return;
+  }
+
+  if (p.blinking) {
+    if (now >= p.blinkUntil) {
+      p.blinking = false;
+      p.nextBlinkAt = now + randBlinkDelay();
+    }
+    return;
+  }
+
+  if (now >= p.nextBlinkAt) {
+    p.blinking = true;
+    p.blinkUntil = now + cfg.BLINK_DURATION_MS;
+  }
+}
+
 function update(p, dir, now, dt) {
   if (!p.alive) return;
+
+  // ---------- 眨眼（独立于物理，死亡前一直进行） ----------
+  updateBlink(p, now);
 
   // ---------- 水平：加速 / 摩擦 ----------
   if (dir !== 0) {

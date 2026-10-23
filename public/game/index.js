@@ -47,10 +47,16 @@ function saveProgress() {
   state.best = best;
 }
 
+// 相机跟随：人物始终停在屏幕 CAMERA_ANCHOR 处（向前向后都一样）
+function cameraTargetOf(playerX) {
+  const target = playerX - cfg.WIDTH * cfg.CAMERA_ANCHOR;
+  return target > 0 ? target : 0;
+}
+
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
   state.level = obstacles.create();
-  state.cameraX = Math.max(0, state.player.x - cfg.WIDTH * cfg.CAMERA_ANCHOR);
+  state.cameraX = cameraTargetOf(state.player.x);
   state.level.nextSpawnX = state.player.x + cfg.WIDTH * 0.9;
   obstacles.spawnAhead(state.level, state.cameraX);
   state.distance = distanceOf(state.player.x);
@@ -93,9 +99,8 @@ function update(dt, now) {
   // ---------- 人物物理 ----------
   playerKit.update(state.player, input.getDir(), now, dt);
 
-  // ---------- 相机（只向前跟） ----------
-  const target = state.player.x - cfg.WIDTH * cfg.CAMERA_ANCHOR;
-  if (target > state.cameraX) state.cameraX = target;
+  // ---------- 相机：前后都跟随，往回走画面也跟着回来 ----------
+  state.cameraX = cameraTargetOf(state.player.x);
 
   // ---------- 障碍 ----------
   obstacles.spawnAhead(state.level, state.cameraX);

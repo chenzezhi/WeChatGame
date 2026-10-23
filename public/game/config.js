@@ -35,6 +35,11 @@ const JUMP_BUFFER_MS = 130;    // 落地前提前按跳的缓冲时间
 // ---------------- 操作 ----------------
 const SWIPE_UP_PX = 36;        // 向上滑多少像素算一次跳跃
 
+// ---------------- 眨眼 ----------------
+const BLINK_MIN_MS = 2200;     // 两次眨眼之间的最短间隔
+const BLINK_MAX_MS = 4200;     // 两次眨眼之间的最长间隔
+const BLINK_DURATION_MS = 130; // 每次眨眼持续多久
+
 // ---------------- 障碍（石头） ----------------
 const ROCK_MIN_GAP = 260;      // 石头之间的最小间距
 const ROCK_MAX_GAP = 470;      // 石头之间的最大间距
@@ -66,6 +71,10 @@ module.exports = {
   JUMP_BUFFER_MS: JUMP_BUFFER_MS,
 
   SWIPE_UP_PX: SWIPE_UP_PX,
+
+  BLINK_MIN_MS: BLINK_MIN_MS,
+  BLINK_MAX_MS: BLINK_MAX_MS,
+  BLINK_DURATION_MS: BLINK_DURATION_MS,
 
   ROCK_MIN_GAP: ROCK_MIN_GAP,
   ROCK_MAX_GAP: ROCK_MAX_GAP,

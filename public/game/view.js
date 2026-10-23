@@ -1,9 +1,9 @@
 // 绘制层：只读状态、不修改状态。
-// 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物。
+// 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物（会眨眼）。
 
 const cfg = require('./config.js');
 
-const BUILD = 'game-1';
+const BUILD = 'game-2';
 
 const C = {
   skyTop: '#7fd0f7',
@@ -121,7 +121,10 @@ function drawHills(ctx, cameraX, factor, color, baseY, radius, spacing) {
 function drawTrees(ctx, cameraX) {
   const factor = 0.5;
   const spacing = 230;
-  const shift = (cameraX * factor) % spacing;
+
+  // 负相机位置也要正确取模（往回走时视差不能跳）
+  let shift = (cameraX * factor) % spacing;
+  if (shift < 0) shift += spacing;
 
   let x = -spacing - shift;
   let i = 0;
@@ -172,7 +175,9 @@ function drawGround(ctx, cameraX) {
   // 草皮高光（随相机滚动）
   ctx.fillStyle = 'rgba(255,255,255,0.28)';
   const step = 46;
-  const shift = cameraX % step;
+  let shift = cameraX % step;
+  if (shift < 0) shift += step;
+
   let x = -shift;
   while (x < cfg.WIDTH + step) {
     ctx.fillRect(x, y + 2, 18, 4);
@@ -182,7 +187,9 @@ function drawGround(ctx, cameraX) {
   // 泥土纹理
   ctx.fillStyle = 'rgba(0,0,0,0.10)';
   const step2 = 92;
-  const shift2 = cameraX % step2;
+  let shift2 = cameraX % step2;
+  if (shift2 < 0) shift2 += step2;
+
   let x2 = -shift2;
   while (x2 < cfg.WIDTH + step2) {
     ctx.fillRect(x2, y + 42, 26, 8);
@@ -238,6 +245,46 @@ function drawRocks(ctx, level, cameraX) {
 }
 
 // ---------------------------------------------------------------- 人物
+// 眼睛：眨眼时画成两条闭合的短横线
+function drawEyes(ctx, R, headCY, blinking) {
+  if (blinking) {
+    ctx.strokeStyle = C.eye;
+    ctx.lineWidth = Math.max(1.6, R * 0.11);
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(R * 0.02, headCY + R * 0.16);
+    ctx.lineTo(R * 0.30, headCY + R * 0.16);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(R * 0.42, headCY + R * 0.16);
+    ctx.lineTo(R * 0.70, headCY + R * 0.16);
+    ctx.stroke();
+
+    ctx.lineCap = 'butt';
+    return;
+  }
+
+  // 睁眼
+  ctx.fillStyle = C.eye;
+  ctx.beginPath();
+  ctx.arc(R * 0.16, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(R * 0.56, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 高光
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(R * 0.21, headCY + R * 0.07, R * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(R * 0.61, headCY + R * 0.07, R * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawPlayer(ctx, p, cameraX) {
   const sx = p.x - cameraX;
   const sy = p.y;
@@ -313,7 +360,7 @@ function drawPlayer(ctx, p, cameraX) {
   ctx.arc(0, headCY, R, 0, Math.PI * 2);
   ctx.fill();
 
-  // 头发
+  // 头发（上半圆帽 + 刘海）
   ctx.fillStyle = C.hair;
   ctx.beginPath();
   ctx.arc(0, headCY, R * 1.02, Math.PI * 1.02, Math.PI * 1.98);
@@ -327,25 +374,10 @@ function drawPlayer(ctx, p, cameraX) {
   ctx.closePath();
   ctx.fill();
 
-  // 眼睛
-  ctx.fillStyle = C.eye;
-  ctx.beginPath();
-  ctx.arc(R * 0.16, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(R * 0.56, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
-  ctx.fill();
+  // ---- 眼睛（会眨） ----
+  drawEyes(ctx, R, headCY, p.blinking);
 
-  // 眼睛高光
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(R * 0.21, headCY + R * 0.07, R * 0.05, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(R * 0.61, headCY + R * 0.07, R * 0.05, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 嘴
+  // ---- 嘴 ----
   ctx.strokeStyle = 'rgba(90,58,34,0.8)';
   ctx.lineWidth = Math.max(1, R * 0.08);
   ctx.beginPath();
