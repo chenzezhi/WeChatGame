@@ -2,7 +2,7 @@
 
 const canvasKit = require('../core/canvas.js');
 
-const BUILD = 'shop-1';
+const BUILD = 'shop-2';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -12,6 +12,7 @@ const COLOR = {
   text: '#ffffff',
   textDim: 'rgba(255,255,255,0.6)',
   accent: '#5ee0c0',
+  accentFill: 'rgba(94,224,192,0.16)',
   coin: '#ffd34d',
   coinText: '#ffd34d',
   poor: 'rgba(255,255,255,0.35)',
@@ -54,12 +55,12 @@ function drawHeader(ctx, width, height, state) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 26px sans-serif';
-  ctx.fillText('商店', width / 2, height * 0.14);
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillText('商店', width / 2, height * 0.10);
 
-  ctx.font = '13px sans-serif';
+  ctx.font = '12px sans-serif';
   ctx.fillStyle = COLOR.textDim;
-  ctx.fillText('升级属性 / 购买道具（道具仅本局有效）', width / 2, height * 0.14 + 22);
+  ctx.fillText('分身升级费用是主体的 2 倍 · 道具仅本局有效', width / 2, height * 0.10 + 20);
 
   // 金币
   const cx = width - 74;
@@ -95,6 +96,31 @@ function drawBack(ctx, back) {
   ctx.textBaseline = 'alphabetic';
 }
 
+function drawTabs(ctx, built) {
+  const tabs = (built && built.tabs) || [];
+  const active = (built && built.tab) || 'player';
+
+  for (let i = 0; i < tabs.length; i++) {
+    const t = tabs[i];
+    const on = t.id === active;
+
+    ctx.fillStyle = on ? COLOR.accentFill : COLOR.card;
+    roundRect(ctx, t.x, t.y, t.w, t.h, t.h / 2);
+    ctx.fill();
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = on ? COLOR.accent : COLOR.cardStroke;
+    ctx.stroke();
+
+    ctx.fillStyle = on ? COLOR.text : COLOR.textDim;
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.label, t.x + t.w / 2, t.y + t.h / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+
 function drawRow(ctx, row, coins) {
   const poor = coins < row.cost;
 
@@ -106,28 +132,28 @@ function drawRow(ctx, row, coins) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // 左侧：名称 + 描述/等级
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
 
   const midY = row.y + row.h / 2;
+  const twoLine = row.h > 46;
 
-  ctx.font = 'bold 17px sans-serif';
+  ctx.font = 'bold 16px sans-serif';
   ctx.fillStyle = poor ? COLOR.poor : COLOR.text;
-  ctx.fillText(row.label, row.x + 16, midY - (row.h > 48 ? 9 : 0));
+  ctx.fillText(row.label, row.x + 14, midY - (twoLine ? 8 : 0));
 
-  const sub = row.kind === 'upgrade'
-    ? (row.desc + ' · Lv.' + row.level)
-    : (row.desc + (row.own > 0 ? ' · 已有 ' + row.own : ''));
+  if (twoLine) {
+    const sub = (row.kind === 'item')
+      ? (row.desc + (row.own > 0 ? ' · 已有 ' + row.own : ''))
+      : (row.desc + ' · Lv.' + row.level);
 
-  if (row.h > 48) {
     ctx.font = '11px sans-serif';
     ctx.fillStyle = COLOR.textDim;
-    ctx.fillText(sub, row.x + 16, midY + 11);
+    ctx.fillText(sub, row.x + 14, midY + 10);
   }
 
   // 右侧：价格
-  const priceX = row.x + row.w - 60;
+  const priceX = row.x + row.w - 58;
 
   drawCoinDot(ctx, priceX, midY, 8, poor ? 'rgba(255,211,77,0.35)' : COLOR.coin);
 
@@ -156,6 +182,7 @@ function draw(ctx, state) {
   const built = state.built;
   if (built) {
     drawBack(ctx, built.back);
+    drawTabs(ctx, built);
 
     const rows = built.rows || [];
     for (let i = 0; i < rows.length; i++) drawRow(ctx, rows[i], state.coins || 0);

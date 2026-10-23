@@ -1,4 +1,4 @@
-// 商店模块控制器：升级属性 / 购买道具。对外只暴露场景接口。
+// 商店模块控制器：升级属性（主体 / 分身） + 购买道具。对外只暴露场景接口。
 
 const scenes = require('../core/scenes.js');
 const profile = require('../core/profile.js');
@@ -9,6 +9,7 @@ const state = {
   built: null,
   data: null,
   coins: 0,
+  tab: 'player',   // player | clone
 };
 
 function toast(title) {
@@ -18,7 +19,7 @@ function toast(title) {
 function refresh() {
   state.data = profile.read();
   state.coins = state.data.coins;
-  state.built = buttons.build(state.data);
+  state.built = buttons.build(state.data, state.tab);
 }
 
 function spend(cost) {
@@ -31,17 +32,26 @@ function spend(cost) {
   return true;
 }
 
-function doUpgrade(id) {
-  const lv = state.data.upgrades[id] || 0;
-  const cost = buttons.costOf(id, lv);
+function upgradeStore(isClone) {
+  if (!state.data.cloneUpgrades) {
+    state.data.cloneUpgrades = { hp: 0, fire: 0, multi: 0, damage: 0 };
+  }
+
+  return isClone ? state.data.cloneUpgrades : state.data.upgrades;
+}
+
+function doUpgrade(id, isClone) {
+  const store = upgradeStore(isClone);
+  const lv = store[id] || 0;
+  const cost = buttons.costOf(id, lv, isClone);
 
   if (!spend(cost)) return;
 
-  state.data.upgrades[id] = lv + 1;
+  store[id] = lv + 1;
   profile.write(state.data);
   refresh();
 
-  toast('升级成功 · Lv.' + (lv + 1));
+  toast((isClone ? '分身' : '主体') + '升级成功 · Lv.' + (lv + 1));
 }
 
 function doBuy(id) {
@@ -93,8 +103,19 @@ function touchStart(e) {
     return;
   }
 
+  if (b.kind === 'tab') {
+    state.tab = b.id;
+    refresh();
+    return;
+  }
+
   if (b.kind === 'upgrade') {
-    doUpgrade(b.id);
+    doUpgrade(b.id, false);
+    return;
+  }
+
+  if (b.kind === 'clone-upgrade') {
+    doUpgrade(b.id, true);
     return;
   }
 

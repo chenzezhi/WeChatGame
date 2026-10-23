@@ -36,9 +36,17 @@ const state = {
   level: 1,
   xp: 0,
   xpNeed: cfg.XP_BASE,
+
+  // 主体属性
   fireMs: cfg.PLAYER_FIRE_MS_START,
   multishot: cfg.PLAYER_MULTI_START,
   damage: cfg.PLAYER_DAMAGE_START,
+
+  // 分身属性（完全独立）
+  cloneFireMs: cfg.PLAYER_FIRE_MS_START,
+  cloneMultishot: cfg.PLAYER_MULTI_START,
+  cloneDamage: cfg.PLAYER_DAMAGE_START,
+  cloneHpBonus: 0,
 
   joy: null,
   aimStick: null,
@@ -171,6 +179,25 @@ function cameraTargetOf(playerX) {
   return target > 0 ? target : 0;
 }
 
+// 伤害保留一位小数，避免浮点误差累积
+function roundDamage(v) {
+  const n = Math.round(v * 10) / 10;
+  return n > cfg.PLAYER_DAMAGE_MAX ? cfg.PLAYER_DAMAGE_MAX : n;
+}
+
+// 按升级等级算射击间隔
+function fireMsFrom(startMs, level, ratio) {
+  const lv = level > 0 ? level : 0;
+  let f = Math.round(startMs * Math.pow(ratio, lv));
+  if (f < cfg.PLAYER_FIRE_MS_MIN) f = cfg.PLAYER_FIRE_MS_MIN;
+  return f;
+}
+
+function clampMulti(n) {
+  const v = Math.max(1, n);
+  return v > cfg.PLAYER_MULTI_MAX ? cfg.PLAYER_MULTI_MAX : v;
+}
+
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
   state.bullets = bullets.create();
@@ -198,15 +225,15 @@ function resetWorld(startX) {
   state.level = 1;
   state.xp = 0;
   state.xpNeed = cfg.XP_BASE;
+
   state.fireMs = cfg.PLAYER_FIRE_MS_START;
   state.multishot = cfg.PLAYER_MULTI_START;
   state.damage = cfg.PLAYER_DAMAGE_START;
-}
 
-// 伤害保留一位小数，避免浮点误差累积
-function roundDamage(v) {
-  const n = Math.round(v * 10) / 10;
-  return n > cfg.PLAYER_DAMAGE_MAX ? cfg.PLAYER_DAMAGE_MAX : n;
+  state.cloneFireMs = cfg.PLAYER_FIRE_MS_START;
+  state.cloneMultishot = cfg.PLAYER_MULTI_START;
+  state.cloneDamage = cfg.PLAYER_DAMAGE_START;
+  state.cloneHpBonus = 0;
 }
 
 // 开局套用玩家资产：永久升级 + 本局已购道具（用完即扣）
@@ -220,30 +247,46 @@ function applyProfileAssets() {
   );
 
   const p = state.player;
+  const pu = prof.upgrades || {};
+  const cu = prof.cloneUpgrades || {};
 
-  const hpLv = prof.upgrades.hp || 0;
+  // ---------- 主体永久升级 ----------
+  const hpLv = pu.hp || 0;
   if (hpLv > 0 && p) {
-    p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + hpLv * 2);
+    p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + hpLv * cfg.SHOP_HP_GAIN);
     p.hp = p.maxHp;
   }
 
-  const fireLv = prof.upgrades.fire || 0;
-  if (fireLv > 0) {
-    let f = Math.round(state.fireMs * Math.pow(0.92, fireLv));
-    if (f < cfg.PLAYER_FIRE_MS_MIN) f = cfg.PLAYER_FIRE_MS_MIN;
-    state.fireMs = f;
+  if (pu.fire > 0) {
+    state.fireMs = fireMsFrom(state.fireMs, pu.fire, cfg.SHOP_FIRE_RATIO);
   }
 
-  const multiLv = prof.upgrades.multi || 0;
-  if (multiLv > 0) {
-    state.multishot = Math.min(cfg.PLAYER_MULTI_MAX, state.multishot + multiLv);
+  if (pu.multi > 0) {
+    state.multishot = clampMulti(state.multishot + pu.multi * cfg.SHOP_MULTI_GAIN);
   }
 
-  const damageLv = prof.upgrades.damage || 0;
-  if (damageLv > 0) {
-    state.damage = roundDamage(state.damage + damageLv * cfg.DAMAGE_SHOP_GAIN);
+  if (pu.damage > 0) {
+    state.damage = roundDamage(state.damage + pu.damage * cfg.SHOP_DAMAGE_GAIN);
   }
 
+  // ---------- 分身永久升级（独立，且不加道具） ----------
+  if (cu.fire > 0) {
+    state.cloneFireMs = fireMsFrom(state.cloneFireMs, cu.fire, cfg.SHOP_FIRE_RATIO);
+  }
+
+  if (cu.multi > 0) {
+    state.cloneMultishot = clampMulti(state.cloneMultishot + cu.multi * cfg.SHOP_MULTI_GAIN);
+  }
+
+  if (cu.damage > 0) {
+    state.cloneDamage = roundDamage(state.cloneDamage + cu.damage * cfg.SHOP_DAMAGE_GAIN);
+  }
+
+  if (cu.hp > 0) {
+    state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
+  }
+
+  // ---------- 本局道具（只作用于主体，买多少用多少） ----------
   const items = prof.items || {};
   let used = false;
 
@@ -261,7 +304,7 @@ function applyProfileAssets() {
   }
 
   if (items.multi > 0) {
-    state.multishot = Math.min(cfg.PLAYER_MULTI_MAX, state.multishot + items.multi);
+    state.multishot = clampMulti(state.multishot + items.multi);
     used = true;
   }
 
@@ -272,7 +315,7 @@ function applyProfileAssets() {
 
   if (items.clone > 0 && p) {
     for (let i = 0; i < items.clone; i++) {
-      clones.spawn(state.clones, p, cfg.CLONE_HP_BASE, 0);
+      clones.spawn(state.clones, p, cfg.CLONE_HP_BASE + state.cloneHpBonus, 0);
     }
     used = true;
   }
@@ -411,7 +454,14 @@ function fireUpdate(now) {
     const mx = cx + Math.cos(a) * p.w * 0.75;
     const my = cy + Math.sin(a) * p.w * 0.75;
 
-    bullets.spawn(state.bullets, mx, my, cx + Math.cos(a) * 900, cy + Math.sin(a) * 900);
+    bullets.spawn(
+      state.bullets,
+      mx, my,
+      cx + Math.cos(a) * 900,
+      cy + Math.sin(a) * 900,
+      undefined, undefined,
+      state.damage
+    );
   }
 }
 
@@ -450,7 +500,6 @@ function resolveBulletCollisions() {
 
 function resolvePlayerBullets(now) {
   const list = state.bullets.list;
-  const dmg = Math.max(0.1, state.damage || 1);
   let i = 0;
 
   while (i < list.length) {
@@ -462,6 +511,7 @@ function resolvePlayerBullets(now) {
       const bossX = e.x + e.w / 2;
       const xp = e.xp || 1;
       const stage = e.stage || 1;
+      const dmg = (b.dmg > 0) ? b.dmg : Math.max(0.1, state.damage || 1);
 
       list.splice(i, 1);
       audio.play('hit');
@@ -616,7 +666,8 @@ function applyPickup(it, now) {
     return;
   }
 
-  clones.spawn(state.clones, state.player, it.power, now);
+  // 分身：血量 = 道具强度 + 分身生命升级
+  clones.spawn(state.clones, state.player, (it.power || 1) + state.cloneHpBonus, now);
   audio.play('pickup');
 }
 
@@ -692,9 +743,11 @@ function update(dt, now) {
   pickups.update(state.pickups, dt, now);
   pickups.cull(state.pickups, state.cameraX);
 
+  // 分身：用分身自己的射速 / 发数 / 伤害
   clones.update(state.clones, dt, now, state.player, state.enemies, state.bullets, {
-    fireMs: state.fireMs,
-    multishot: state.multishot,
+    fireMs: state.cloneFireMs,
+    multishot: state.cloneMultishot,
+    damage: state.cloneDamage,
   });
   clones.cull(state.clones, state.cameraX);
 
