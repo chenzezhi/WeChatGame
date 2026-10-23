@@ -1,12 +1,13 @@
-// 微信小游戏：弹跳小球 + 触屏挡板 + 主菜单 + 本地存档 + 递增难度
+// 微信小游戏：弹跳小球 + 触屏挡板 + 主菜单 + 本地存档 + 递增难度 + 变色小球
 //
 // 难度：挡板初始占屏宽 50%，每得 20 分挡板变短一些。
 //      升级时不立刻降速，而是让小球用原来的速度弹到原来那么高，
 //      等它过了顶点开始下落，再逐帧平滑降回基础速度。
-// 操作：手指按下后左右滑动，挡板按「相对位移」移动（不是直接跳到手指下）。
+// 操作：手指按下后左右滑动，挡板按「相对位移 × DRAG_GAIN」移动。
+// 颜色：每接住一次球，色相前进一点（走完整个色环），明暗在深/浅之间来回摆动。
 // 构建号见 BUILD 常量，会显示在画面左上角，用于确认真机跑的是哪一版。
 
-const BUILD = 'B5';
+const BUILD = 'B6';
 
 const canvas = wx.createCanvas();
 const ctx = canvas.getContext('2d');
@@ -33,6 +34,9 @@ const MAX_SPEED = 22;
 const PADDLE_H = 18;
 const PADDLE_Y = height - 120;   // 挡板顶部 y
 
+// ⭐ 挡板相对手指的移动倍率：1 = 完全同步，越大越灵敏
+const DRAG_GAIN = 1.6;
+
 // ---------------- 难度参数 ----------------
 const LEVEL_STEP = 20;           // 每 20 分升一级
 const START_PADDLE_RATIO = 0.50; // 初始挡板 = 屏宽 50%
@@ -46,6 +50,13 @@ const BASE_SPEED = Math.sqrt(BASE_VX * BASE_VX + BASE_VY * BASE_VY);
 
 // 下落阶段每帧减速的幅度（越大恢复得越快）
 const SLOW_STEP = 0.40;
+
+// ---------------- 颜色参数 ----------------
+const HUE_START = 275;    // 起始色相：浅紫
+const HUE_STEP = 28;      // 每接住一次球，色相前进的角度（走得越慢，色环转得越久）
+const DEPTH_MIN = 0.05;   // 最浅
+const DEPTH_MAX = 1.00;   // 最深
+const DEPTH_STEP = 0.22;  // 每次碰撞深浅变化的幅度
 
 // ---------------- 状态 ----------------
 let state = 'menu';   // menu | countdown | playing | over
@@ -65,14 +76,89 @@ let paddleTargetX = paddleX;
 let slowPending = false;
 
 // 拖动锚点（相对位移用）
-let dragId = null;          // 正在用于拖挡板的手指 identifier
-let dragStartX = 0;         // 按下时的 canvas x
-let dragPaddleStart = 0;    // 按下时的 paddleTargetX
+let dragId = null;
+let dragStartX = 0;
+let dragPaddleStart = 0;
+
+// 颜色状态
+let ballHue = HUE_START;   // 当前色相
+let colorDepth = 0.35;     // 当前深浅：0 最浅，1 最深
+let colorDir = 1;          // 深浅变化方向：+1 变深，-1 变浅
 
 const ball = { x: width / 2, y: height * 0.4, vx: BASE_VX, vy: -BASE_VY };
 
 function clamp(v, min, max) {
   return v < min ? min : v > max ? max : v;
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+// ================= 颜色工具 =================
+// 自己实现 HSL→RGB，避免部分环境不支持 hsl() 字符串
+function hslRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s = clamp(s, 0, 100) / 100;
+  l = clamp(l, 0, 100) / 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const hp = h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let r1 = 0, g1 = 0, b1 = 0;
+
+  if (hp < 1)      { r1 = c; g1 = x; }
+  else if (hp < 2) { r1 = x; g1 = c; }
+  else if (hp < 3) { g1 = c; b1 = x; }
+  else if (hp < 4) { g1 = x; b1 = c; }
+  else if (hp < 5) { r1 = x; b1 = c; }
+  else             { r1 = c; b1 = x; }
+
+  const m = l - c / 2;
+  return [
+    Math.round((r1 + m) * 255),
+    Math.round((g1 + m) * 255),
+    Math.round((b1 + m) * 255),
+  ];
+}
+
+function rgbStr(c) {
+  return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+}
+
+function rgbaStr(c, a) {
+  return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+}
+
+// 根据当前色相 + 深浅，算出球体的三段颜色
+function ballPalette() {
+  const d = colorDepth;                 // 0 最浅 → 1 最深
+  const sat = lerp(70, 95, d);          // 越深越饱和
+  return {
+    outer: hslRgb(ballHue, sat, lerp(72, 28, d)),        // 外圈
+    mid:   hslRgb(ballHue, sat, lerp(84, 46, d)),        // 中间
+    hi:    hslRgb(ballHue, Math.max(35, sat - 25), lerp(96, 82, d)), // 高光处
+  };
+}
+
+// 接住一次球：色相前进 + 深浅来回摆动
+function shiftBallColor() {
+  ballHue = (ballHue + HUE_STEP) % 360;
+
+  colorDepth += colorDir * DEPTH_STEP;
+  if (colorDepth >= DEPTH_MAX) {
+    colorDepth = DEPTH_MAX;
+    colorDir = -1;             // 到最深了，开始变浅
+  } else if (colorDepth <= DEPTH_MIN) {
+    colorDepth = DEPTH_MIN;
+    colorDir = 1;              // 到最浅了，重新变深
+  }
+}
+
+function resetBallColor() {
+  ballHue = HUE_START;
+  colorDepth = 0.35;
+  colorDir = 1;
 }
 
 // 第 level 级的挡板宽度
@@ -95,6 +181,9 @@ function saveGame() {
     level: level,
     ball: { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy },
     paddle: paddleX,
+    hue: ballHue,
+    depth: colorDepth,
+    dir: colorDir,
     time: Date.now(),
   };
   try {
@@ -125,6 +214,11 @@ function loadGame() {
     0, width - paddleW
   );
   paddleTargetX = paddleX;
+
+  ballHue = typeof data.hue === 'number' ? data.hue % 360 : HUE_START;
+  colorDepth = typeof data.depth === 'number' ? clamp(data.depth, DEPTH_MIN, DEPTH_MAX) : 0.35;
+  colorDir = data.dir === -1 ? -1 : 1;
+
   slowPending = false;
   hasGame = true;
   return true;
@@ -148,8 +242,7 @@ function refreshSaveFlag() {
 }
 
 // ================= 难度 =================
-// 升级：挡板变短（中心不动）+ 标记「稍后再降速」
-// 注意：这里故意不改速度，让小球用原来的速度弹到原来的高度。
+// 升级：挡板变短（中心不动）+ 标记「稍后再降速」；刻度不改速度，先弹高
 function setLevel(lv) {
   level = lv;
   const center = paddleX + paddleW / 2;
@@ -159,10 +252,10 @@ function setLevel(lv) {
   slowPending = true;
 }
 
-// 下落阶段把速度平滑降回基础速度（只降不升，不会把水平速度放大）
+// 下落阶段把速度平滑降回基础速度
 function applySlowDown() {
   if (!slowPending) return;
-  if (ball.vy <= 0) return; // 还在上升（或刚到顶点）：保持原速度，弹得和之前一样高
+  if (ball.vy <= 0) return; // 上升中：保持原速度，弹得和之前一样高
 
   const cur = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
   if (cur > BASE_SPEED + 0.05) {
@@ -171,7 +264,7 @@ function applySlowDown() {
     ball.vx *= k;
     ball.vy *= k;
   } else {
-    slowPending = false; // 已经回到基础速度
+    slowPending = false;
   }
 }
 
@@ -198,6 +291,7 @@ function startNewGame() {
   paddleX = (width - paddleW) / 2;
   paddleTargetX = paddleX;
   resetBall();
+  resetBallColor();
   hasGame = true;
   beginCountdown();
 }
@@ -269,11 +363,11 @@ function beginDrag(t) {
   dragPaddleStart = paddleTargetX;
 }
 
-// 移动：挡板位移 = 手指相对按下点的位移
+// 移动：挡板位移 = 手指相对按下点的位移 × DRAG_GAIN
 function updateDrag(t) {
   const p = touchPoint(t);
   const dx = p.x - dragStartX;
-  paddleTargetX = clamp(dragPaddleStart + dx, 0, width - paddleW);
+  paddleTargetX = clamp(dragPaddleStart + dx * DRAG_GAIN, 0, width - paddleW);
 }
 
 function findTouch(list) {
@@ -300,7 +394,6 @@ wx.onTouchStart(function (e) {
     return;
   }
 
-  // 倒计时 / 游戏中：开始拖动
   if (dragId === null) beginDrag(t);
 });
 
@@ -343,7 +436,7 @@ if (typeof wx.onShow === 'function') {
 
 // ================= 逻辑更新 =================
 function update(now) {
-  // 挡板平滑跟随目标
+  // 挡板平滑跟随目标（0.45 为跟手顺滑度）
   paddleX += (paddleTargetX - paddleX) * 0.45;
   paddleX = clamp(paddleX, 0, width - paddleW);
 
@@ -390,7 +483,7 @@ function update(now) {
 
   if (ball.vy > 0 && overlapX && crossedTop && reachedTop) {
     ball.y = PADDLE_Y - BALL_R;
-    // 先用当前速度弹起（弹得和之前一样高），降速交给 applySlowDown 在下落时处理
+    // 先用当前速度弹起（弹得和之前一样高），降速交给 applySlowDown
     ball.vy = -Math.max(Math.abs(ball.vy) * 1.02, BASE_VY);
     const hitRatio = (ball.x - (paddleLeft + paddleW / 2)) / (paddleW / 2);
     ball.vx = clamp(ball.vx + hitRatio * 6, -MAX_SPEED, MAX_SPEED);
@@ -398,7 +491,10 @@ function update(now) {
 
     score++;
 
-    // 每 LEVEL_STEP 分升一级：挡板变短；降速延后到下落阶段
+    // ⭐ 每接住一次：换色
+    shiftBallColor();
+
+    // 每 LEVEL_STEP 分升一级：挡板变短 + 降低延后到下落阶段
     const newLevel = Math.floor(score / LEVEL_STEP);
     if (newLevel > level) setLevel(newLevel);
   }
@@ -444,22 +540,33 @@ function drawBackground() {
   ctx.fillRect(0, 0, width, height);
 }
 
-// 球体：先画实心圆，再叠渐变和高光
+// 球体：径向渐变 + 高光，颜色跟随 ballHue / colorDepth 变化
 function drawBall() {
-  fillCircle(ball.x, ball.y, BALL_R, '#b9b2d0');
+  const p = ballPalette();
+
+  // 先铺一层实心圆兜底（渐变失败也不至于看不见球）
+  fillCircle(ball.x, ball.y, BALL_R, rgbStr(p.mid));
+
   try {
     const grad = ctx.createRadialGradient(
       ball.x - BALL_R * 0.35, ball.y - BALL_R * 0.35, BALL_R * 0.12,
       ball.x, ball.y, BALL_R
     );
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(0.65, '#e3dff0');
-    grad.addColorStop(1, '#b9b2d0');
+    grad.addColorStop(0, rgbStr(p.hi));
+    grad.addColorStop(0.65, rgbStr(p.mid));
+    grad.addColorStop(1, rgbStr(p.outer));
     fillCircle(ball.x, ball.y, BALL_R, grad);
   } catch (e) {
-    // 渐变失败就用纯色
+    // 渐变失败就用上面的纯色
   }
-  fillCircle(ball.x - BALL_R * 0.32, ball.y - BALL_R * 0.34, BALL_R * 0.18, 'rgba(255,255,255,0.9)');
+
+  // 高光小圆点
+  fillCircle(
+    ball.x - BALL_R * 0.32,
+    ball.y - BALL_R * 0.34,
+    BALL_R * 0.18,
+    rgbaStr(p.hi, 0.9)
+  );
 }
 
 function drawPaddle() {
