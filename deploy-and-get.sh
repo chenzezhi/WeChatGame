@@ -28,8 +28,8 @@ git add .
 if git diff-index --quiet HEAD --; then
   echo "提示：当前没有检测到新的代码改动，将直接尝试拉取最新预览二维码..."
 else
-  echo "请输入本次提交的说明 (Commit message，直接回车默认用 'auto: 自动提交更新'):"
-  read -r commit_msg
+  # echo "请输入本次提交的说明 (Commit message，直接回车默认用 'auto: 自动提交更新'):"
+  # read -r commit_msg
   if [ -z "$commit_msg" ]; then
     commit_msg="auto: 自动提交更新"
   fi
