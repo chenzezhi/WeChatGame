@@ -100,8 +100,8 @@ const ENEMY_CONTACT_COOLDOWN_MS = 700;
 // ---------------- Boss ----------------
 const BOSS_EVERY_M = 1000;
 const BOSS_SCALE = 2.4;
-const BOSS_HP_MULT_START = 20;          // 血量 = 当前小怪血量 × 20（第 1 个 Boss）
-const BOSS_HP_MULT_GROWTH = 0.3;        // 每个 Boss 倍率再 +0.3 → 20 / 26 / 32 …
+const BOSS_HP_MULT_START = 10;          // 血量 = 当前小怪血量 × 10（第 1 个 Boss）
+const BOSS_HP_MULT_GROWTH = 0.3;        // 每个 Boss 倍率再 +0.3 → 10 / 13 / 16 / 19 …
 const BOSS_FIRE_MULT_START = 1.5;
 const BOSS_FIRE_MULT_GROWTH = 0.35;
 const BOSS_FIRE_MS_MIN = 130;
@@ -109,9 +109,12 @@ const BOSS_BULLET_BASE = 3;
 const BOSS_BULLET_STEP = 2;
 const BOSS_BULLET_MAX = 9;
 const BOSS_BULLET_SPREAD_DEG = 13;
-const BOSS_MINION_MIN_MS = 1700;
-const BOSS_MINION_MAX_MS = 4300;
-const BOSS_MINION_SHRINK_MS = 220;
+
+// 召唤小怪：间隔越大 = 越少
+const BOSS_MINION_MIN_MS = 3200;
+const BOSS_MINION_MAX_MS = 7000;
+const BOSS_MINION_SHRINK_MS = 200;
+
 const BOSS_DROP_BASE = 3;
 const BOSS_DROP_STEP = 2;
 const BOSS_DROP_MAX = 14;

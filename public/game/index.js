@@ -8,6 +8,7 @@ const enemies = require('./enemies.js');
 const pickups = require('./pickups.js');
 const clones = require('./clones.js');
 const view = require('./view.js');
+const audio = require('../core/audio.js');
 
 const scenes = require('../core/scenes.js');
 const storage = require('../core/storage.js');
@@ -43,6 +44,8 @@ const state = {
   firing: false,
   aimAngle: 0,
   nextFireAt: 0,
+
+  bossAlive: false,
 };
 
 function distanceOf(x) {
@@ -96,6 +99,7 @@ function resetWorld(startX) {
   state.nextFireAt = 0;
   state.deadAt = 0;
   state.playerHitAt = 0;
+  state.bossAlive = false;
 
   state.level = 1;
   state.xp = 0;
@@ -116,7 +120,6 @@ function applyProfileAssets() {
 
   const p = state.player;
 
-  // 永久属性升级
   const hpLv = prof.upgrades.hp || 0;
   if (hpLv > 0 && p) {
     p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + hpLv * 2);
@@ -135,7 +138,6 @@ function applyProfileAssets() {
     state.multishot = Math.min(cfg.PLAYER_MULTI_MAX, state.multishot + multiLv);
   }
 
-  // 本局道具（买多少用多少）
   const items = prof.items || {};
   let used = false;
 
@@ -164,7 +166,6 @@ function applyProfileAssets() {
     used = true;
   }
 
-  // 消耗掉本局道具
   if (used) {
     prof.items = { heal: 0, speed: 0, multi: 0, clone: 0 };
     profile.write(prof);
@@ -198,6 +199,7 @@ function exit() {
   if (state.phase === 'playing') saveProgress();
   input.reset();
   state.paused = false;
+  audio.play('pickup');
 }
 
 // ---------- 金币 ----------
@@ -211,7 +213,7 @@ function addCoins(n) {
   profile.write(prof);
 }
 
-// ---------- 升级：血量 / 攻速 / 子弹数一起成长 ----------
+// ---------- 升级：血量 / 攻速 / 子弹数一起成长，并且回满血 ----------
 function applyLevelUp() {
   state.level += 1;
   state.xpNeed = cfg.XP_BASE + cfg.XP_STEP * (state.level - 1);
@@ -220,7 +222,7 @@ function applyLevelUp() {
 
   if (p) {
     p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + cfg.LEVEL_HP_GAIN);
-    p.hp = Math.min(p.maxHp, p.hp + cfg.LEVEL_HP_GAIN);
+    p.hp = p.maxHp;   // 升级回满血
   }
 
   let f = Math.round(state.fireMs * cfg.LEVEL_FIRE_RATIO);
@@ -248,12 +250,18 @@ function damagePlayer(amount, now) {
   if (!p || !p.alive) return;
 
   const dead = playerKit.damage(p, amount, now);
-  if (!dead) return;
+  if (!dead) {
+    audio.play('hurt');
+    return;
+  }
 
   state.phase = 'dead';
   state.deadAt = now;
   state.firing = false;
   state.aimStick = null;
+  state.bossAlive = false;
+
+  audio.play('hurt');
 
   // 死亡：删掉进度存档（玩家资产 profile.json 不受影响）
   storage.clear();
@@ -276,6 +284,8 @@ function fireUpdate(now) {
 
   if (now < state.nextFireAt) return;
   state.nextFireAt = now + state.fireMs;
+
+  audio.play('shoot');
 
   const cx = p.x + p.w / 2;
   const cy = p.y + p.h * 0.45;
@@ -307,6 +317,7 @@ function resolvePlayerBullets(now) {
       const stage = e.stage || 1;
 
       list.splice(i, 1);
+      audio.play('hit');
 
       const killed = enemies.damage(state.enemies, e, 1, now);
 
@@ -314,7 +325,8 @@ function resolvePlayerBullets(now) {
         gainXp(xp);
 
         if (wasBoss) {
-          // Boss 击杀：记录次数（影响金币价值）+ 掉落大量道具
+          state.bossAlive = false;
+
           const prof = profile.read();
           prof.bossKills = (prof.bossKills || 0) + 1;
           prof.coins = state.coins;
@@ -327,7 +339,9 @@ function resolvePlayerBullets(now) {
 
           const count = cfg.BOSS_DROP_BASE + cfg.BOSS_DROP_STEP * (stage - 1) + Math.floor(state.distance / 1000);
           const n = count > cfg.BOSS_DROP_MAX ? cfg.BOSS_DROP_MAX : count;
-          pickups.spawnBurst(state.pickups, bossX, state.distance, now, n);
+          pickups.spawnBurst(state.pickups, bossX, state.distance, now, n, state.coinValue);
+
+          audio.play('pickup');
         }
       }
 
@@ -426,26 +440,31 @@ function applyPickup(it, now) {
   if (it.kind === 'speed') {
     const next = Math.round(state.fireMs * cfg.SPEED_ITEM_RATIO);
     state.fireMs = next < cfg.PLAYER_FIRE_MS_MIN ? cfg.PLAYER_FIRE_MS_MIN : next;
+    audio.play('pickup');
     return;
   }
 
   if (it.kind === 'multi') {
     if (state.multishot < cfg.PLAYER_MULTI_MAX) state.multishot += 1;
+    audio.play('pickup');
     return;
   }
 
   if (it.kind === 'heal') {
     const p = state.player;
     if (p) p.hp = Math.min(p.maxHp, p.hp + (it.amount || 1));
+    audio.play('pickup');
     return;
   }
 
   if (it.kind === 'coin') {
     addCoins(it.amount || state.coinValue);
+    audio.play('coin');
     return;
   }
 
   clones.spawn(state.clones, state.player, it.power, now);
+  audio.play('pickup');
 }
 
 function resolvePickups(now) {
@@ -464,6 +483,22 @@ function resolvePickups(now) {
 
   pickups.take(state.pickups, it);
   applyPickup(it, now);
+}
+
+// Boss 登场提示音（同屏出现新 Boss 时播一次）
+function trackBoss() {
+  let has = false;
+  const list = state.enemies.list;
+
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].isBoss) {
+      has = true;
+      break;
+    }
+  }
+
+  if (has && !state.bossAlive) audio.play('boss');
+  state.bossAlive = has;
 }
 
 function update(dt, now) {
@@ -489,6 +524,8 @@ function update(dt, now) {
   enemies.spawnAhead(state.enemies, state.player.x, state.distance, now);
   enemies.update(state.enemies, dt, now, state.player, state.eBullets, state.distance);
   enemies.cull(state.enemies, state.cameraX);
+
+  trackBoss();
 
   pickups.spawnAhead(state.pickups, state.player.x, state.distance, now, state.coinValue);
   pickups.update(state.pickups, dt, now);
@@ -547,6 +584,7 @@ if (typeof wx.onHide === 'function') {
       state.paused = true;
       saveProgress();
     }
+    audio.pauseBgm();
   });
 }
 
@@ -554,6 +592,7 @@ if (typeof wx.onShow === 'function') {
   wx.onShow(function () {
     state.paused = false;
     input.reset();
+    audio.playBgm();
   });
 }
 
