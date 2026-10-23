@@ -1,5 +1,4 @@
 // 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + HUD。
-// 具体人物 / 敌人 / 特效分别在同目录的 draw*.js 里。
 
 const cfg = require('./config.js');
 const pal = require('./palette.js');
@@ -11,9 +10,12 @@ const drawPickup = require('./drawPickup.js');
 const drawClone = require('./drawClone.js');
 
 const C = pal.C;
-const BUILD = 'game-9';
+const BUILD = 'game-10';
 
-// ---------------------------------------------------------------- 背景
+const XP_FILL = '#ffcf4d';
+const ICON_DARK = '#1d3a52';
+
+// ---------------- 背景 ----------------
 const CLOUD_SPAN = 1500;
 const CLOUDS = [];
 (function buildClouds() {
@@ -145,7 +147,7 @@ function drawGround(ctx, cameraX) {
   }
 }
 
-// ---------------------------------------------------------------- 爱心路径
+// ---------------- 图标 ----------------
 function heartPath(ctx, cx, cy, r) {
   ctx.beginPath();
   ctx.moveTo(cx, cy + r * 0.78);
@@ -154,8 +156,52 @@ function heartPath(ctx, cx, cy, r) {
   ctx.closePath();
 }
 
-// ---------------------------------------------------------------- HUD
-// 血量：一颗红心 + 旁边放大的数字
+function iconClone(ctx, cx, cy, r) {
+  ctx.fillStyle = ICON_DARK;
+
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.32, cy - r * 0.30, r * 0.34, 0, Math.PI * 2);
+  ctx.fill();
+  util.roundRectPath(ctx, cx - r * 0.62, cy + r * 0.02, r * 0.60, r * 0.72, r * 0.24);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.arc(cx + r * 0.38, cy - r * 0.12, r * 0.28, 0, Math.PI * 2);
+  ctx.fill();
+  util.roundRectPath(ctx, cx + r * 0.14, cy + r * 0.16, r * 0.48, r * 0.58, r * 0.2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function iconSpeed(ctx, cx, cy, r) {
+  ctx.fillStyle = ICON_DARK;
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.20, cy - r * 0.85);
+  ctx.lineTo(cx - r * 0.55, cy + r * 0.10);
+  ctx.lineTo(cx - r * 0.05, cy + r * 0.10);
+  ctx.lineTo(cx - r * 0.20, cy + r * 0.85);
+  ctx.lineTo(cx + r * 0.58, cy - r * 0.15);
+  ctx.lineTo(cx + r * 0.05, cy - r * 0.15);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function iconBullet(ctx, cx, cy, r) {
+  ctx.fillStyle = ICON_DARK;
+  const offs = [-r * 0.55, 0, r * 0.55];
+
+  for (let i = 0; i < 3; i++) {
+    const bx = cx + offs[i];
+    util.roundRectPath(ctx, bx - r * 0.16, cy - r * 0.34, r * 0.32, r * 0.76, r * 0.16);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(bx, cy - r * 0.36, r * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ---------------- HUD ----------------
 function drawHp(ctx, player) {
   if (!player) return;
 
@@ -164,7 +210,7 @@ function drawHp(ctx, player) {
 
   const r = 11;
   const x0 = 16;
-  const cy = 38;
+  const cy = 40;
   const font = 'bold 26px sans-serif';
 
   ctx.font = font;
@@ -179,7 +225,6 @@ function drawHp(ctx, player) {
   util.roundRectPath(ctx, pillX, pillY, pillW, pillH, 15);
   ctx.fill();
 
-  // 红心
   const hx = x0 + r;
   ctx.fillStyle = C.hpPip;
   heartPath(ctx, hx, cy, r);
@@ -189,19 +234,90 @@ function drawHp(ctx, player) {
   heartPath(ctx, hx - r * 0.28, cy - r * 0.34, r * 0.34);
   ctx.fill();
 
-  // 数字（放大）
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = C.hudText;
   ctx.font = font;
   ctx.fillText(num, x0 + r * 2 + 12, cy + 1);
 
-  ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
+}
+
+function drawXp(ctx, state) {
+  const x0 = 15;
+  const y0 = 74;
+  const w = Math.round(cfg.WIDTH * 0.42);
+  const h = 9;
+
+  const need = state.xpNeed > 0 ? state.xpNeed : 1;
+  let ratio = state.xp / need;
+  if (ratio < 0) ratio = 0;
+  if (ratio > 1) ratio = 1;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  util.roundRectPath(ctx, x0 - 6, y0 - 5, w + 12, h + 10, 7);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  util.roundRectPath(ctx, x0, y0, w, h, 4);
+  ctx.fill();
+
+  if (ratio > 0) {
+    ctx.fillStyle = XP_FILL;
+    util.roundRectPath(ctx, x0, y0, Math.max(3, w * ratio), h, 4);
+    ctx.fill();
+  }
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = C.hudText;
+  ctx.fillText('Lv.' + state.level, x0 + w + 12, y0 + h / 2 + 1);
+
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawStatPill(ctx, x, y, iconFn, value) {
+  const h = 28;
+
+  ctx.font = 'bold 15px sans-serif';
+  const tw = ctx.measureText(value).width;
+  const w = 30 + tw + 12;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.80)';
+  util.roundRectPath(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+
+  iconFn(ctx, x + 16, y + h / 2, 8);
+
+  ctx.fillStyle = C.hudText;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(value, x + 29, y + h / 2 + 1);
+
+  ctx.textBaseline = 'alphabetic';
+
+  return w;
+}
+
+function drawStats(ctx, state) {
+  const y = 96;
+  const gap = 7;
+  let x = 15;
+
+  const cloneCount = state.clones ? state.clones.list.length : 0;
+  const speed = cfg.PLAYER_FIRE_MS_START / Math.max(1, state.fireMs || cfg.PLAYER_FIRE_MS_START);
+  const multi = state.multishot || cfg.PLAYER_MULTI_START;
+
+  x += drawStatPill(ctx, x, y, iconClone, String(cloneCount)) + gap;
+  x += drawStatPill(ctx, x, y, iconSpeed, 'x' + speed.toFixed(1)) + gap;
+  x += drawStatPill(ctx, x, y, iconBullet, String(multi)) + gap;
 }
 
 function drawHud(ctx, state) {
   drawHp(ctx, state.player);
+  drawXp(ctx, state);
+  drawStats(ctx, state);
 
   const w = 112;
   const h = 36;
@@ -225,13 +341,12 @@ function drawHud(ctx, state) {
   }
 
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
   ctx.font = '12px sans-serif';
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
   ctx.fillText('左下摇杆移动（上推跳跃） · 按住其它位置射击', cfg.WIDTH / 2, cfg.HEIGHT - 16);
 
-  // 左下角：版本号（小字体）
   ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
   ctx.font = '10px sans-serif';
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
   ctx.fillText(BUILD, 10, cfg.HEIGHT - 6);
@@ -278,7 +393,7 @@ function drawDead(ctx, state, now) {
   ctx.textBaseline = 'alphabetic';
 }
 
-// ---------------------------------------------------------------- 总入口
+// ---------------- 总入口 ----------------
 function draw(ctx, state, now) {
   const cameraX = state.cameraX || 0;
 
