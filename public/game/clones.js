@@ -1,5 +1,6 @@
 // 分身（复制体）：玩家吃到「分身」道具后生成一个客体。
-// 物理与动画完全复用 player.js；射速与子弹数跟主体同步。
+// 物理与动画复用 player.js；但射速 / 发数 / 伤害用的是「分身自己的属性」，
+// 和主体完全独立（主体升级了也不会让分身变强）。
 
 const cfg = require('./config.js');
 const playerKit = require('./player.js');
@@ -32,6 +33,7 @@ function nearestEnemy(enemies, x) {
   return best;
 }
 
+// hp：这个分身的最大生命（由调用方算好：基础 + 升级 + 道具强度）
 function spawn(level, owner, hp, now) {
   const ox = owner ? owner.x : cfg.START_X;
   const c = playerKit.create(Math.max(0, ox - cfg.PLAYER_W * 1.4));
@@ -51,12 +53,13 @@ function spawn(level, owner, hp, now) {
   return c;
 }
 
-// stats: { fireMs, multishot } —— 跟主体完全一致
+// stats: { fireMs, multishot, damage } —— 分身的独立属性
 function update(level, dt, now, owner, enemies, playerBullets, stats) {
   const list = level.list;
 
   const fireMs = (stats && stats.fireMs > 0) ? stats.fireMs : cfg.PLAYER_FIRE_MS_START;
   const multi = (stats && stats.multishot > 0) ? stats.multishot : 1;
+  const dmg = (stats && stats.damage > 0) ? stats.damage : cfg.PLAYER_DAMAGE_START;
   const step = (cfg.MULTI_SPREAD_DEG * Math.PI) / 180;
 
   let i = 0;
@@ -93,7 +96,7 @@ function update(level, dt, now, owner, enemies, playerBullets, stats) {
           const mx = cx + Math.cos(a) * c.w * 0.75;
           const my = cy + Math.sin(a) * c.w * 0.75;
 
-          bullets.spawn(playerBullets, mx, my, cx + Math.cos(a) * 900, cy + Math.sin(a) * 900);
+          bullets.spawn(playerBullets, mx, my, cx + Math.cos(a) * 900, cy + Math.sin(a) * 900, undefined, undefined, dmg);
         }
       }
     } else {

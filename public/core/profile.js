@@ -1,5 +1,8 @@
 // 玩家资产（金币 / 商店升级 / 已购道具）：与游戏进度存档无关，永久保留。
 // 进度存档是 save.json（可被死亡删除），资产存档是 profile.json（永不删除）。
+//
+// upgrades      主体属性升级
+// cloneUpgrades 分身属性升级（独立计算，价格是主体的两倍）
 
 const FILE_NAME = 'profile.json';
 const USER_DATA = (wx.env && wx.env.USER_DATA_PATH) || '';
@@ -20,6 +23,7 @@ function defaults() {
     coins: 0,
     bossKills: 0,
     upgrades: { hp: 0, fire: 0, multi: 0, damage: 0 },
+    cloneUpgrades: { hp: 0, fire: 0, multi: 0, damage: 0 },
     items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0 },
   };
 }
@@ -29,6 +33,16 @@ function int(v) {
   return n > 0 ? n : 0;
 }
 
+function readUpgrades(src) {
+  const u = src || {};
+  return {
+    hp: int(u.hp),
+    fire: int(u.fire),
+    multi: int(u.multi),
+    damage: int(u.damage),
+  };
+}
+
 function normalize(src) {
   const out = defaults();
   if (!src || typeof src !== 'object') return out;
@@ -36,11 +50,8 @@ function normalize(src) {
   out.coins = int(src.coins);
   out.bossKills = int(src.bossKills);
 
-  const u = src.upgrades || {};
-  out.upgrades.hp = int(u.hp);
-  out.upgrades.fire = int(u.fire);
-  out.upgrades.multi = int(u.multi);
-  out.upgrades.damage = int(u.damage);
+  out.upgrades = readUpgrades(src.upgrades);
+  out.cloneUpgrades = readUpgrades(src.cloneUpgrades);
 
   const it = src.items || {};
   out.items.heal = int(it.heal);

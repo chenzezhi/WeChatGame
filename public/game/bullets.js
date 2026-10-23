@@ -1,5 +1,6 @@
 // 子弹模块：生成、飞行、回收。只维护数据，绘制在 view.js。
 // 玩家子弹与敌人子弹各用一个容器（create() 出来的对象互不影响）。
+// 每发子弹可以自带 dmg（主体和分身伤害不同，互不干扰）。
 
 const cfg = require('./config.js');
 
@@ -7,8 +8,8 @@ function create() {
   return { list: [] };
 }
 
-// 从 (ox, oy) 朝 (tx, ty) 打一发；speed / radius 可选
-function spawn(level, ox, oy, tx, ty, speed, radius) {
+// 从 (ox, oy) 朝 (tx, ty) 打一发；speed / radius / dmg 可选
+function spawn(level, ox, oy, tx, ty, speed, radius, dmg) {
   let dx = tx - ox;
   let dy = ty - oy;
 
@@ -29,6 +30,7 @@ function spawn(level, ox, oy, tx, ty, speed, radius) {
     vx: dx * v,
     vy: dy * v,
     r: typeof radius === 'number' ? radius : cfg.BULLET_R,
+    dmg: typeof dmg === 'number' ? dmg : 0,
     life: cfg.BULLET_LIFE_MS,
     age: 0,
   });

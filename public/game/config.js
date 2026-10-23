@@ -72,9 +72,18 @@ const DAMAGE_SHOP_GAIN = 0.1;
 
 // ---------------- 升级成长 ----------------
 const LEVEL_HP_GAIN = 1;
-const LEVEL_FIRE_RATIO = 0.97;   // 每级只变快 3%（原来 6%，太快了）
+const LEVEL_FIRE_RATIO = 0.985;  // 每级只快 1.5%（成长速度再次下调）
 const LEVEL_MULTI_EVERY = 3;
 const LEVEL_HP_MAX = 60;
+
+// ---------------- 商店属性加成 ----------------
+const SHOP_HP_GAIN = 2;          // 每级生命上限 +2
+const SHOP_FIRE_RATIO = 0.92;    // 每级射击间隔 ×0.92
+const SHOP_MULTI_GAIN = 1;       // 每级子弹数 +1
+const SHOP_DAMAGE_GAIN = 0.1;    // 每级伤害 +0.1
+
+// 分身升级价格 = 主体 × 该倍率
+const CLONE_COST_MULT = 2;
 
 // ---------------- 小怪 ----------------
 const ENEMY_GAP_START_M = 100;
@@ -118,7 +127,7 @@ const BOSS_HP_MULT_GROWTH = 0.45;       // 成长比原来快 50% → 10 / 15 / 
 
 // 开火倍率：数值越大开火越快（1.0 = 与小怪同速，<1 = 比小怪慢）
 const BOSS_FIRE_MULT_START = 0.9;       // 第 1 个 Boss：比小怪慢 10%
-const BOSS_FIRE_MULT_GROWTH = 0.525;    // 成长比原来快 50% → 0.9 / 1.37 / 1.85 …
+const BOSS_FIRE_MULT_GROWTH = 0.525;    // 成长比原来快 50%
 const BOSS_FIRE_MS_MIN = 130;
 
 // 一次散射发数
@@ -173,7 +182,7 @@ const CLONE_MAX = 3;
 const CLONE_FIRE_MS = 260;
 const CLONE_JUMP_MIN_MS = 900;
 const CLONE_JUMP_MAX_MS = 2600;
-const CLONE_HP_BASE = 3;
+const CLONE_HP_BASE = 3;      // 分身道具额外附带的血量
 const CLONE_HP_STEP_M = 400;
 const CLONE_HP_MAX = 12;
 
@@ -236,6 +245,11 @@ module.exports = {
   LEVEL_FIRE_RATIO: LEVEL_FIRE_RATIO,
   LEVEL_MULTI_EVERY: LEVEL_MULTI_EVERY,
   LEVEL_HP_MAX: LEVEL_HP_MAX,
+  SHOP_HP_GAIN: SHOP_HP_GAIN,
+  SHOP_FIRE_RATIO: SHOP_FIRE_RATIO,
+  SHOP_MULTI_GAIN: SHOP_MULTI_GAIN,
+  SHOP_DAMAGE_GAIN: SHOP_DAMAGE_GAIN,
+  CLONE_COST_MULT: CLONE_COST_MULT,
   ENEMY_GAP_START_M: ENEMY_GAP_START_M,
   ENEMY_GAP_MIN_M: ENEMY_GAP_MIN_M,
   ENEMY_GAP_DECAY: ENEMY_GAP_DECAY,
