@@ -2,21 +2,21 @@
 
 const canvasKit = require('../core/canvas.js');
 
-const WIDTH_RATIO = 0.68;   // 按钮宽度占屏宽
+const WIDTH_RATIO = 0.68;
 const WIDTH_MAX = 420;
-const HEIGHT_MIN = 46;
-const HEIGHT_RATIO = 0.066; // 按钮高度占屏高
-const GAP_RATIO = 0.40;     // 按钮间距 = 高度 × 该系数
-const TOP_RATIO = 0.44;     // 第一个按钮的 y 位置
+const HEIGHT_MIN = 44;
+const HEIGHT_RATIO = 0.062;
+const GAP_RATIO = 0.34;
+const TOP_RATIO = 0.40;
 
 const DEFS = [
   { id: 'start', label: '开始游戏' },
   { id: 'load', label: '读取游戏' },
   { id: 'shop', label: '商店' },
+  { id: 'settings', label: '游戏设置' },
   { id: 'exit', label: '退出游戏' },
 ];
 
-// 生成按钮矩形列表
 function build() {
   const width = canvasKit.width;
   const height = canvasKit.height;
@@ -41,7 +41,6 @@ function build() {
   return out;
 }
 
-// 命中检测：返回被点到的按钮，没有则 null
 function hit(items, x, y) {
   if (!items) return null;
   for (let i = 0; i < items.length; i++) {

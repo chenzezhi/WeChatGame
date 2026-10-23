@@ -1,19 +1,19 @@
-// 音频：背景音乐 + 音效。
+// 音频：背景音乐 + 音效，两者有独立开关（设置页可切换，存于 settings.json）。
 //
-// 资源放在项目根目录的 audio/ 下，**扩展名可任选其一**（按 EXT_ORDER 依次尝试）：
+// 资源放在 audio/ 下，扩展名按 EXT_ORDER 依次尝试（mp3 / m4a / wav / aac）：
 //   audio/bgm            背景音乐（循环）
 //   audio/shoot          玩家开火
 //   audio/enemy-shoot    敌人开火
-//   audio/hit            子弹命中敌人
+//   audio/hit            命中
 //   audio/pickup         拾取道具
 //   audio/coin           拾取金币
-//   audio/hurt           玩家受伤
+//   audio/hurt           受伤
 //   audio/boss           Boss 登场
 //
-// 例如 bgm.mp3 / bgm.m4a / bgm.wav / bgm.aac 都行，代码会挑第一个能播的。
-// 资源缺失时静默降级：只标记缺失，不抛异常，不影响游戏运行。
+// 资源缺失时静默降级，不影响游戏运行。
 
-// 尝试顺序：微信小游戏常见支持 mp3 / m4a / aac / wav
+const settings = require('./settings.js');
+
 const EXT_ORDER = ['mp3', 'm4a', 'wav', 'aac'];
 
 const BASE = {
@@ -30,7 +30,6 @@ const BASE = {
 const BGM_VOLUME = 0.30;
 const SFX_VOLUME = 0.60;
 
-// 每种音效的最小触发间隔（毫秒）：避免密集触发把声音糊成一片
 const MIN_GAP = {
   shoot: 60,
   enemyShoot: 110,
@@ -41,7 +40,7 @@ const MIN_GAP = {
   boss: 500,
 };
 
-const POOL_SIZE = 3; // 每种音效准备几个实例，便于快速重复触发
+const POOL_SIZE = 3;
 
 let supported = false;
 try {
@@ -51,19 +50,26 @@ try {
 }
 
 const st = {
-  muted: false,
+  musicOn: true,
+  sfxOn: true,
   bgm: null,
   bgmSrc: '',
   bgmPlaying: false,
   bgmWanted: false,
-  pools: {},      // name -> [audio]
-  poolIdx: {},    // name -> 下一个要用的下标
-  poolSrc: {},    // name -> 当前池对应的 src
-  extIdx: {},     // name -> EXT_ORDER 的下标（回退用）
-  lastAt: {},     // name -> 上次播放时间
+  pools: {},
+  poolIdx: {},
+  poolSrc: {},
+  extIdx: {},
+  lastAt: {},
 };
 
-// ---------------- 扩展名回退 ----------------
+// 启动时读取开关
+(function init() {
+  const s = settings.read();
+  st.musicOn = s.musicOn !== false;
+  st.sfxOn = s.sfxOn !== false;
+})();
+
 function extOf(name) {
   const i = st.extIdx[name] || 0;
   return i < EXT_ORDER.length ? EXT_ORDER[i] : null;
@@ -76,7 +82,6 @@ function srcOf(name) {
   return BASE[name] + '.' + ext;
 }
 
-// ---------------- 实例创建 / 销毁 ----------------
 function createAudio(src, loop, volume) {
   if (!supported || !src) return null;
 
@@ -118,18 +123,15 @@ function destroyBgm() {
   st.bgmPlaying = false;
 }
 
-// 某个 src 播不了：换下一个扩展名再试
 function onMediaError(name, src) {
   const cur = srcOf(name);
-  if (cur && src && cur !== src) return; // 已经换过，忽略旧实例的迟到错误
+  if (cur && src && cur !== src) return;
 
   st.extIdx[name] = (st.extIdx[name] || 0) + 1;
 
   if (name === 'bgm') {
     destroyBgm();
-
-    // 还想放并且还有备选格式，就再试一次
-    if (st.bgmWanted && !st.muted && extOf('bgm')) playBgm();
+    if (st.bgmWanted && st.musicOn && extOf('bgm')) playBgm();
     return;
   }
 
@@ -161,12 +163,11 @@ function ensureBgm() {
   return a;
 }
 
-// 背景音乐：重复调用安全（已在播放就不动）
 function playBgm() {
   if (!supported) return;
 
   st.bgmWanted = true;
-  if (st.muted) return;
+  if (!st.musicOn) return;
 
   const a = ensureBgm();
   if (!a || st.bgmPlaying) return;
@@ -222,9 +223,8 @@ function ensurePool(name) {
   return list;
 }
 
-// 播放一个音效：name 取 BASE 的键
 function play(name) {
-  if (!supported || st.muted || !name) return;
+  if (!supported || !st.sfxOn || !name) return;
 
   const gap = typeof MIN_GAP[name] === 'number' ? MIN_GAP[name] : 60;
   const now = Date.now();
@@ -241,16 +241,20 @@ function play(name) {
   const a = pool[idx];
   if (!a) return;
 
-  // 先 stop 再 play，保证能立刻重新触发
   try { a.stop(); } catch (e) { /* 忽略 */ }
   try { a.play(); } catch (e) { onMediaError(name, st.poolSrc[name]); }
 }
 
-// ---------------- 静音开关 ----------------
-function setMuted(v) {
-  st.muted = !!v;
+// ---------------- 开关 ----------------
+function saveSettings() {
+  settings.write({ musicOn: st.musicOn, sfxOn: st.sfxOn });
+}
 
-  if (st.muted) {
+function setMusicOn(v) {
+  st.musicOn = !!v;
+  saveSettings();
+
+  if (!st.musicOn) {
     pauseBgm();
     return;
   }
@@ -258,13 +262,33 @@ function setMuted(v) {
   if (st.bgmWanted) playBgm();
 }
 
-function toggleMute() {
-  setMuted(!st.muted);
-  return st.muted;
+function setSfxOn(v) {
+  st.sfxOn = !!v;
+  saveSettings();
+}
+
+function isMusicOn() {
+  return st.musicOn;
+}
+
+function isSfxOn() {
+  return st.sfxOn;
+}
+
+// 兼容旧接口（整体静音）
+function setMuted(v) {
+  setMusicOn(!v);
+  setSfxOn(!v);
 }
 
 function isMuted() {
-  return st.muted;
+  return !st.musicOn && !st.sfxOn;
+}
+
+function toggleMute() {
+  const next = !isMuted();
+  setMuted(next);
+  return next;
 }
 
 module.exports = {
@@ -272,7 +296,11 @@ module.exports = {
   playBgm: playBgm,
   pauseBgm: pauseBgm,
   stopBgm: stopBgm,
+  setMusicOn: setMusicOn,
+  setSfxOn: setSfxOn,
+  isMusicOn: isMusicOn,
+  isSfxOn: isSfxOn,
   setMuted: setMuted,
-  toggleMute: toggleMute,
   isMuted: isMuted,
+  toggleMute: toggleMute,
 };

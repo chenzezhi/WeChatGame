@@ -1,4 +1,4 @@
-// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + HUD。
+// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + HUD + 暂停弹窗。
 
 const cfg = require('./config.js');
 const pal = require('./palette.js');
@@ -10,7 +10,7 @@ const drawPickup = require('./drawPickup.js');
 const drawClone = require('./drawClone.js');
 
 const C = pal.C;
-const BUILD = 'game-14';
+const BUILD = 'game-16';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';
@@ -212,7 +212,6 @@ function iconBullet(ctx, cx, cy, r) {
   }
 }
 
-// 伤害图标：冲击星
 function iconDamage(ctx, cx, cy, r) {
   ctx.fillStyle = ICON_DAMAGE;
   ctx.beginPath();
@@ -273,7 +272,6 @@ function drawHp(ctx, player) {
   ctx.textBaseline = 'alphabetic';
 }
 
-// 右上角：金币
 function drawCoins(ctx, state) {
   const num = String(state.coins || 0);
 
@@ -296,6 +294,36 @@ function drawCoins(ctx, state) {
   ctx.fillStyle = '#8a6100';
   ctx.font = 'bold 20px sans-serif';
   ctx.fillText(num, pillX + 30, pillY + pillH / 2 + 1);
+
+  ctx.textBaseline = 'alphabetic';
+}
+
+// 右上角：菜单按钮
+function drawMenuButton(ctx) {
+  const x = cfg.MENU_BTN_X;
+  const y = cfg.MENU_BTN_Y;
+  const w = cfg.MENU_BTN_W;
+  const h = cfg.MENU_BTN_H;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.80)';
+  util.roundRectPath(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+
+  // 三条横线
+  ctx.fillStyle = C.hudText;
+  const lx = x + 14;
+  const lw = 16;
+  const lh = 2.4;
+
+  ctx.fillRect(lx, y + h / 2 - 7, lw, lh);
+  ctx.fillRect(lx, y + h / 2 - lh / 2, lw, lh);
+  ctx.fillRect(lx, y + h / 2 + 7 - lh, lw, lh);
+
+  ctx.fillStyle = C.hudText;
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('菜单', lx + lw + 8, y + h / 2 + 1);
 
   ctx.textBaseline = 'alphabetic';
 }
@@ -370,12 +398,13 @@ function drawStats(ctx, state) {
   x += drawStatPill(ctx, x, y, iconClone, String(cloneCount)) + gap;
   x += drawStatPill(ctx, x, y, iconSpeed, 'x' + speed.toFixed(1)) + gap;
   x += drawStatPill(ctx, x, y, iconBullet, String(multi)) + gap;
-  x += drawStatPill(ctx, x, y, iconDamage, String(dmg)) + gap;
+  x += drawStatPill(ctx, x, y, iconDamage, dmg.toFixed(1)) + gap;
 }
 
 function drawHud(ctx, state) {
   drawHp(ctx, state.player);
   drawCoins(ctx, state);
+  drawMenuButton(ctx);
   drawXp(ctx, state);
   drawStats(ctx, state);
 
@@ -419,6 +448,56 @@ function drawHurtFlash(ctx, player, now) {
   ctx.strokeStyle = 'rgba(255,60,60,' + (0.55 * a).toFixed(3) + ')';
   ctx.lineWidth = 10;
   ctx.strokeRect(0, 0, cfg.WIDTH, cfg.HEIGHT);
+}
+
+// ---------------- 暂停弹窗 ----------------
+function drawPause(ctx, state) {
+  if (!state.menuOpen || !state.pausePanel) return;
+
+  const p = state.pausePanel;
+
+  // 遮罩
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, cfg.WIDTH, cfg.HEIGHT);
+
+  // 面板
+  ctx.fillStyle = 'rgba(30,30,46,0.97)';
+  util.roundRectPath(ctx, p.x, p.y, p.w, p.h, 20);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 标题
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillText('菜单', p.x + p.w / 2, p.y + 30);
+
+  // 按钮
+  const list = state.pauseButtons || [];
+
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+
+    ctx.fillStyle = i === 0 ? 'rgba(94,224,192,0.18)' : 'rgba(255,255,255,0.08)';
+    util.roundRectPath(ctx, b.x, b.y, b.w, b.h, b.h / 2);
+    ctx.fill();
+
+    ctx.strokeStyle = i === 0 ? '#5ee0c0' : 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 17px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1);
+  }
+
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawDead(ctx, state, now) {
@@ -487,6 +566,7 @@ function draw(ctx, state, now) {
   drawHurtFlash(ctx, state.player, now);
 
   if (state.phase === 'dead') drawDead(ctx, state, now);
+  else drawPause(ctx, state);
 }
 
 module.exports = { draw: draw };

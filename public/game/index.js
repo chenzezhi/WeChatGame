@@ -42,11 +42,12 @@ const state = {
   multishot: cfg.PLAYER_MULTI_START,
   damage: cfg.PLAYER_DAMAGE_START,
 
-  // 分身属性（完全独立）
+  // 分身属性（独立）
   cloneFireMs: cfg.PLAYER_FIRE_MS_START,
   cloneMultishot: cfg.PLAYER_MULTI_START,
   cloneDamage: cfg.PLAYER_DAMAGE_START,
   cloneHpBonus: 0,
+  cloneLifeMs: cfg.CLONE_LIFE_BASE_MS,
 
   joy: null,
   aimStick: null,
@@ -179,13 +180,11 @@ function cameraTargetOf(playerX) {
   return target > 0 ? target : 0;
 }
 
-// 伤害保留一位小数，避免浮点误差累积
 function roundDamage(v) {
   const n = Math.round(v * 10) / 10;
   return n > cfg.PLAYER_DAMAGE_MAX ? cfg.PLAYER_DAMAGE_MAX : n;
 }
 
-// 按升级等级算射击间隔
 function fireMsFrom(startMs, level, ratio) {
   const lv = level > 0 ? level : 0;
   let f = Math.round(startMs * Math.pow(ratio, lv));
@@ -234,9 +233,10 @@ function resetWorld(startX) {
   state.cloneMultishot = cfg.PLAYER_MULTI_START;
   state.cloneDamage = cfg.PLAYER_DAMAGE_START;
   state.cloneHpBonus = 0;
+  state.cloneLifeMs = cfg.CLONE_LIFE_BASE_MS;
 }
 
-// 开局套用玩家资产：永久升级 + 本局已购道具（用完即扣）
+// 开局套用玩家资产：永久升级 + 已购道具 + 永久分身
 function applyProfileAssets() {
   const prof = profile.read();
 
@@ -251,9 +251,8 @@ function applyProfileAssets() {
   const cu = prof.cloneUpgrades || {};
 
   // ---------- 主体永久升级 ----------
-  const hpLv = pu.hp || 0;
-  if (hpLv > 0 && p) {
-    p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + hpLv * cfg.SHOP_HP_GAIN);
+  if (pu.hp > 0 && p) {
+    p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + pu.hp * cfg.SHOP_HP_GAIN);
     p.hp = p.maxHp;
   }
 
@@ -269,7 +268,14 @@ function applyProfileAssets() {
     state.damage = roundDamage(state.damage + pu.damage * cfg.SHOP_DAMAGE_GAIN);
   }
 
-  // ---------- 分身永久升级（独立，且不加道具） ----------
+  // 分身存活时长：10 秒 + 每级 2 秒（上限 60 秒）
+  if (pu.cloneLife > 0) {
+    let life = cfg.CLONE_LIFE_BASE_MS + pu.cloneLife * cfg.CLONE_LIFE_STEP_MS;
+    if (life > cfg.CLONE_LIFE_MAX_MS) life = cfg.CLONE_LIFE_MAX_MS;
+    state.cloneLifeMs = life;
+  }
+
+  // ---------- 分身永久升级 ----------
   if (cu.fire > 0) {
     state.cloneFireMs = fireMsFrom(state.cloneFireMs, cu.fire, cfg.SHOP_FIRE_RATIO);
   }
@@ -286,7 +292,7 @@ function applyProfileAssets() {
     state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
   }
 
-  // ---------- 本局道具（只作用于主体，买多少用多少） ----------
+  // ---------- 本局道具（只作用于主体） ----------
   const items = prof.items || {};
   let used = false;
 
@@ -313,16 +319,25 @@ function applyProfileAssets() {
     used = true;
   }
 
-  if (items.clone > 0 && p) {
-    for (let i = 0; i < items.clone; i++) {
-      clones.spawn(state.clones, p, cfg.CLONE_HP_BASE + state.cloneHpBonus, 0);
-    }
-    used = true;
-  }
-
   if (used) {
     prof.items = { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0 };
     profile.write(prof);
+  }
+
+  // ---------- 分身：永久分身 + 本局购买的分身道具 ----------
+  if (p) {
+    const hp = cfg.CLONE_HP_BASE + state.cloneHpBonus;
+
+    const perm = prof.permClones || 0;
+    for (let i = 0; i < perm; i++) {
+      clones.spawn(state.clones, p, hp, 0, 0);   // 0 = 永久
+    }
+
+    // 本局购买的分身道具也是永久分身（开局一次，买多少生成多少）
+    const bought = (prof.items && prof.items.clone) || 0;
+    for (let i = 0; i < bought; i++) {
+      clones.spawn(state.clones, p, hp, 0, 0);
+    }
   }
 }
 
@@ -368,7 +383,7 @@ function addCoins(n) {
   profile.write(prof);
 }
 
-// ---------- 升级：血量 / 攻速 / 子弹数一起成长，并且回满血 ----------
+// ---------- 升级 ----------
 function applyLevelUp() {
   state.level += 1;
   state.xpNeed = cfg.XP_BASE + cfg.XP_STEP * (state.level - 1);
@@ -666,8 +681,15 @@ function applyPickup(it, now) {
     return;
   }
 
-  // 分身：血量 = 道具强度 + 分身生命升级
-  clones.spawn(state.clones, state.player, (it.power || 1) + state.cloneHpBonus, now);
+  // 分身：血量 = 道具强度 + 分身生命升级；时长为当前分身时长
+  clones.spawn(
+    state.clones,
+    state.player,
+    (it.power || 1) + state.cloneHpBonus,
+    now,
+    state.cloneLifeMs
+  );
+
   audio.play('pickup');
 }
 
@@ -689,7 +711,6 @@ function resolvePickups(now) {
   applyPickup(it, now);
 }
 
-// Boss 登场提示音（同屏出现新 Boss 时播一次）
 function trackBoss() {
   let has = false;
   const list = state.enemies.list;
@@ -713,7 +734,6 @@ function update(dt, now) {
     return;
   }
 
-  // 菜单打开时冻结游戏
   if (state.menuOpen) {
     state.aimStick = null;
     state.firing = false;
@@ -743,7 +763,6 @@ function update(dt, now) {
   pickups.update(state.pickups, dt, now);
   pickups.cull(state.pickups, state.cameraX);
 
-  // 分身：用分身自己的射速 / 发数 / 伤害
   clones.update(state.clones, dt, now, state.player, state.enemies, state.bullets, {
     fireMs: state.cloneFireMs,
     multishot: state.cloneMultishot,
@@ -783,7 +802,6 @@ function touchStart(e, now) {
 
   const p = e.touches && e.touches[0];
 
-  // 弹窗打开：只响应弹窗按钮
   if (state.menuOpen) {
     if (!p) return;
 
@@ -806,7 +824,6 @@ function touchStart(e, now) {
     return;
   }
 
-  // 右上角菜单按钮
   if (p && hitMenuButton(p.x, p.y)) {
     openPause();
     return;

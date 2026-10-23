@@ -18,7 +18,6 @@ function toast(title) {
   try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
-// 重新计算布局并刷新存档 / 资产状态
 function refresh() {
   state.items = buttons.build();
   state.hasSave = storage.has();
@@ -34,7 +33,6 @@ function isDisabled(item) {
   return item.id === 'load' && !state.hasSave;
 }
 
-// 进入游戏场景：mode = 'new' | 'load'
 function goGame(mode) {
   const ok = scenes.switchTo('game', { mode: mode });
   if (!ok) toast('游戏模块还没接入');
@@ -43,6 +41,11 @@ function goGame(mode) {
 function goShop() {
   const ok = scenes.switchTo('shop');
   if (!ok) toast('商店模块还没接入');
+}
+
+function goSettings() {
+  const ok = scenes.switchTo('settings');
+  if (!ok) toast('设置模块还没接入');
 }
 
 function exitApp() {
@@ -56,6 +59,7 @@ const actions = {
   start: function () { goGame('new'); },
   load: function () { goGame('load'); },
   shop: function () { goShop(); },
+  settings: function () { goSettings(); },
   exit: function () { exitApp(); },
 };
 
