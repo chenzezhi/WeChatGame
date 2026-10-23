@@ -140,7 +140,9 @@ function spawnBoss(level, playerX, dist, now) {
     speed: cfg.ENEMY_MOVE_SPEED * 0.55,
     fireMs: fireMs,
     bulletCount: bossBulletCount(stage),
-    nextMinionAt: now + mMin + Math.random() * (mMax - mMin),
+    // 召唤计时：等玩家到场后才开始
+    minionArmed: false,
+    nextMinionAt: NEVER,
     minionMin: mMin,
     minionMax: mMax,
     hurtAt: 0,
@@ -204,15 +206,12 @@ function decideMove(e, now, player, dist) {
   const chase = chaseChanceForDistance(dist);
 
   if (Math.random() < chase) {
-    // 追人
     e.dir = toward;
     e.speed = cfg.ENEMY_MOVE_SPEED * (0.6 + Math.random() * 0.5);
   } else if (Math.random() < cfg.ENEMY_IDLE_CHANCE) {
-    // 发呆
     e.dir = 0;
     e.speed = 0;
   } else {
-    // 随机游走
     e.dir = Math.random() < 0.5 ? -1 : 1;
     e.speed = cfg.ENEMY_MOVE_SPEED * (0.35 + Math.random() * 0.5);
   }
@@ -301,7 +300,13 @@ function update(level, dt, now, player, eBullets, dist) {
     const toY = player.y + player.h * 0.45;
     const near = Math.abs(fromX - toX) <= cfg.WIDTH * (e.isBoss ? 1.9 : 1.15);
 
-    if (e.isBoss && near && now >= e.nextMinionAt) {
+    // Boss 召唤小怪：进入交战范围才开始计时 → 到达后才召唤
+    if (e.isBoss && near && !e.minionArmed) {
+      e.minionArmed = true;
+      e.nextMinionAt = now + e.minionMin + Math.random() * (e.minionMax - e.minionMin);
+    }
+
+    if (e.isBoss && e.minionArmed && near && now >= e.nextMinionAt) {
       e.nextMinionAt = now + e.minionMin + Math.random() * (e.minionMax - e.minionMin);
 
       const mx = e.x + e.w * (Math.random() < 0.5 ? -0.35 : 0.35);

@@ -93,9 +93,10 @@ const ENEMY_CHASE_STEP_M = 400;
 const ENEMY_CHASE_MAX = 0.85;
 const ENEMY_IDLE_CHANCE = 0.30;
 
+// 碰撞伤害：冷却越大，被打得越少
 const ENEMY_CONTACT_DMG_STEP_M = 350;
 const ENEMY_CONTACT_DMG_MAX = 6;
-const ENEMY_CONTACT_COOLDOWN_MS = 700;
+const ENEMY_CONTACT_COOLDOWN_MS = 2000;  // 撞上后 2 秒内不再扣血
 
 // ---------------- Boss ----------------
 const BOSS_EVERY_M = 1000;
@@ -114,7 +115,7 @@ const BOSS_BULLET_STEP = 2;             // 每个 Boss 再 +2 发 → 2 / 4 / 6 
 const BOSS_BULLET_MAX = 9;
 const BOSS_BULLET_SPREAD_DEG = 13;
 
-// 召唤小怪：间隔越大 = 越少
+// 召唤小怪：间隔越大 = 越少（玩家走到 Boss 面前才开始计时）
 const BOSS_MINION_MIN_MS = 3200;
 const BOSS_MINION_MAX_MS = 7000;
 const BOSS_MINION_SHRINK_MS = 200;
