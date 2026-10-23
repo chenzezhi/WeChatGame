@@ -1,4 +1,4 @@
-// 绘制总入口：背景 + 敌人 + 子弹 + 玩家 + HUD。
+// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + HUD。
 // 具体人物 / 敌人 / 特效分别在同目录的 draw*.js 里。
 
 const cfg = require('./config.js');
@@ -7,9 +7,11 @@ const util = require('./drawUtil.js');
 const drawPlayer = require('./drawPlayer.js');
 const drawEnemy = require('./drawEnemy.js');
 const drawFx = require('./drawFx.js');
+const drawPickup = require('./drawPickup.js');
+const drawClone = require('./drawClone.js');
 
 const C = pal.C;
-const BUILD = 'game-8';
+const BUILD = 'game-9';
 
 // ---------------------------------------------------------------- 背景
 const CLOUD_SPAN = 1500;
@@ -143,29 +145,59 @@ function drawGround(ctx, cameraX) {
   }
 }
 
+// ---------------------------------------------------------------- 爱心路径
+function heartPath(ctx, cx, cy, r) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + r * 0.78);
+  ctx.bezierCurveTo(cx - r * 1.25, cy - r * 0.05, cx - r * 0.75, cy - r * 1.05, cx, cy - r * 0.38);
+  ctx.bezierCurveTo(cx + r * 0.75, cy - r * 1.05, cx + r * 1.25, cy - r * 0.05, cx, cy + r * 0.78);
+  ctx.closePath();
+}
+
 // ---------------------------------------------------------------- HUD
+// 血量：一颗红心 + 旁边放大的数字
 function drawHp(ctx, player) {
   if (!player) return;
 
-  const max = player.maxHp || cfg.PLAYER_MAX_HP;
   const hp = Math.max(0, player.hp);
+  const num = String(hp);
 
-  const gap = 3;
-  const avail = cfg.WIDTH * 0.26;
-  const pipW = Math.max(4, (avail - gap * (max - 1)) / max);
-  const pipH = 9;
-  const x0 = 14;
-  const y0 = 24;
+  const r = 11;
+  const x0 = 16;
+  const cy = 38;
+  const font = 'bold 26px sans-serif';
 
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  util.roundRectPath(ctx, x0 - 7, y0 - 6, avail + 14, pipH + 12, 8);
+  ctx.font = font;
+  const tw = ctx.measureText(num).width;
+
+  const pillX = x0 - 8;
+  const pillY = cy - 23;
+  const pillW = r * 2 + 12 + tw + 16;
+  const pillH = 46;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.80)';
+  util.roundRectPath(ctx, pillX, pillY, pillW, pillH, 15);
   ctx.fill();
 
-  for (let i = 0; i < max; i++) {
-    ctx.fillStyle = i < hp ? C.hpPip : C.hpPipOff;
-    util.roundRectPath(ctx, x0 + i * (pipW + gap), y0, pipW, pipH, 3);
-    ctx.fill();
-  }
+  // 红心
+  const hx = x0 + r;
+  ctx.fillStyle = C.hpPip;
+  heartPath(ctx, hx, cy, r);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  heartPath(ctx, hx - r * 0.28, cy - r * 0.34, r * 0.34);
+  ctx.fill();
+
+  // 数字（放大）
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = C.hudText;
+  ctx.font = font;
+  ctx.fillText(num, x0 + r * 2 + 12, cy + 1);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawHud(ctx, state) {
@@ -197,12 +229,12 @@ function drawHud(ctx, state) {
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
   ctx.fillText('左下摇杆移动（上推跳跃） · 按住其它位置射击', cfg.WIDTH / 2, cfg.HEIGHT - 16);
 
+  // 左下角：版本号（小字体）
   ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.font = '11px sans-serif';
-  ctx.fillStyle = 'rgba(29,58,82,0.45)';
-  ctx.fillText(BUILD, 8, 8);
   ctx.textBaseline = 'alphabetic';
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = 'rgba(29,58,82,0.55)';
+  ctx.fillText(BUILD, 10, cfg.HEIGHT - 6);
 }
 
 function drawHurtFlash(ctx, player, now) {
@@ -239,6 +271,10 @@ function drawDead(ctx, state, now) {
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.fillText('点击屏幕返回主菜单', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 118);
 
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText(BUILD, cfg.WIDTH / 2, cfg.HEIGHT - 12);
+
   ctx.textBaseline = 'alphabetic';
 }
 
@@ -254,8 +290,12 @@ function draw(ctx, state, now) {
   drawGround(ctx, cameraX);
 
   drawEnemy.draw(ctx, state.enemies, cameraX, now);
+  drawPickup.draw(ctx, state.pickups, cameraX, now);
+
   drawFx.drawBullets(ctx, state.eBullets, cameraX, pal.ENEMY_BULLET);
   drawFx.drawBullets(ctx, state.bullets, cameraX, pal.PLAYER_BULLET);
+
+  drawClone.draw(ctx, state.clones, cameraX, now);
 
   if (state.player) {
     drawPlayer.draw(ctx, state.player, cameraX, state.aim ? state.aimAngle : null, now);
