@@ -8,6 +8,7 @@ const STYLE = {
   speed: { halo: 'rgba(255,205,90,0.26)', core: 'rgba(255,252,236,0.95)', ring: '#ffb02e', icon: '#e08a00' },
   multi: { halo: 'rgba(170,140,255,0.26)', core: 'rgba(246,240,255,0.95)', ring: '#a78bff', icon: '#6f4fd0' },
   heal: { halo: 'rgba(255,120,140,0.26)', core: 'rgba(255,244,246,0.95)', ring: '#ff5a72', icon: '#e02f4a' },
+  coin: { halo: 'rgba(255,211,77,0.30)', core: 'rgba(255,250,230,0.95)', ring: '#ffd34d', icon: '#ffd34d' },
 };
 
 function drawCloneIcon(ctx, cx, cy, r, color) {
@@ -65,6 +66,25 @@ function drawHealIcon(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
+// 金币图标：金色圆片 + 中间深色竖线（和右上角 HUD 的金币一致）
+function drawCoinIcon(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 内圈亮边，让金色更立体
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth = Math.max(1, r * 0.10);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.56, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 中间竖线
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(cx - r * 0.13, cy - r * 0.42, r * 0.26, r * 0.84);
+}
+
 function drawOne(ctx, it, cameraX, now) {
   const x = it.x - cameraX;
 
@@ -97,6 +117,7 @@ function drawOne(ctx, it, cameraX, now) {
   if (it.kind === 'speed') drawSpeedIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'multi') drawMultiIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'heal') drawHealIcon(ctx, cx, cy, r, st.icon);
+  else if (it.kind === 'coin') drawCoinIcon(ctx, cx, cy, r, st.icon);
   else drawCloneIcon(ctx, cx, cy, r, st.icon);
   ctx.restore();
 }
