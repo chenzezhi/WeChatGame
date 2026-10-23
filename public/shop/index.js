@@ -12,7 +12,7 @@ const state = {
   built: null,
   data: null,
   coins: 0,
-  tab: 'player',
+  tab: 'player',   // player | clone | items
 
   downId: -1,
   downX: 0,
@@ -22,7 +22,7 @@ const state = {
 };
 
 function toast(title) {
-  try { wx.showToast({ title: title, icon: 'none' }); } catch (e) {}
+  try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
 function refresh() {
@@ -134,7 +134,9 @@ function exit() {
   profile.write(state.data);
 }
 
-function update() {}
+function update() {
+  // 无动画
+}
 
 function render(ctx) {
   view.draw(ctx, state);
