@@ -1,4 +1,4 @@
-// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 经验 / 弹夹 / 绘制。
+// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 经验 / 弹夹 / 里程奖励 / 绘制。
 
 const cfg = require('./config.js');
 const input = require('./input.js');
@@ -29,6 +29,7 @@ const state = {
   best: 0,
   coins: 0,
   coinValue: cfg.COIN_VALUE_BASE,
+  coinMilestone: 0,
   paused: false,
   deadAt: 0,
   playerHitAt: 0,
@@ -37,18 +38,15 @@ const state = {
   xp: 0,
   xpNeed: cfg.XP_BASE,
 
-  // 主体属性
   fireMs: cfg.PLAYER_FIRE_MS_START,
   multishot: cfg.PLAYER_MULTI_START,
   damage: cfg.PLAYER_DAMAGE_START,
 
-  // 弹夹
   ammoMax: cfg.PLAYER_AMMO_START,
   ammo: cfg.PLAYER_AMMO_START,
   reloadM: cfg.RELOAD_M_START,
   lastReloadDist: 0,
 
-  // 分身属性（独立）
   cloneFireMs: cfg.PLAYER_FIRE_MS_START,
   cloneMultishot: cfg.PLAYER_MULTI_START,
   cloneDamage: cfg.PLAYER_DAMAGE_START,
@@ -82,7 +80,12 @@ function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-// ---------------- 暂停弹窗布局 ----------------
+function milestoneOf(dist) {
+  const step = cfg.COIN_REWARD_M > 0 ? cfg.COIN_REWARD_M : 100;
+  return Math.floor(dist / step);
+}
+
+// ---------------- 暂停弹窗 ----------------
 function buildPauseLayout() {
   const w = Math.min(cfg.WIDTH * 0.74, 300);
   const labelH = 52;
@@ -207,9 +210,7 @@ function clampAmmoMax(n) {
 }
 
 function clampReloadM(m) {
-  const v = m;
-  if (v < cfg.RELOAD_M_MIN) return cfg.RELOAD_M_MIN;
-  return v;
+  return m < cfg.RELOAD_M_MIN ? cfg.RELOAD_M_MIN : m;
 }
 
 function resetWorld(startX) {
@@ -224,6 +225,7 @@ function resetWorld(startX) {
   enemies.reset(state.enemies, state.distance);
   pickups.reset(state.pickups, state.distance);
   clones.reset(state.clones);
+
   state.aimStick = null;
   state.firing = false;
   state.aimAngle = 0;
@@ -254,6 +256,9 @@ function resetWorld(startX) {
   state.cloneDamage = cfg.PLAYER_DAMAGE_START;
   state.cloneHpBonus = 0;
   state.cloneLifeMs = cfg.CLONE_LIFE_BASE_MS;
+
+  // 读档续跑不补发已走过的里程
+  state.coinMilestone = milestoneOf(state.distance);
 }
 
 function applyProfileAssets() {
@@ -269,7 +274,6 @@ function applyProfileAssets() {
   const pu = prof.upgrades || {};
   const cu = prof.cloneUpgrades || {};
 
-  // 主体
   if (pu.hp > 0 && p) {
     p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + pu.hp * cfg.SHOP_HP_GAIN);
     p.hp = p.maxHp;
@@ -287,12 +291,10 @@ function applyProfileAssets() {
     state.damage = roundDamage(state.damage + pu.damage * cfg.SHOP_DAMAGE_GAIN);
   }
 
-  // 弹夹容量
   if (pu.ammo > 0) {
     state.ammoMax = clampAmmoMax(state.ammoMax + pu.ammo * cfg.SHOP_AMMO_GAIN);
   }
 
-  // 装填速度：每级装填距离 -1 米（最快 1 米）
   if (pu.reload > 0) {
     state.reloadM = clampReloadM(state.reloadM - pu.reload * cfg.RELOAD_SHOP_STEP_M);
   }
@@ -303,7 +305,6 @@ function applyProfileAssets() {
     state.cloneLifeMs = life;
   }
 
-  // 分身
   if (cu.fire > 0) {
     state.cloneFireMs = fireMsFrom(state.cloneFireMs, cu.fire, cfg.SHOP_FIRE_RATIO);
   }
@@ -320,7 +321,6 @@ function applyProfileAssets() {
     state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
   }
 
-  // 本局道具
   const items = prof.items || {};
   let used = false;
 
@@ -359,11 +359,9 @@ function applyProfileAssets() {
     profile.write(prof);
   }
 
-  // 开局弹夹满
   state.ammo = state.ammoMax;
   state.lastReloadDist = state.distance;
 
-  // 永久分身 + 本局分身道具
   if (p) {
     const hp = cfg.CLONE_HP_BASE + state.cloneHpBonus;
 
@@ -418,6 +416,18 @@ function addCoins(n) {
   const prof = profile.read();
   prof.coins = state.coins;
   profile.write(prof);
+}
+
+// 里程奖励：每前进 COIN_REWARD_M 米固定给金币
+function rewardUpdate() {
+  const now = milestoneOf(state.distance);
+  if (now <= state.coinMilestone) return;
+
+  const times = now - state.coinMilestone;
+  state.coinMilestone = now;
+
+  addCoins(times * cfg.COIN_REWARD_AMOUNT);
+  audio.play('coin');
 }
 
 function applyLevelUp() {
@@ -507,8 +517,6 @@ function fireUpdate(now) {
   else p.facing = -1;
 
   if (now < state.nextFireAt) return;
-
-  // 没子弹就打不出去
   if (state.ammo <= 0) return;
 
   state.nextFireAt = now + state.fireMs;
@@ -822,6 +830,8 @@ function update(dt, now) {
 
   const d = distanceOf(state.player.x);
   if (d > state.distance) state.distance = d;
+
+  rewardUpdate();
 
   enemies.spawnAhead(state.enemies, state.player.x, state.distance, now);
   enemies.update(state.enemies, dt, now, state.player, state.eBullets, state.distance);
