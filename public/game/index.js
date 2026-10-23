@@ -57,7 +57,6 @@ const state = {
 
   bossAlive: false,
 
-  // 游戏内菜单（暂停弹窗）
   menuOpen: false,
   pausePanel: null,
   pauseButtons: [],
@@ -161,7 +160,6 @@ function exitApp() {
   try { wx.showToast({ title: '当前环境不支持退出', icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
-// 进度存档（可被死亡删除）
 function saveProgress() {
   if (!state.player) return;
 
@@ -236,7 +234,6 @@ function resetWorld(startX) {
   state.cloneLifeMs = cfg.CLONE_LIFE_BASE_MS;
 }
 
-// 开局套用玩家资产：永久升级 + 已购道具 + 永久分身
 function applyProfileAssets() {
   const prof = profile.read();
 
@@ -250,7 +247,7 @@ function applyProfileAssets() {
   const pu = prof.upgrades || {};
   const cu = prof.cloneUpgrades || {};
 
-  // ---------- 主体永久升级 ----------
+  // 主体
   if (pu.hp > 0 && p) {
     p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + pu.hp * cfg.SHOP_HP_GAIN);
     p.hp = p.maxHp;
@@ -268,14 +265,13 @@ function applyProfileAssets() {
     state.damage = roundDamage(state.damage + pu.damage * cfg.SHOP_DAMAGE_GAIN);
   }
 
-  // 分身存活时长：10 秒 + 每级 2 秒（上限 60 秒）
   if (pu.cloneLife > 0) {
     let life = cfg.CLONE_LIFE_BASE_MS + pu.cloneLife * cfg.CLONE_LIFE_STEP_MS;
     if (life > cfg.CLONE_LIFE_MAX_MS) life = cfg.CLONE_LIFE_MAX_MS;
     state.cloneLifeMs = life;
   }
 
-  // ---------- 分身永久升级 ----------
+  // 分身
   if (cu.fire > 0) {
     state.cloneFireMs = fireMsFrom(state.cloneFireMs, cu.fire, cfg.SHOP_FIRE_RATIO);
   }
@@ -292,7 +288,7 @@ function applyProfileAssets() {
     state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
   }
 
-  // ---------- 本局道具（只作用于主体） ----------
+  // 本局道具
   const items = prof.items || {};
   let used = false;
 
@@ -324,16 +320,15 @@ function applyProfileAssets() {
     profile.write(prof);
   }
 
-  // ---------- 分身：永久分身 + 本局购买的分身道具 ----------
+  // 永久分身 + 本局分身道具
   if (p) {
     const hp = cfg.CLONE_HP_BASE + state.cloneHpBonus;
 
     const perm = prof.permClones || 0;
     for (let i = 0; i < perm; i++) {
-      clones.spawn(state.clones, p, hp, 0, 0);   // 0 = 永久
+      clones.spawn(state.clones, p, hp, 0, 0);
     }
 
-    // 本局购买的分身道具也是永久分身（开局一次，买多少生成多少）
     const bought = (prof.items && prof.items.clone) || 0;
     for (let i = 0; i < bought; i++) {
       clones.spawn(state.clones, p, hp, 0, 0);
@@ -372,7 +367,6 @@ function exit() {
   state.menuOpen = false;
 }
 
-// ---------- 金币 ----------
 function addCoins(n) {
   if (!(n > 0)) return;
 
@@ -383,7 +377,6 @@ function addCoins(n) {
   profile.write(prof);
 }
 
-// ---------- 升级 ----------
 function applyLevelUp() {
   state.level += 1;
   state.xpNeed = cfg.XP_BASE + cfg.XP_STEP * (state.level - 1);
@@ -392,7 +385,7 @@ function applyLevelUp() {
 
   if (p) {
     p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + cfg.LEVEL_HP_GAIN);
-    p.hp = p.maxHp;   // 升级回满血
+    p.hp = p.maxHp;
   }
 
   let f = Math.round(state.fireMs * cfg.LEVEL_FIRE_RATIO);
@@ -433,8 +426,6 @@ function damagePlayer(amount, now) {
   state.menuOpen = false;
 
   audio.play('hurt');
-
-  // 死亡：删掉进度存档（玩家资产 profile.json 不受影响）
   storage.clear();
 }
 
@@ -480,7 +471,6 @@ function fireUpdate(now) {
   }
 }
 
-// 我方子弹 ↔ 敌方子弹：相交则两发一起消失
 function resolveBulletCollisions() {
   const mine = state.bullets.list;
   const theirs = state.eBullets.list;
@@ -681,7 +671,6 @@ function applyPickup(it, now) {
     return;
   }
 
-  // 分身：血量 = 道具强度 + 分身生命升级；时长为当前分身时长
   clones.spawn(
     state.clones,
     state.player,
@@ -744,7 +733,9 @@ function update(dt, now) {
   state.joy = input.getJoystick();
   state.aimStick = input.getAimStick();
 
-  if (input.consumeJump()) playerKit.requestJump(state.player, now);
+  // 跳跃：带方向（正上方 ±30° 内 = 竖直跳，否则斜跳）
+  const jump = input.consumeJump();
+  if (jump) playerKit.requestJump(state.player, now, jump.dir);
 
   playerKit.update(state.player, input.getDir(), now, dt);
 
