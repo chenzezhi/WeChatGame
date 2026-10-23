@@ -102,11 +102,15 @@ const BOSS_EVERY_M = 1000;
 const BOSS_SCALE = 2.4;
 const BOSS_HP_MULT_START = 10;          // 血量 = 当前小怪血量 × 10（第 1 个 Boss）
 const BOSS_HP_MULT_GROWTH = 0.3;        // 每个 Boss 倍率再 +0.3 → 10 / 13 / 16 / 19 …
-const BOSS_FIRE_MULT_START = 1.5;
-const BOSS_FIRE_MULT_GROWTH = 0.35;
+
+// 开火倍率：数值越大开火越快（1.0 = 与小怪同速）
+const BOSS_FIRE_MULT_START = 1.2;       // 第 1 个 Boss：比小怪快 20%
+const BOSS_FIRE_MULT_GROWTH = 0.35;     // 每个 Boss 再 +0.35 → 1.2 / 1.55 / 1.9 …
 const BOSS_FIRE_MS_MIN = 130;
-const BOSS_BULLET_BASE = 3;
-const BOSS_BULLET_STEP = 2;
+
+// 一次散射发数
+const BOSS_BULLET_BASE = 2;             // 第 1 个 Boss：2 发
+const BOSS_BULLET_STEP = 2;             // 每个 Boss 再 +2 发 → 2 / 4 / 6 / 8 …
 const BOSS_BULLET_MAX = 9;
 const BOSS_BULLET_SPREAD_DEG = 13;
 
