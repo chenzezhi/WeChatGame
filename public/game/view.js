@@ -10,10 +10,11 @@ const drawPickup = require('./drawPickup.js');
 const drawClone = require('./drawClone.js');
 
 const C = pal.C;
-const BUILD = 'game-13';
+const BUILD = 'game-14';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';
+const ICON_DAMAGE = '#e2551a';
 
 // ---------------- 背景 ----------------
 const CLOUD_SPAN = 1500;
@@ -211,9 +212,22 @@ function iconBullet(ctx, cx, cy, r) {
   }
 }
 
-function iconHeart(ctx, cx, cy, r) {
-  ctx.fillStyle = C.hpPip;
-  heartPath(ctx, cx, cy, r);
+// 伤害图标：冲击星
+function iconDamage(ctx, cx, cy, r) {
+  ctx.fillStyle = ICON_DAMAGE;
+  ctx.beginPath();
+
+  for (let i = 0; i < 12; i++) {
+    const rad = (i % 2 === 0) ? r * 0.92 : r * 0.40;
+    const ang = (Math.PI / 6) * i - Math.PI / 2;
+    const px = cx + Math.cos(ang) * rad;
+    const py = cy + Math.sin(ang) * rad;
+
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+
+  ctx.closePath();
   ctx.fill();
 }
 
@@ -266,8 +280,7 @@ function drawCoins(ctx, state) {
   ctx.font = 'bold 20px sans-serif';
   const tw = ctx.measureText(num).width;
 
-  const padR = 12;
-  const pillW = 22 + tw + padR;
+  const pillW = 22 + tw + 12;
   const pillH = 34;
   const pillX = cfg.WIDTH - pillW - 12;
   const pillY = 24;
@@ -346,16 +359,18 @@ function drawStatPill(ctx, x, y, iconFn, value) {
 
 function drawStats(ctx, state) {
   const y = 96;
-  const gap = 7;
+  const gap = 6;
   let x = 15;
 
   const cloneCount = state.clones ? state.clones.list.length : 0;
   const speed = cfg.PLAYER_FIRE_MS_START / Math.max(1, state.fireMs || cfg.PLAYER_FIRE_MS_START);
   const multi = state.multishot || cfg.PLAYER_MULTI_START;
+  const dmg = state.damage || cfg.PLAYER_DAMAGE_START;
 
   x += drawStatPill(ctx, x, y, iconClone, String(cloneCount)) + gap;
   x += drawStatPill(ctx, x, y, iconSpeed, 'x' + speed.toFixed(1)) + gap;
   x += drawStatPill(ctx, x, y, iconBullet, String(multi)) + gap;
+  x += drawStatPill(ctx, x, y, iconDamage, String(dmg)) + gap;
 }
 
 function drawHud(ctx, state) {

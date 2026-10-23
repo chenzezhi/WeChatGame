@@ -38,6 +38,7 @@ const state = {
   xpNeed: cfg.XP_BASE,
   fireMs: cfg.PLAYER_FIRE_MS_START,
   multishot: cfg.PLAYER_MULTI_START,
+  damage: cfg.PLAYER_DAMAGE_START,
 
   joy: null,
   aimStick: null,
@@ -106,6 +107,7 @@ function resetWorld(startX) {
   state.xpNeed = cfg.XP_BASE;
   state.fireMs = cfg.PLAYER_FIRE_MS_START;
   state.multishot = cfg.PLAYER_MULTI_START;
+  state.damage = cfg.PLAYER_DAMAGE_START;
 }
 
 // 开局套用玩家资产：永久升级 + 本局已购道具（用完即扣）
@@ -138,6 +140,14 @@ function applyProfileAssets() {
     state.multishot = Math.min(cfg.PLAYER_MULTI_MAX, state.multishot + multiLv);
   }
 
+  const damageLv = prof.upgrades.damage || 0;
+  if (damageLv > 0) {
+    state.damage = Math.min(
+      cfg.PLAYER_DAMAGE_MAX,
+      state.damage + damageLv * cfg.DAMAGE_SHOP_GAIN
+    );
+  }
+
   const items = prof.items || {};
   let used = false;
 
@@ -159,6 +169,14 @@ function applyProfileAssets() {
     used = true;
   }
 
+  if (items.damage > 0) {
+    state.damage = Math.min(
+      cfg.PLAYER_DAMAGE_MAX,
+      state.damage + items.damage * cfg.DAMAGE_ITEM_GAIN
+    );
+    used = true;
+  }
+
   if (items.clone > 0 && p) {
     for (let i = 0; i < items.clone; i++) {
       clones.spawn(state.clones, p, cfg.CLONE_HP_BASE, 0);
@@ -167,7 +185,7 @@ function applyProfileAssets() {
   }
 
   if (used) {
-    prof.items = { heal: 0, speed: 0, multi: 0, clone: 0 };
+    prof.items = { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0 };
     profile.write(prof);
   }
 }
@@ -193,13 +211,13 @@ function enter(payload) {
   }
 
   applyProfileAssets();
+  audio.playBgm();
 }
 
 function exit() {
   if (state.phase === 'playing') saveProgress();
   input.reset();
   state.paused = false;
-  audio.play('pickup');
 }
 
 // ---------- 金币 ----------
@@ -302,8 +320,42 @@ function fireUpdate(now) {
   }
 }
 
+// 我方子弹 ↔ 敌方子弹：相交则两发一起消失
+function resolveBulletCollisions() {
+  const mine = state.bullets.list;
+  const theirs = state.eBullets.list;
+
+  let i = 0;
+
+  while (i < mine.length) {
+    const a = mine[i];
+    let hit = false;
+
+    for (let k = 0; k < theirs.length; k++) {
+      const b = theirs[k];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const rr = a.r + b.r;
+
+      if (dx * dx + dy * dy > rr * rr) continue;
+
+      theirs.splice(k, 1);
+      hit = true;
+      break;
+    }
+
+    if (hit) {
+      mine.splice(i, 1);
+      continue;
+    }
+
+    i++;
+  }
+}
+
 function resolvePlayerBullets(now) {
   const list = state.bullets.list;
+  const dmg = Math.max(1, state.damage || 1);
   let i = 0;
 
   while (i < list.length) {
@@ -319,7 +371,7 @@ function resolvePlayerBullets(now) {
       list.splice(i, 1);
       audio.play('hit');
 
-      const killed = enemies.damage(state.enemies, e, 1, now);
+      const killed = enemies.damage(state.enemies, e, dmg, now);
 
       if (killed) {
         gainXp(xp);
@@ -450,6 +502,12 @@ function applyPickup(it, now) {
     return;
   }
 
+  if (it.kind === 'damage') {
+    state.damage = Math.min(cfg.PLAYER_DAMAGE_MAX, state.damage + cfg.DAMAGE_ITEM_GAIN);
+    audio.play('pickup');
+    return;
+  }
+
   if (it.kind === 'heal') {
     const p = state.player;
     if (p) p.hp = Math.min(p.maxHp, p.hp + (it.amount || 1));
@@ -549,6 +607,7 @@ function update(dt, now) {
   bullets.update(state.eBullets, dt);
   bullets.cull(state.eBullets, state.cameraX);
 
+  resolveBulletCollisions();
   resolvePlayerBullets(now);
   resolveEnemyBullets(now);
   resolveContacts(now);
