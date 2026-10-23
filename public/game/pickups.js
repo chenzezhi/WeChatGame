@@ -4,6 +4,7 @@
 //   multi  散射
 //   heal   血瓶
 //   coin   金币
+//   damage 伤害
 // 只维护数据，绘制在 drawPickup.js。
 
 const cfg = require('./config.js');
@@ -50,13 +51,14 @@ function nextDistFrom(dist) {
 }
 
 function pickKind(level) {
-  const kinds = ['clone', 'speed', 'multi', 'heal', 'coin'];
+  const kinds = ['clone', 'speed', 'multi', 'heal', 'coin', 'damage'];
   const base = [
     cfg.ITEM_WEIGHT_CLONE,
     cfg.ITEM_WEIGHT_SPEED,
     cfg.ITEM_WEIGHT_MULTI,
     cfg.ITEM_WEIGHT_HEAL,
     cfg.ITEM_WEIGHT_COIN,
+    cfg.ITEM_WEIGHT_DAMAGE,
   ];
 
   let total = 0;

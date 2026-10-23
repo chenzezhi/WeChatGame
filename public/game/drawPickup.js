@@ -9,6 +9,7 @@ const STYLE = {
   multi: { halo: 'rgba(170,140,255,0.26)', core: 'rgba(246,240,255,0.95)', ring: '#a78bff', icon: '#6f4fd0' },
   heal: { halo: 'rgba(255,120,140,0.26)', core: 'rgba(255,244,246,0.95)', ring: '#ff5a72', icon: '#e02f4a' },
   coin: { halo: 'rgba(255,211,77,0.30)', core: 'rgba(255,250,230,0.95)', ring: '#ffd34d', icon: '#ffd34d' },
+  damage: { halo: 'rgba(255,140,80,0.28)', core: 'rgba(255,246,238,0.95)', ring: '#ff8a3d', icon: '#e2551a' },
 };
 
 function drawCloneIcon(ctx, cx, cy, r, color) {
@@ -66,23 +67,40 @@ function drawHealIcon(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
-// 金币图标：金色圆片 + 中间深色竖线（和右上角 HUD 的金币一致）
+// 金币图标：金色圆片 + 中间深色竖线（和 HUD 的金币一致）
 function drawCoinIcon(ctx, cx, cy, r, color) {
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
   ctx.fill();
 
-  // 内圈亮边，让金色更立体
   ctx.strokeStyle = 'rgba(255,255,255,0.75)';
   ctx.lineWidth = Math.max(1, r * 0.10);
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.56, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 中间竖线
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.fillRect(cx - r * 0.13, cy - r * 0.42, r * 0.26, r * 0.84);
+}
+
+// 伤害图标：冲击星
+function drawDamageIcon(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+
+  for (let i = 0; i < 12; i++) {
+    const rad = (i % 2 === 0) ? r * 0.86 : r * 0.38;
+    const ang = (Math.PI / 6) * i - Math.PI / 2;
+    const px = cx + Math.cos(ang) * rad;
+    const py = cy + Math.sin(ang) * rad;
+
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+
+  ctx.closePath();
+  ctx.fill();
 }
 
 function drawOne(ctx, it, cameraX, now) {
@@ -118,6 +136,7 @@ function drawOne(ctx, it, cameraX, now) {
   else if (it.kind === 'multi') drawMultiIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'heal') drawHealIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'coin') drawCoinIcon(ctx, cx, cy, r, st.icon);
+  else if (it.kind === 'damage') drawDamageIcon(ctx, cx, cy, r, st.icon);
   else drawCloneIcon(ctx, cx, cy, r, st.icon);
   ctx.restore();
 }

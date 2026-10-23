@@ -19,12 +19,11 @@ function defaults() {
   return {
     coins: 0,
     bossKills: 0,
-    upgrades: { hp: 0, fire: 0, multi: 0 },
-    items: { heal: 0, speed: 0, multi: 0, clone: 0 },
+    upgrades: { hp: 0, fire: 0, multi: 0, damage: 0 },
+    items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0 },
   };
 }
 
-// 非负整数
 function int(v) {
   const n = (typeof v === 'number' && isFinite(v)) ? Math.floor(v) : 0;
   return n > 0 ? n : 0;
@@ -41,12 +40,14 @@ function normalize(src) {
   out.upgrades.hp = int(u.hp);
   out.upgrades.fire = int(u.fire);
   out.upgrades.multi = int(u.multi);
+  out.upgrades.damage = int(u.damage);
 
   const it = src.items || {};
   out.items.heal = int(it.heal);
   out.items.speed = int(it.speed);
   out.items.multi = int(it.multi);
   out.items.clone = int(it.clone);
+  out.items.damage = int(it.damage);
 
   return out;
 }

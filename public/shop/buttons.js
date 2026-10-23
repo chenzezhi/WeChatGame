@@ -7,6 +7,7 @@ const UPGRADES = [
   { id: 'hp', label: '生命上限', desc: '每级 +2 最大生命' },
   { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
   { id: 'multi', label: '子弹数量', desc: '每级 +1 发子弹' },
+  { id: 'damage', label: '子弹伤害', desc: '每级 +1 伤害' },
 ];
 
 // 道具购买项（价格固定，仅本局有效）
@@ -14,6 +15,7 @@ const ITEMS = [
   { id: 'heal', label: '生命药水', desc: '本局开局 +3 最大生命', price: 3 },
   { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: 3 },
   { id: 'multi', label: '多发道具', desc: '本局开局 +1 发子弹', price: 4 },
+  { id: 'damage', label: '伤害道具', desc: '本局开局 +1 伤害', price: 5 },
   { id: 'clone', label: '分身道具', desc: '本局开局召唤一个分身', price: 8 },
 ];
 
@@ -30,10 +32,10 @@ function build(data) {
   const rows = [];
   const total = UPGRADES.length + ITEMS.length;
 
-  const top = height * 0.27;
+  const top = height * 0.25;
   const bottom = height * 0.95;
-  const gap = 8;
-  const rh = Math.max(38, (bottom - top - gap * (total - 1)) / total);
+  const gap = 7;
+  const rh = Math.max(36, (bottom - top - gap * (total - 1)) / total);
   const w = Math.min(width * 0.88, 460);
   const x = (width - w) / 2;
 
