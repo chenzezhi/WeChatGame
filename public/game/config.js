@@ -212,10 +212,15 @@ const HEAL_STEP_M = 350;        // 每 350 米提升一次
 const HEAL_GAIN_PER_STEP = 1;   // 每次 +1 点
 const HEAL_MAX = 12;            // 单个血瓶最多回 12 点
 
-// ---------------- 金币价值 ----------------
-const COIN_VALUE_BASE = 1;     // 每个金币道具基础值 1 枚金币
-const COIN_VALUE_GROWTH = 1;   // 每击败 1 个 Boss，金币价值 +1
-const COIN_VALUE_MAX = 10;     // 金币价值上限
+// ---------------- 金币 ----------------
+// 里程奖励：每前进 N 米，固定奖励 1 枚金币（与路上的金币道具分开算）
+const COIN_REWARD_M = 100;      // 每前进 100 米奖励 1 金币
+const COIN_REWARD_AMOUNT = 1;   // 每次奖励几枚
+
+// 金币道具价值：每击败 1 个 Boss，单个金币道具的价值 +1
+const COIN_VALUE_BASE = 1;
+const COIN_VALUE_GROWTH = 1;
+const COIN_VALUE_MAX = 10;
 
 // ---------------- 分身 ----------------
 const CLONE_MAX = 8;               // 同时最多存在 8 个分身
@@ -229,7 +234,7 @@ const CLONE_LIFE_MAX_MS = 60000;   // 存活时间上限 60 秒
 const PERM_CLONE_BASE_COST = 1000; // 第 1 个 1000 金币
 const PERM_CLONE_COST_STEP = 1000; // 之后每个 +1000
 
-const CLONE_FIRE_MS = 260;      // 分身开火间隔（若无单独设置时用）
+const CLONE_FIRE_MS = 260;      // 分身开火间隔
 const CLONE_JUMP_MIN_MS = 900;  // 分身随机跳跃的最小间隔
 const CLONE_JUMP_MAX_MS = 2600; // 分身随机跳跃的最大间隔
 const CLONE_HP_BASE = 3;        // 分身基础血量
@@ -378,6 +383,8 @@ module.exports = {
   HEAL_STEP_M: HEAL_STEP_M,
   HEAL_GAIN_PER_STEP: HEAL_GAIN_PER_STEP,
   HEAL_MAX: HEAL_MAX,
+  COIN_REWARD_M: COIN_REWARD_M,
+  COIN_REWARD_AMOUNT: COIN_REWARD_AMOUNT,
   COIN_VALUE_BASE: COIN_VALUE_BASE,
   COIN_VALUE_GROWTH: COIN_VALUE_GROWTH,
   COIN_VALUE_MAX: COIN_VALUE_MAX,
