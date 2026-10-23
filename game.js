@@ -8,7 +8,9 @@
 
 const app = require('./public/core/index.js');
 const menu = require('./public/menu/index.js');
+const game = require('./public/game/index.js');
 
 app.scenes.register('menu', menu);
+app.scenes.register('game', game);
 
 app.start('menu');
