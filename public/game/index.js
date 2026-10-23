@@ -1,5 +1,4 @@
-// 游戏模块控制器：组合 配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 操作 / 绘制。
-// 对外只暴露场景接口：enter / update / render / touchStart / touchMove / touchEnd
+// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 经验 / 绘制。
 
 const cfg = require('./config.js');
 const input = require('./input.js');
@@ -13,13 +12,13 @@ const view = require('./view.js');
 const scenes = require('../core/scenes.js');
 const storage = require('../core/storage.js');
 
-const DEAD_TAP_DELAY = 420; // 死亡后多久才接受「点击返回」
+const DEAD_TAP_DELAY = 420;
 
 const state = {
-  phase: 'idle',   // idle | playing | dead
+  phase: 'idle',
   player: null,
-  bullets: bullets.create(),   // 玩家子弹（分身也往里打）
-  eBullets: bullets.create(),  // 敌人子弹
+  bullets: bullets.create(),
+  eBullets: bullets.create(),
   enemies: enemies.create(),
   pickups: pickups.create(),
   clones: clones.create(),
@@ -28,13 +27,18 @@ const state = {
   best: 0,
   paused: false,
   deadAt: 0,
-  playerHitAt: 0,   // 主体最近一次被碰撞打中的时间
+  playerHitAt: 0,
 
-  // 操作 / 瞄准相关（供绘制层只读）
-  joy: null,        // 摇杆状态
-  aim: null,        // 当前瞄准点（屏幕坐标），没有按住则为 null
-  aimAngle: 0,      // 当前枪口角度（弧度）
-  nextFireAt: 0,    // 下一次允许开火的时间
+  level: 1,
+  xp: 0,
+  xpNeed: cfg.XP_BASE,
+  fireMs: cfg.PLAYER_FIRE_MS_START,
+  multishot: cfg.PLAYER_MULTI_START,
+
+  joy: null,
+  aim: null,
+  aimAngle: 0,
+  nextFireAt: 0,
 };
 
 function distanceOf(x) {
@@ -47,12 +51,10 @@ function readBest() {
   return (save && typeof save.best === 'number') ? save.best : 0;
 }
 
-// 两个 AABB 是否相交
 function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-// 存档：最佳距离 + 当前世界位置（供「读取游戏」续玩）
 function saveProgress() {
   if (!state.player) return;
 
@@ -66,7 +68,6 @@ function saveProgress() {
   state.best = best;
 }
 
-// 相机跟随：人物始终停在屏幕 CAMERA_ANCHOR 处（向前向后都一样）
 function cameraTargetOf(playerX) {
   const target = playerX - cfg.WIDTH * cfg.CAMERA_ANCHOR;
   return target > 0 ? target : 0;
@@ -89,6 +90,12 @@ function resetWorld(startX) {
   state.nextFireAt = 0;
   state.deadAt = 0;
   state.playerHitAt = 0;
+
+  state.level = 1;
+  state.xp = 0;
+  state.xpNeed = cfg.XP_BASE;
+  state.fireMs = cfg.PLAYER_FIRE_MS_START;
+  state.multishot = cfg.PLAYER_MULTI_START;
 }
 
 function enter(payload) {
@@ -104,7 +111,6 @@ function enter(payload) {
   const save = storage.read();
 
   if (payload.mode === 'load' && save && typeof save.x === 'number') {
-    // 读档：回到上次的位置继续跑
     resetWorld(Math.max(cfg.START_X, save.x));
   } else {
     resetWorld(cfg.START_X);
@@ -117,7 +123,18 @@ function exit() {
   state.paused = false;
 }
 
-// 主体受伤（统一处理死亡结算）
+function gainXp(amount) {
+  if (!(amount > 0)) return;
+
+  state.xp += amount;
+
+  while (state.xp >= state.xpNeed) {
+    state.xp -= state.xpNeed;
+    state.level += 1;
+    state.xpNeed = cfg.XP_BASE + cfg.XP_STEP * (state.level - 1);
+  }
+}
+
 function damagePlayer(amount, now) {
   const p = state.player;
   if (!p || !p.alive) return;
@@ -131,7 +148,6 @@ function damagePlayer(amount, now) {
   saveProgress();
 }
 
-// 按住屏幕（摇杆以外）就按固定射速朝触摸点连发
 function fireUpdate(now) {
   const p = state.player;
   const aim = state.aim;
@@ -145,20 +161,23 @@ function fireUpdate(now) {
   const angle = Math.atan2(ty - cy, tx - cx);
   state.aimAngle = angle;
 
-  // 朝向跟着准星走
   if (Math.abs(tx - cx) > p.w * 0.15) p.facing = tx > cx ? 1 : -1;
 
   if (now < state.nextFireAt) return;
-  state.nextFireAt = now + cfg.BULLET_FIRE_MS;
+  state.nextFireAt = now + state.fireMs;
 
-  // 枪口位置：从身体中心朝射击方向偏出去一点
-  const mx = cx + Math.cos(angle) * p.w * 0.75;
-  const my = cy + Math.sin(angle) * p.w * 0.75;
+  const n = Math.max(1, state.multishot);
+  const step = (cfg.MULTI_SPREAD_DEG * Math.PI) / 180;
 
-  bullets.spawn(state.bullets, mx, my, tx, ty);
+  for (let i = 0; i < n; i++) {
+    const a = angle + (i - (n - 1) / 2) * step;
+    const mx = cx + Math.cos(a) * p.w * 0.75;
+    const my = cy + Math.sin(a) * p.w * 0.75;
+
+    bullets.spawn(state.bullets, mx, my, cx + Math.cos(a) * 900, cy + Math.sin(a) * 900);
+  }
 }
 
-// 玩家（及分身）子弹 → 敌人：命中扣 1 血，扣光就死
 function resolvePlayerBullets(now) {
   const list = state.bullets.list;
   let i = 0;
@@ -168,8 +187,25 @@ function resolvePlayerBullets(now) {
     const e = enemies.hitTest(state.enemies, b.x, b.y, b.r);
 
     if (e) {
+      const wasBoss = !!e.isBoss;
+      const bossX = e.x + e.w / 2;
+      const xp = e.xp || 1;
+      const stage = e.stage || 1;
+
       list.splice(i, 1);
-      enemies.damage(state.enemies, e, 1, now);
+
+      const killed = enemies.damage(state.enemies, e, 1, now);
+
+      if (killed) {
+        gainXp(xp);
+
+        if (wasBoss) {
+          const count = cfg.BOSS_DROP_BASE + cfg.BOSS_DROP_STEP * (stage - 1) + Math.floor(state.distance / 1000);
+          const n = count > cfg.BOSS_DROP_MAX ? cfg.BOSS_DROP_MAX : count;
+          pickups.spawnBurst(state.pickups, bossX, state.distance, now, n);
+        }
+      }
+
       continue;
     }
 
@@ -177,11 +213,9 @@ function resolvePlayerBullets(now) {
   }
 }
 
-// 敌人子弹 → 玩家 / 分身：命中扣 1 血
 function resolveEnemyBullets(now) {
   const p = state.player;
   const clist = state.clones.list;
-
   const list = state.eBullets.list;
   let i = 0;
 
@@ -227,7 +261,6 @@ function resolveEnemyBullets(now) {
   }
 }
 
-// 身体碰撞：敌人撞到玩家 / 分身会扣血（伤害 = 敌人 dmg 属性）
 function resolveContacts(now) {
   const p = state.player;
   const clist = state.clones.list;
@@ -237,7 +270,6 @@ function resolveContacts(now) {
     const e = list[i];
     const dmg = e.dmg || cfg.ENEMY_DAMAGE;
 
-    // ---------- 主体 ----------
     if (p && p.alive) {
       const px = p.x + p.w * 0.22;
       const py = p.y + p.h * 0.14;
@@ -252,7 +284,6 @@ function resolveContacts(now) {
       }
     }
 
-    // ---------- 分身 ----------
     for (let k = 0; k < clist.length; k++) {
       const c = clist[k];
       if (!c.alive) continue;
@@ -266,7 +297,21 @@ function resolveContacts(now) {
   }
 }
 
-// 吃道具：主体碰到就转化成分身（数量受 CLONE_MAX 限制）
+function applyPickup(it, now) {
+  if (it.kind === 'speed') {
+    const next = Math.round(state.fireMs * cfg.SPEED_ITEM_RATIO);
+    state.fireMs = next < cfg.PLAYER_FIRE_MS_MIN ? cfg.PLAYER_FIRE_MS_MIN : next;
+    return;
+  }
+
+  if (it.kind === 'multi') {
+    if (state.multishot < cfg.PLAYER_MULTI_MAX) state.multishot += 1;
+    return;
+  }
+
+  clones.spawn(state.clones, state.player, it.power, now);
+}
+
 function resolvePickups(now) {
   const p = state.player;
   if (!p || !p.alive) return;
@@ -282,7 +327,7 @@ function resolvePickups(now) {
   if (!it) return;
 
   pickups.take(state.pickups, it);
-  clones.spawn(state.clones, p, it.power, now);
+  applyPickup(it, now);
 }
 
 function update(dt, now) {
@@ -292,52 +337,41 @@ function update(dt, now) {
     return;
   }
 
-  // ---------- 操作 ----------
   state.joy = input.getJoystick();
   state.aim = input.getFireTarget();
 
   if (input.consumeJump()) playerKit.requestJump(state.player, now);
 
-  // ---------- 人物物理 ----------
   playerKit.update(state.player, input.getDir(), now, dt);
 
-  // ---------- 相机：前后都跟随，往回走画面也跟着回来 ----------
   state.cameraX = cameraTargetOf(state.player.x);
 
-  // ---------- 计分 ----------
   const d = distanceOf(state.player.x);
   if (d > state.distance) state.distance = d;
 
-  // ---------- 敌人 ----------
   enemies.spawnAhead(state.enemies, state.player.x, state.distance, now);
   enemies.update(state.enemies, dt, now, state.player, state.eBullets, state.distance);
   enemies.cull(state.enemies, state.cameraX);
 
-  // ---------- 道具 ----------
   pickups.spawnAhead(state.pickups, state.player.x, state.distance, now);
   pickups.update(state.pickups, dt, now);
   pickups.cull(state.pickups, state.cameraX);
 
-  // ---------- 分身（子弹打进玩家子弹容器，对怪物同样生效） ----------
   clones.update(state.clones, dt, now, state.player, state.enemies, state.bullets);
   clones.cull(state.clones, state.cameraX);
 
-  // ---------- 射击 ----------
   fireUpdate(now);
 
   if (!state.aim) {
-    // 没在瞄准时枪口朝人物面朝方向
     state.aimAngle = state.player.facing >= 0 ? 0 : Math.PI;
   }
 
-  // ---------- 子弹 ----------
   bullets.update(state.bullets, dt);
   bullets.cull(state.bullets, state.cameraX);
 
   bullets.update(state.eBullets, dt);
   bullets.cull(state.eBullets, state.cameraX);
 
-  // ---------- 碰撞 ----------
   resolvePlayerBullets(now);
   resolveEnemyBullets(now);
   resolveContacts(now);
@@ -367,7 +401,6 @@ function touchEnd(e) {
   input.touchEnd(e);
 }
 
-// 切后台：暂停 + 存档；回前台：继续
 if (typeof wx.onHide === 'function') {
   wx.onHide(function () {
     if (state.phase === 'playing') {

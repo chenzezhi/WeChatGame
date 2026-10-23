@@ -1,14 +1,4 @@
-// 敌人模块：随关卡深入生成的怪物。
-//
-// 规则：
-//   生成间隔：一开始每 100 米一波，越深入越密（最低 40 米）。
-//   每波数量：每 500 米 +1 个（最多 ENEMY_MAX_COUNT 个）。
-//   敌人血量：每 500 米 +1（初始 1 点）。
-//   随机移动：像玩家那样左右乱走 + 随机起跳，越深入决策越频繁。
-//   自动开火：朝玩家当前位置射击，越深入开火越快。
-//   碰撞伤害：贴到玩家身上扣血，初始 1，越深入越高。
-//
-// 只维护数据，绘制在 view.js。
+// 敌人：小怪 + 每 BOSS_EVERY_M 米一个 Boss。只维护数据，绘制在 drawEnemy.js。
 
 const cfg = require('./config.js');
 const bullets = require('./bullets.js');
@@ -18,53 +8,61 @@ const NEVER = -99999;
 function create() {
   return {
     list: [],
-    nextSpawnDist: cfg.ENEMY_GAP_START_M, // 下一次生成的「米数」
+    nextSpawnDist: cfg.ENEMY_GAP_START_M,
+    nextBossDist: cfg.BOSS_EVERY_M,
+    bossCount: 0,
     spawned: 0,
   };
 }
 
-// 依据已跑距离算这一波的敌人血量
 function hpForDistance(dist) {
-  const steps = Math.floor(dist / cfg.ENEMY_HP_STEP_M);
-  return 1 + steps;
+  return 1 + Math.floor(dist / cfg.ENEMY_HP_STEP_M);
 }
 
-// 依据已跑距离算这一波的敌人数量
 function countForDistance(dist) {
-  const steps = Math.floor(dist / cfg.ENEMY_COUNT_STEP_M);
-  const n = 1 + steps;
+  const n = 1 + Math.floor(dist / cfg.ENEMY_COUNT_STEP_M);
   return n > cfg.ENEMY_MAX_COUNT ? cfg.ENEMY_MAX_COUNT : n;
 }
 
-// 依据已跑距离算「下一波」的间隔（米）
 function gapForDistance(dist) {
   const g = cfg.ENEMY_GAP_START_M - dist * cfg.ENEMY_GAP_DECAY;
   return g < cfg.ENEMY_GAP_MIN_M ? cfg.ENEMY_GAP_MIN_M : g;
 }
 
-// 随机移动的「决策间隔」：越深入越短 → 动得越劲
 function moveIntervalForDistance(dist) {
   const v = cfg.ENEMY_MOVE_MS_START - dist * cfg.ENEMY_MOVE_DECAY;
   return v < cfg.ENEMY_MOVE_MS_MIN ? cfg.ENEMY_MOVE_MS_MIN : v;
 }
 
-// 开火间隔：越深入越短 → 子弹越密
 function fireIntervalForDistance(dist) {
   const v = cfg.ENEMY_FIRE_MS - dist * cfg.ENEMY_FIRE_DECAY;
   return v < cfg.ENEMY_FIRE_MS_MIN ? cfg.ENEMY_FIRE_MS_MIN : v;
 }
 
-// 碰撞伤害：初始 ENEMY_DAMAGE，每 ENEMY_CONTACT_DMG_STEP_M 米 +1
 function contactDamageForDistance(dist) {
   const n = cfg.ENEMY_DAMAGE + Math.floor(dist / cfg.ENEMY_CONTACT_DMG_STEP_M);
   return n > cfg.ENEMY_CONTACT_DMG_MAX ? cfg.ENEMY_CONTACT_DMG_MAX : n;
 }
 
-// 重置（新开一局 / 读档）
+function bossHpMult(stage) {
+  return Math.round(cfg.BOSS_HP_MULT_START * (1 + cfg.BOSS_HP_MULT_GROWTH * (stage - 1)));
+}
+
+function bossFireMult(stage) {
+  return cfg.BOSS_FIRE_MULT_START * (1 + cfg.BOSS_FIRE_MULT_GROWTH * (stage - 1));
+}
+
+function bossBulletCount(stage) {
+  const n = cfg.BOSS_BULLET_BASE + cfg.BOSS_BULLET_STEP * (stage - 1);
+  return n > cfg.BOSS_BULLET_MAX ? cfg.BOSS_BULLET_MAX : n;
+}
+
 function reset(level, dist) {
   level.list.length = 0;
   level.spawned = 0;
+  level.bossCount = Math.floor(dist / cfg.BOSS_EVERY_M);
   level.nextSpawnDist = dist + gapForDistance(dist);
+  level.nextBossDist = (level.bossCount + 1) * cfg.BOSS_EVERY_M;
 }
 
 function spawnOne(level, x, hp, dmg, now) {
@@ -78,24 +76,73 @@ function spawnOne(level, x, hp, dmg, now) {
     h: h,
     hp: hp,
     maxHp: hp,
-    dmg: dmg,                               // 碰撞伤害
-
+    dmg: dmg,
+    xp: 1,
+    isBoss: false,
     vx: 0,
     vy: 0,
     onGround: true,
-    dir: Math.random() < 0.5 ? -1 : 1,       // 当前移动方向
+    dir: Math.random() < 0.5 ? -1 : 1,
     speed: cfg.ENEMY_MOVE_SPEED,
-
-    hurtAt: 0,                              // 受击闪白的时间点
+    hurtAt: 0,
     bornAt: now,
-    bobPhase: Math.random(),                // 上下浮动相位，避免整齐划一
+    bobPhase: Math.random(),
     nextMoveAt: now + 200 + Math.random() * 500,
     jumpQueuedAt: NEVER,
     nextFireAt: now + cfg.ENEMY_FIRE_MS * (0.35 + Math.random() * 0.9),
   });
 }
 
-// 玩家跑到一定米数就在右侧屏幕外生成一波敌人
+function spawnBoss(level, playerX, dist, now) {
+  const stage = level.bossCount + 1;
+  const mult = bossHpMult(stage);
+  const hp = hpForDistance(dist) * mult;
+
+  const w = Math.round(cfg.PLAYER_W * 1.02 * cfg.BOSS_SCALE);
+  const h = Math.round(cfg.PLAYER_H * 0.92 * cfg.BOSS_SCALE);
+
+  let fireMs = Math.round(fireIntervalForDistance(dist) / bossFireMult(stage));
+  if (fireMs < cfg.BOSS_FIRE_MS_MIN) fireMs = cfg.BOSS_FIRE_MS_MIN;
+
+  const shrink = (stage - 1) * cfg.BOSS_MINION_SHRINK_MS;
+  let mMin = cfg.BOSS_MINION_MIN_MS - shrink;
+  let mMax = cfg.BOSS_MINION_MAX_MS - shrink;
+  if (mMin < 700) mMin = 700;
+  if (mMax < mMin + 600) mMax = mMin + 600;
+
+  level.bossCount = stage;
+
+  level.list.push({
+    x: playerX + cfg.WIDTH * 0.95,
+    y: cfg.GROUND_Y - h,
+    w: w,
+    h: h,
+    hp: hp,
+    maxHp: hp,
+    dmg: Math.min(cfg.ENEMY_CONTACT_DMG_MAX, contactDamageForDistance(dist) * 2),
+    xp: mult,
+    isBoss: true,
+    stage: stage,
+    hpMult: mult,
+    vx: 0,
+    vy: 0,
+    onGround: true,
+    dir: -1,
+    speed: cfg.ENEMY_MOVE_SPEED * 0.55,
+    fireMs: fireMs,
+    bulletCount: bossBulletCount(stage),
+    nextMinionAt: now + mMin + Math.random() * (mMax - mMin),
+    minionMin: mMin,
+    minionMax: mMax,
+    hurtAt: 0,
+    bornAt: now,
+    bobPhase: Math.random(),
+    nextMoveAt: now + 400,
+    jumpQueuedAt: NEVER,
+    nextFireAt: now + fireMs * (0.8 + Math.random() * 0.6),
+  });
+}
+
 function spawnAhead(level, playerX, dist, now) {
   let guard = 0;
 
@@ -115,53 +162,82 @@ function spawnAhead(level, playerX, dist, now) {
     level.spawned += count;
     level.nextSpawnDist = at + gapForDistance(at);
   }
+
+  if (dist >= level.nextBossDist) {
+    let hasBoss = false;
+    for (let i = 0; i < level.list.length; i++) {
+      if (level.list[i].isBoss) {
+        hasBoss = true;
+        break;
+      }
+    }
+
+    if (!hasBoss) {
+      spawnBoss(level, playerX, level.nextBossDist, now);
+      level.nextBossDist += cfg.BOSS_EVERY_M;
+    }
+  }
 }
 
-// 随机决策：往哪走 / 要不要跳
 function decideMove(e, now, player) {
   const cx = e.x + e.w / 2;
   const px = player ? player.x + player.w / 2 : cx;
   const toward = px >= cx ? 1 : -1;
 
-  // 70% 朝玩家，30% 随机游走
+  if (e.isBoss) {
+    e.dir = Math.random() < 0.85 ? toward : (Math.random() < 0.5 ? -1 : 1);
+    if (e.onGround && Math.random() < 0.25) e.jumpQueuedAt = now;
+    return;
+  }
+
   e.dir = Math.random() < 0.7 ? toward : (Math.random() < 0.5 ? -1 : 1);
   e.speed = cfg.ENEMY_MOVE_SPEED * (0.6 + Math.random() * 0.9);
 
   if (!e.onGround) return;
 
-  // 靠近玩家时更爱跳；平时小概率乱跳
   const near = player && Math.abs(px - cx) < e.w * 2.4;
   const chance = near ? cfg.ENEMY_JUMP_CHANCE : cfg.ENEMY_JUMP_CHANCE * 0.5;
 
   if (Math.random() < chance) e.jumpQueuedAt = now;
 }
 
-// 每帧：随机移动 + 物理 + 受击计时 + 自动开火
+function shootAt(eBullets, fromX, fromY, ang, speed, radius) {
+  bullets.spawn(
+    eBullets,
+    fromX,
+    fromY,
+    fromX + Math.cos(ang) * 600,
+    fromY + Math.sin(ang) * 600,
+    speed,
+    radius
+  );
+}
+
 function update(level, dt, now, player, eBullets, dist) {
   const list = level.list;
   const d = typeof dist === 'number' ? dist : 0;
   const moveMs = moveIntervalForDistance(d);
   const fireMs = fireIntervalForDistance(d);
+  const smallHp = hpForDistance(d);
+  const smallDmg = contactDamageForDistance(d);
 
   for (let i = 0; i < list.length; i++) {
     const e = list[i];
 
     if (e.hurtAt && now - e.hurtAt > 150) e.hurtAt = 0;
 
-    // ---------- 随机移动决策 ----------
     if (now >= e.nextMoveAt) {
-      e.nextMoveAt = now + moveMs * (0.7 + Math.random() * 0.6);
+      const scale = e.isBoss ? 2.2 : 1;
+      e.nextMoveAt = now + moveMs * scale * (0.7 + Math.random() * 0.6);
       decideMove(e, now, player);
     }
 
-    // ---------- 起跳 ----------
     if (e.onGround && now - e.jumpQueuedAt <= 80) {
-      e.vy = cfg.ENEMY_JUMP_V;
+      e.vy = e.isBoss ? cfg.ENEMY_JUMP_V * 0.85 : cfg.ENEMY_JUMP_V;
       e.onGround = false;
       e.jumpQueuedAt = NEVER;
     }
 
-    // ---------- 物理 ----------
     e.vx = e.dir * e.speed;
     e.vy += cfg.GRAVITY * dt;
     if (e.vy > cfg.MAX_FALL) e.vy = cfg.MAX_FALL;
@@ -178,7 +254,6 @@ function update(level, dt, now, player, eBullets, dist) {
       e.onGround = false;
     }
 
-    // 别跑得离玩家太远
     if (player) {
       const backLimit = player.x - cfg.WIDTH * 0.65;
       const frontLimit = player.x + cfg.WIDTH * 1.5;
@@ -194,36 +269,54 @@ function update(level, dt, now, player, eBullets, dist) {
       if (e.x < 0) e.x = 0;
     }
 
-    // ---------- 开火 ----------
     if (!player || !player.alive) continue;
 
     const fromX = e.x + e.w / 2;
     const fromY = e.y + e.h * 0.40;
     const toX = player.x + player.w / 2;
     const toY = player.y + player.h * 0.45;
+    const near = Math.abs(fromX - toX) <= cfg.WIDTH * (e.isBoss ? 1.9 : 1.15);
 
-    // 只在附近才开火，避免屏幕外互相乱射
-    if (Math.abs(fromX - toX) > cfg.WIDTH * 1.15) continue;
+    if (e.isBoss && near && now >= e.nextMinionAt) {
+      e.nextMinionAt = now + e.minionMin + Math.random() * (e.minionMax - e.minionMin);
 
+      const mx = e.x + e.w * (Math.random() < 0.5 ? -0.35 : 0.35);
+      spawnOne(level, mx, smallHp, smallDmg, now);
+    }
+
+    if (!near) continue;
     if (now < e.nextFireAt) continue;
-    e.nextFireAt = now + fireMs * (0.85 + Math.random() * 0.4);
 
+    if (e.isBoss) {
+      e.nextFireAt = now + e.fireMs * (0.85 + Math.random() * 0.3);
+
+      const ang = Math.atan2(toY - fromY, toX - fromX);
+      const n = e.bulletCount || 1;
+      const spread = (cfg.BOSS_BULLET_SPREAD_DEG * Math.PI) / 180;
+
+      for (let k = 0; k < n; k++) {
+        const a = ang + (k - (n - 1) / 2) * spread;
+        shootAt(eBullets, fromX, fromY, a, cfg.ENEMY_BULLET_SPEED * 1.1, cfg.BULLET_R * 1.15);
+      }
+      continue;
+    }
+
+    e.nextFireAt = now + fireMs * (0.85 + Math.random() * 0.4);
     bullets.spawn(eBullets, fromX, fromY, toX, toY, cfg.ENEMY_BULLET_SPEED, cfg.BULLET_R * 0.95);
   }
 }
 
-// 删除已经跑出屏幕左侧的敌人
 function cull(level, cameraX) {
   const minX = cameraX - cfg.WIDTH * 0.8;
   let i = 0;
 
   while (i < level.list.length) {
-    if (level.list[i].x + level.list[i].w < minX) level.list.splice(i, 1);
+    const e = level.list[i];
+    if (!e.isBoss && e.x + e.w < minX) level.list.splice(i, 1);
     else i++;
   }
 }
 
-// 玩家子弹命中检测：返回被击中的敌人（没有则 null）
 function hitTest(level, x, y, r) {
   const list = level.list;
 
@@ -239,7 +332,6 @@ function hitTest(level, x, y, r) {
   return null;
 }
 
-// 扣血：扣到 0 就移除，返回「是否被打死」
 function damage(level, e, amount, now) {
   e.hp -= amount;
   e.hurtAt = now;
@@ -260,6 +352,8 @@ module.exports = {
   create: create,
   reset: reset,
   spawnAhead: spawnAhead,
+  spawnOne: spawnOne,
+  spawnBoss: spawnBoss,
   update: update,
   cull: cull,
   hitTest: hitTest,
@@ -270,4 +364,7 @@ module.exports = {
   moveIntervalForDistance: moveIntervalForDistance,
   fireIntervalForDistance: fireIntervalForDistance,
   contactDamageForDistance: contactDamageForDistance,
+  bossHpMult: bossHpMult,
+  bossFireMult: bossFireMult,
+  bossBulletCount: bossBulletCount,
 };
