@@ -3,7 +3,7 @@
 
 const cfg = require('./config.js');
 
-const BUILD = 'game-2';
+const BUILD = 'game-3';
 
 const C = {
   skyTop: '#7fd0f7',
@@ -414,7 +414,7 @@ function drawHud(ctx, state) {
   ctx.textAlign = 'center';
   ctx.font = '12px sans-serif';
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
-  ctx.fillText('按住左/右侧移动 · 上滑跳跃', cfg.WIDTH / 2, cfg.HEIGHT - 16);
+  ctx.fillText('按住左/右移动 · 任意手指上滑跳跃', cfg.WIDTH / 2, cfg.HEIGHT - 16);
 
   // 版本标记
   ctx.textAlign = 'left';
