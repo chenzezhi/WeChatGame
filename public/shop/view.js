@@ -2,7 +2,7 @@
 
 const canvasKit = require('../core/canvas.js');
 
-const BUILD = 'shop-2';
+const BUILD = 'shop-3';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -55,14 +55,13 @@ function drawHeader(ctx, width, height, state) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 24px sans-serif';
-  ctx.fillText('商店', width / 2, height * 0.10);
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText('商店', width / 2, height * 0.085);
 
-  ctx.font = '12px sans-serif';
+  ctx.font = '11px sans-serif';
   ctx.fillStyle = COLOR.textDim;
-  ctx.fillText('分身升级费用是主体的 2 倍 · 道具仅本局有效', width / 2, height * 0.10 + 20);
+  ctx.fillText('分身升级费用是主体的 2 倍 · 点击生效（滑动无效）', width / 2, height * 0.085 + 18);
 
-  // 金币
   const cx = width - 74;
   const cy = 30;
 
@@ -121,11 +120,23 @@ function drawTabs(ctx, built) {
   }
 }
 
+function rowSub(row) {
+  if (row.kind === 'item') {
+    return row.desc + (row.own > 0 ? ' · 已有 ' + row.own : '');
+  }
+
+  if (row.kind === 'perm-clone') {
+    return row.desc + (row.own > 0 ? ' · 已有 ' + row.own : '');
+  }
+
+  return row.desc + ' · Lv.' + row.level;
+}
+
 function drawRow(ctx, row, coins) {
   const poor = coins < row.cost;
 
   ctx.fillStyle = COLOR.card;
-  roundRect(ctx, row.x, row.y, row.w, row.h, 14);
+  roundRect(ctx, row.x, row.y, row.w, row.h, 13);
   ctx.fill();
 
   ctx.strokeStyle = poor ? 'rgba(255,255,255,0.10)' : COLOR.cardStroke;
@@ -136,23 +147,18 @@ function drawRow(ctx, row, coins) {
   ctx.textBaseline = 'middle';
 
   const midY = row.y + row.h / 2;
-  const twoLine = row.h > 46;
+  const twoLine = row.h > 44;
 
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.fillStyle = poor ? COLOR.poor : COLOR.text;
   ctx.fillText(row.label, row.x + 14, midY - (twoLine ? 8 : 0));
 
   if (twoLine) {
-    const sub = (row.kind === 'item')
-      ? (row.desc + (row.own > 0 ? ' · 已有 ' + row.own : ''))
-      : (row.desc + ' · Lv.' + row.level);
-
     ctx.font = '11px sans-serif';
     ctx.fillStyle = COLOR.textDim;
-    ctx.fillText(sub, row.x + 14, midY + 10);
+    ctx.fillText(rowSub(row), row.x + 14, midY + 10);
   }
 
-  // 右侧：价格
   const priceX = row.x + row.w - 58;
 
   drawCoinDot(ctx, priceX, midY, 8, poor ? 'rgba(255,211,77,0.35)' : COLOR.coin);
