@@ -1,7 +1,8 @@
-// 微信小游戏：弹跳小球 + 触屏挡板 + 主菜单 + 本地存档
-// 构建号见 BUILD 常量，会显示在画面上，用于确认运行的是哪一版代码。
+// 微信小游戏：弹跳小球 + 触屏挡板 + 主菜单 + 本地存档 + 递增难度
+// 难度规则：挡板初始占屏宽 50%，每得 20 分挡板变短一些，同时球速恢复为基础速度。
+// 构建号见 BUILD 常量，会显示在画面左上角，用于确认运行的是哪一版代码。
 
-const BUILD = 'B3';
+const BUILD = 'B4';
 
 const canvas = wx.createCanvas();
 const ctx = canvas.getContext('2d');
@@ -20,13 +21,24 @@ const scaleY = (sysInfo.screenHeight || sysInfo.windowHeight)
   ? height / (sysInfo.screenHeight || sysInfo.windowHeight)
   : 1;
 
-// ---------------- 参数 ----------------
-const BALL_R = Math.max(16, width * 0.055);   // 小球半径
+// ---------------- 基础参数 ----------------
+const BALL_R = Math.max(16, width * 0.055);
 const GRAVITY = 0.55;
 const MAX_SPEED = 22;
-const PADDLE_W = Math.max(96, width * 0.28);
+
 const PADDLE_H = 18;
 const PADDLE_Y = height - 120;   // 挡板顶部 y
+
+// ---------------- 难度参数 ----------------
+const LEVEL_STEP = 20;           // 每 20 分升一级
+const START_PADDLE_RATIO = 0.50; // 初始挡板 = 屏宽 50%
+const MIN_PADDLE_RATIO = 0.12;   // 挡板最小宽度（占屏宽）
+const SHRINK = 0.82;             // 每升一级宽度乘以该系数
+
+// 基础球速（每升一级都恢复到这个速度）
+const BASE_VX = 4.5;
+const BASE_VY = 8;
+const BASE_SPEED = Math.sqrt(BASE_VX * BASE_VX + BASE_VY * BASE_VY);
 
 // ---------------- 状态 ----------------
 let state = 'menu';   // menu | countdown | playing | over
@@ -37,13 +49,21 @@ let hasGame = false;
 let hasSave = false;
 let countdownEnd = 0;
 
-let paddleX = (width - PADDLE_W) / 2;
+let level = 0;
+let paddleW = width * START_PADDLE_RATIO;
+let paddleX = (width - paddleW) / 2;
 let paddleTargetX = paddleX;
 
-const ball = { x: width / 2, y: height * 0.4, vx: 4.5, vy: -8 };
+const ball = { x: width / 2, y: height * 0.4, vx: BASE_VX, vy: -BASE_VY };
 
 function clamp(v, min, max) {
   return v < min ? min : v > max ? max : v;
+}
+
+// 第 level 级的挡板宽度
+function paddleWidthForLevel(lv) {
+  const ratio = Math.max(MIN_PADDLE_RATIO, START_PADDLE_RATIO * Math.pow(SHRINK, lv));
+  return width * ratio;
 }
 
 // ================= 存档 =================
@@ -57,6 +77,7 @@ function saveGame() {
   if (!fs || !hasGame || !USER_DATA) return;
   const data = {
     score: score,
+    level: level,
     ball: { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy },
     paddle: paddleX,
     time: Date.now(),
@@ -76,13 +97,17 @@ function loadGame() {
   if (!data || !data.ball) return false;
 
   score = typeof data.score === 'number' ? data.score : 0;
+  level = Math.floor(score / LEVEL_STEP);
+  paddleW = paddleWidthForLevel(level);
+
   ball.x = clamp(typeof data.ball.x === 'number' ? data.ball.x : width / 2, BALL_R, width - BALL_R);
   ball.y = clamp(typeof data.ball.y === 'number' ? data.ball.y : height * 0.4, BALL_R, PADDLE_Y - BALL_R);
-  ball.vx = typeof data.ball.vx === 'number' ? data.ball.vx : 4.5;
-  ball.vy = typeof data.ball.vy === 'number' ? data.ball.vy : -8;
+  ball.vx = typeof data.ball.vx === 'number' ? data.ball.vx : BASE_VX;
+  ball.vy = typeof data.ball.vy === 'number' ? data.ball.vy : -BASE_VY;
+
   paddleX = clamp(
-    typeof data.paddle === 'number' ? data.paddle : (width - PADDLE_W) / 2,
-    0, width - PADDLE_W
+    typeof data.paddle === 'number' ? data.paddle : (width - paddleW) / 2,
+    0, width - paddleW
   );
   paddleTargetX = paddleX;
   hasGame = true;
@@ -106,12 +131,37 @@ function refreshSaveFlag() {
   }
 }
 
+// ================= 难度 / 球速 =================
+// 保留当前速度方向，大小恢复为基础速度
+function normalizeBallSpeed() {
+  const sp = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+  if (!isFinite(sp) || sp < 0.001) {
+    ball.vx = BASE_VX;
+    ball.vy = -BASE_VY;
+    return;
+  }
+  const k = BASE_SPEED / sp;
+  ball.vx *= k;
+  ball.vy *= k;
+  if (Math.abs(ball.vy) < 0.5) ball.vy = ball.vy >= 0 ? 0.5 : -0.5;
+}
+
+// 切换等级：挡板变短（中心不动）+ 球速恢复基础速度
+function setLevel(lv) {
+  level = lv;
+  const center = paddleX + paddleW / 2;
+  paddleW = paddleWidthForLevel(level);
+  paddleX = clamp(center - paddleW / 2, 0, width - paddleW);
+  paddleTargetX = clamp(paddleTargetX, 0, width - paddleW);
+  normalizeBallSpeed();
+}
+
 // ================= 流程控制 =================
 function resetBall() {
   ball.x = width / 2;
   ball.y = height * 0.4;
-  ball.vx = Math.random() > 0.5 ? 4.5 : -4.5;
-  ball.vy = -8;
+  ball.vx = Math.random() > 0.5 ? BASE_VX : -BASE_VX;
+  ball.vy = -BASE_VY;
 }
 
 function beginCountdown() {
@@ -122,9 +172,11 @@ function beginCountdown() {
 
 function startNewGame() {
   score = 0;
-  resetBall();
-  paddleX = (width - PADDLE_W) / 2;
+  level = 0;
+  paddleW = paddleWidthForLevel(0);
+  paddleX = (width - paddleW) / 2;
   paddleTargetX = paddleX;
+  resetBall();
   hasGame = true;
   beginCountdown();
 }
@@ -184,7 +236,7 @@ function onMenuTouch(cx, cy) {
 
 // ================= 输入 =================
 function movePaddleToCanvasX(cx) {
-  paddleTargetX = clamp(cx - PADDLE_W / 2, 0, width - PADDLE_W);
+  paddleTargetX = clamp(cx - paddleW / 2, 0, width - paddleW);
 }
 
 function touchPoint(t) {
@@ -231,7 +283,7 @@ if (typeof wx.onShow === 'function') {
 function update(now) {
   // 挡板平滑跟随手指
   paddleX += (paddleTargetX - paddleX) * 0.35;
-  paddleX = clamp(paddleX, 0, width - PADDLE_W);
+  paddleX = clamp(paddleX, 0, width - paddleW);
 
   if (state === 'countdown') {
     if (now >= countdownEnd) state = 'playing';
@@ -266,18 +318,23 @@ function update(now) {
 
   // 与挡板碰撞
   const paddleLeft = paddleX;
-  const paddleRight = paddleX + PADDLE_W;
+  const paddleRight = paddleX + paddleW;
   const overlapX = ball.x + BALL_R > paddleLeft && ball.x - BALL_R < paddleRight;
   const crossedTop = prevBottom <= PADDLE_Y + 4;
   const reachedTop = ball.y + BALL_R >= PADDLE_Y;
 
   if (ball.vy > 0 && overlapX && crossedTop && reachedTop) {
     ball.y = PADDLE_Y - BALL_R;
-    ball.vy = -Math.max(Math.abs(ball.vy) * 1.02, 8);
-    const hitRatio = (ball.x - (paddleLeft + PADDLE_W / 2)) / (PADDLE_W / 2);
+    ball.vy = -Math.max(Math.abs(ball.vy) * 1.02, BASE_VY);
+    const hitRatio = (ball.x - (paddleLeft + paddleW / 2)) / (paddleW / 2);
     ball.vx = clamp(ball.vx + hitRatio * 6, -MAX_SPEED, MAX_SPEED);
     if (Math.abs(ball.vx) < 2) ball.vx = ball.vx >= 0 ? 2 : -2;
+
     score++;
+
+    // 每 LEVEL_STEP 分升一级：挡板变短 + 球速恢复基础速度
+    const newLevel = Math.floor(score / LEVEL_STEP);
+    if (newLevel > level) setLevel(newLevel);
   }
 
   // 掉出屏幕 -> 结束
@@ -340,7 +397,7 @@ function drawBall() {
 
 function drawPaddle() {
   ctx.fillStyle = '#5ee0c0';
-  roundRect(paddleX, PADDLE_Y, PADDLE_W, PADDLE_H, PADDLE_H / 2);
+  roundRect(paddleX, PADDLE_Y, paddleW, PADDLE_H, PADDLE_H / 2);
   ctx.fill();
 }
 
@@ -350,10 +407,16 @@ function drawHud() {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 22px sans-serif';
   ctx.fillText('得分 ' + score, width / 2, 56);
+
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillText('难度 ' + (level + 1), width / 2, 80);
+  ctx.fillText('距离下一级 ' + (LEVEL_STEP - (score % LEVEL_STEP)) + ' 分', width / 2, 100);
+
   if (best > 0) {
-    ctx.font = '14px sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText('最高 ' + best, width / 2, 82);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillText('最高 ' + best, width - 12, 24);
   }
   drawBuildTag();
 }
@@ -410,10 +473,10 @@ function drawMenu() {
   drawBuildTag();
 }
 
+// 静态 3 / 2 / 1，无缩放动画
 function drawCountdown(now) {
   const remain = countdownEnd - now;
   const num = Math.max(1, Math.ceil(remain / 1000));
-  const frac = 1 - (((remain % 1000) + 1000) % 1000) / 1000;
 
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.fillRect(0, 0, width, height);
@@ -421,7 +484,7 @@ function drawCountdown(now) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold ' + Math.round(96 + (1 - frac) * 40) + 'px sans-serif';
+  ctx.font = 'bold 96px sans-serif';
   ctx.fillText(String(num), width / 2, height / 2 - 20);
 
   ctx.font = '16px sans-serif';
@@ -477,7 +540,6 @@ function loop() {
     update(now);
     draw(now);
   } catch (e) {
-    // 绘制异常时也不让循环中断，并在角落提示
     try {
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ff5555';
@@ -487,6 +549,11 @@ function loop() {
   }
   requestAnimationFrame(loop);
 }
+
+// 初始化
+paddleW = paddleWidthForLevel(0);
+paddleX = (width - paddleW) / 2;
+paddleTargetX = paddleX;
 
 refreshSaveFlag();
 loop();
