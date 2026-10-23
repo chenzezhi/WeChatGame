@@ -43,6 +43,12 @@ const AIM_GRAB_R = Math.round(AIM_RADIUS * 1.5);
 const AIM_KNOB_RATIO = 0.46;
 const AIM_DEAD = 0.30;   // 推过这个死区才开火
 
+// ---------------- 游戏内「菜单」按钮（右上角，金币下方） ----------------
+const MENU_BTN_W = Math.round(Math.min(WIDTH * 0.22, 78));
+const MENU_BTN_H = 34;
+const MENU_BTN_X = WIDTH - MENU_BTN_W - 12;
+const MENU_BTN_Y = 66;
+
 const BULLET_SPEED = 1.15;
 const BULLET_LIFE_MS = 1500;
 const BULLET_R = Math.max(3, Math.round(PLAYER_W * 0.13));
@@ -55,18 +61,18 @@ const SPEED_ITEM_RATIO = 0.80;
 
 // 一次打几发
 const PLAYER_MULTI_START = 1;
-const PLAYER_MULTI_MAX = 7;
+const PLAYER_MULTI_MAX = 10;
 const MULTI_SPREAD_DEG = 8;
 
-// 子弹伤害：每发子弹对敌人造成的伤害
+// 子弹伤害（可以有小数）：每个道具 / 每级商店 +0.1
 const PLAYER_DAMAGE_START = 1;
-const PLAYER_DAMAGE_MAX = 12;
-const DAMAGE_ITEM_GAIN = 1;     // 每个「伤害」道具 +1
-const DAMAGE_SHOP_GAIN = 1;     // 商店每级 +1
+const PLAYER_DAMAGE_MAX = 20;
+const DAMAGE_ITEM_GAIN = 0.1;
+const DAMAGE_SHOP_GAIN = 0.1;
 
 // ---------------- 升级成长 ----------------
 const LEVEL_HP_GAIN = 1;
-const LEVEL_FIRE_RATIO = 0.94;
+const LEVEL_FIRE_RATIO = 0.97;   // 每级只变快 3%（原来 6%，太快了）
 const LEVEL_MULTI_EVERY = 3;
 const LEVEL_HP_MAX = 60;
 
@@ -108,16 +114,16 @@ const ENEMY_CONTACT_COOLDOWN_MS = 2000;  // 撞上后 2 秒内不再扣血
 const BOSS_EVERY_M = 1000;
 const BOSS_SCALE = 2.4;
 const BOSS_HP_MULT_START = 10;          // 血量 = 当前小怪血量 × 10（第 1 个 Boss）
-const BOSS_HP_MULT_GROWTH = 0.3;        // 每个 Boss 倍率再 +0.3 → 10 / 13 / 16 / 19 …
+const BOSS_HP_MULT_GROWTH = 0.45;       // 成长比原来快 50% → 10 / 15 / 19 / 24 …
 
 // 开火倍率：数值越大开火越快（1.0 = 与小怪同速，<1 = 比小怪慢）
 const BOSS_FIRE_MULT_START = 0.9;       // 第 1 个 Boss：比小怪慢 10%
-const BOSS_FIRE_MULT_GROWTH = 0.35;     // 每个 Boss 再 +0.35 → 0.9 / 1.25 / 1.6 …
+const BOSS_FIRE_MULT_GROWTH = 0.525;    // 成长比原来快 50% → 0.9 / 1.37 / 1.85 …
 const BOSS_FIRE_MS_MIN = 130;
 
 // 一次散射发数
 const BOSS_BULLET_BASE = 2;             // 第 1 个 Boss：2 发
-const BOSS_BULLET_STEP = 2;             // 每个 Boss 再 +2 发 → 2 / 4 / 6 / 8 …
+const BOSS_BULLET_STEP = 3;             // 每个 Boss 再 +3 发 → 2 / 5 / 8 / 9 …
 const BOSS_BULLET_MAX = 9;
 const BOSS_BULLET_SPREAD_DEG = 13;
 
@@ -208,6 +214,10 @@ module.exports = {
   AIM_GRAB_R: AIM_GRAB_R,
   AIM_KNOB_RATIO: AIM_KNOB_RATIO,
   AIM_DEAD: AIM_DEAD,
+  MENU_BTN_W: MENU_BTN_W,
+  MENU_BTN_H: MENU_BTN_H,
+  MENU_BTN_X: MENU_BTN_X,
+  MENU_BTN_Y: MENU_BTN_Y,
   BULLET_SPEED: BULLET_SPEED,
   BULLET_FIRE_MS: BULLET_FIRE_MS,
   BULLET_LIFE_MS: BULLET_LIFE_MS,

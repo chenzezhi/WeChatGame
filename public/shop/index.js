@@ -33,7 +33,7 @@ function spend(cost) {
 
 function doUpgrade(id) {
   const lv = state.data.upgrades[id] || 0;
-  const cost = buttons.upgradeCost(lv);
+  const cost = buttons.costOf(id, lv);
 
   if (!spend(cost)) return;
 

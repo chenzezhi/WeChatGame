@@ -7,7 +7,7 @@ const UPGRADES = [
   { id: 'hp', label: '生命上限', desc: '每级 +2 最大生命' },
   { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
   { id: 'multi', label: '子弹数量', desc: '每级 +1 发子弹' },
-  { id: 'damage', label: '子弹伤害', desc: '每级 +1 伤害' },
+  { id: 'damage', label: '子弹伤害', desc: '每级 +0.1 伤害' },
 ];
 
 // 道具购买项（价格固定，仅本局有效）
@@ -15,14 +15,31 @@ const ITEMS = [
   { id: 'heal', label: '生命药水', desc: '本局开局 +3 最大生命', price: 3 },
   { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: 3 },
   { id: 'multi', label: '多发道具', desc: '本局开局 +1 发子弹', price: 4 },
-  { id: 'damage', label: '伤害道具', desc: '本局开局 +1 伤害', price: 5 },
+  { id: 'damage', label: '伤害道具', desc: '本局开局 +0.1 伤害', price: 5 },
   { id: 'clone', label: '分身道具', desc: '本局开局召唤一个分身', price: 8 },
 ];
 
-// 升级费用：0 级 1 枚，之后 2 / 4 / 7 / 11 …
-function upgradeCost(level) {
+// 通用升级费用：0 级 1 枚，之后 2 / 4 / 7 / 11 …
+function baseCost(level) {
   const lv = level > 0 ? level : 0;
   return 1 + (lv * (lv + 1)) / 2;
+}
+
+// 子弹数量：费用涨得更快（2 / 4 / 8 / 14 / 22 / 32 / 44 …）
+function multiCost(level) {
+  const lv = level > 0 ? level : 0;
+  return 2 + lv * (lv + 1);
+}
+
+// 按条目取费用
+function costOf(id, level) {
+  if (id === 'multi') return multiCost(level);
+  return baseCost(level);
+}
+
+// 兼容旧接口
+function upgradeCost(level) {
+  return baseCost(level);
 }
 
 function build(data) {
@@ -51,7 +68,7 @@ function build(data) {
       label: u.label,
       desc: u.desc,
       level: lv,
-      cost: upgradeCost(lv),
+      cost: costOf(u.id, lv),
       x: x,
       y: y,
       w: w,
@@ -105,5 +122,6 @@ function hit(built, x, y) {
 module.exports = {
   build: build,
   hit: hit,
+  costOf: costOf,
   upgradeCost: upgradeCost,
 };

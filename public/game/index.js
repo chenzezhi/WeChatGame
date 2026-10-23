@@ -47,6 +47,11 @@ const state = {
   nextFireAt: 0,
 
   bossAlive: false,
+
+  // 游戏内菜单（暂停弹窗）
+  menuOpen: false,
+  pausePanel: null,
+  pauseButtons: [],
 };
 
 function distanceOf(x) {
@@ -61,6 +66,90 @@ function readBest() {
 
 function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+// ---------------- 暂停弹窗布局 ----------------
+function buildPauseLayout() {
+  const w = Math.min(cfg.WIDTH * 0.74, 300);
+  const labelH = 52;
+  const padY = 16;
+  const bh = 52;
+  const gap = 14;
+  const padBottom = 22;
+
+  const totalH = labelH + padY + bh * 3 + gap * 2 + padBottom;
+  const x = (cfg.WIDTH - w) / 2;
+  const y = Math.max(40, (cfg.HEIGHT - totalH) / 2);
+
+  const bw = w - 44;
+  const bx = x + 22;
+  const first = y + labelH + padY;
+
+  const ids = ['resume', 'menu', 'exit'];
+  const labels = ['返回游戏', '返回主菜单', '退出游戏'];
+
+  const buttons = [];
+  for (let i = 0; i < ids.length; i++) {
+    buttons.push({
+      id: ids[i],
+      label: labels[i],
+      x: bx,
+      y: first + i * (bh + gap),
+      w: bw,
+      h: bh,
+    });
+  }
+
+  return { panel: { x: x, y: y, w: w, h: totalH }, buttons: buttons };
+}
+
+function openPause() {
+  const lay = buildPauseLayout();
+
+  state.pausePanel = lay.panel;
+  state.pauseButtons = lay.buttons;
+  state.menuOpen = true;
+
+  state.aimStick = null;
+  state.firing = false;
+  state.joy = null;
+
+  input.reset();
+}
+
+function closePause() {
+  state.menuOpen = false;
+  state.pausePanel = null;
+  state.pauseButtons = [];
+
+  state.aimStick = null;
+  state.firing = false;
+  state.joy = null;
+
+  input.reset();
+}
+
+function hitPauseButton(x, y) {
+  const list = state.pauseButtons || [];
+
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
+  }
+
+  return null;
+}
+
+function hitMenuButton(x, y) {
+  return x >= cfg.MENU_BTN_X && x <= cfg.MENU_BTN_X + cfg.MENU_BTN_W &&
+         y >= cfg.MENU_BTN_Y && y <= cfg.MENU_BTN_Y + cfg.MENU_BTN_H;
+}
+
+function exitApp() {
+  if (typeof wx.exitMiniProgram === 'function') {
+    try { wx.exitMiniProgram({}); return; } catch (e) { /* 不支持 */ }
+  }
+  try { wx.showToast({ title: '当前环境不支持退出', icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
 // 进度存档（可被死亡删除）
@@ -102,12 +191,22 @@ function resetWorld(startX) {
   state.playerHitAt = 0;
   state.bossAlive = false;
 
+  state.menuOpen = false;
+  state.pausePanel = null;
+  state.pauseButtons = [];
+
   state.level = 1;
   state.xp = 0;
   state.xpNeed = cfg.XP_BASE;
   state.fireMs = cfg.PLAYER_FIRE_MS_START;
   state.multishot = cfg.PLAYER_MULTI_START;
   state.damage = cfg.PLAYER_DAMAGE_START;
+}
+
+// 伤害保留一位小数，避免浮点误差累积
+function roundDamage(v) {
+  const n = Math.round(v * 10) / 10;
+  return n > cfg.PLAYER_DAMAGE_MAX ? cfg.PLAYER_DAMAGE_MAX : n;
 }
 
 // 开局套用玩家资产：永久升级 + 本局已购道具（用完即扣）
@@ -142,10 +241,7 @@ function applyProfileAssets() {
 
   const damageLv = prof.upgrades.damage || 0;
   if (damageLv > 0) {
-    state.damage = Math.min(
-      cfg.PLAYER_DAMAGE_MAX,
-      state.damage + damageLv * cfg.DAMAGE_SHOP_GAIN
-    );
+    state.damage = roundDamage(state.damage + damageLv * cfg.DAMAGE_SHOP_GAIN);
   }
 
   const items = prof.items || {};
@@ -170,10 +266,7 @@ function applyProfileAssets() {
   }
 
   if (items.damage > 0) {
-    state.damage = Math.min(
-      cfg.PLAYER_DAMAGE_MAX,
-      state.damage + items.damage * cfg.DAMAGE_ITEM_GAIN
-    );
+    state.damage = roundDamage(state.damage + items.damage * cfg.DAMAGE_ITEM_GAIN);
     used = true;
   }
 
@@ -218,6 +311,7 @@ function exit() {
   if (state.phase === 'playing') saveProgress();
   input.reset();
   state.paused = false;
+  state.menuOpen = false;
 }
 
 // ---------- 金币 ----------
@@ -278,6 +372,7 @@ function damagePlayer(amount, now) {
   state.firing = false;
   state.aimStick = null;
   state.bossAlive = false;
+  state.menuOpen = false;
 
   audio.play('hurt');
 
@@ -355,7 +450,7 @@ function resolveBulletCollisions() {
 
 function resolvePlayerBullets(now) {
   const list = state.bullets.list;
-  const dmg = Math.max(1, state.damage || 1);
+  const dmg = Math.max(0.1, state.damage || 1);
   let i = 0;
 
   while (i < list.length) {
@@ -503,7 +598,7 @@ function applyPickup(it, now) {
   }
 
   if (it.kind === 'damage') {
-    state.damage = Math.min(cfg.PLAYER_DAMAGE_MAX, state.damage + cfg.DAMAGE_ITEM_GAIN);
+    state.damage = roundDamage(state.damage + cfg.DAMAGE_ITEM_GAIN);
     audio.play('pickup');
     return;
   }
@@ -561,6 +656,14 @@ function trackBoss() {
 
 function update(dt, now) {
   if (state.phase !== 'playing' || state.paused || !state.player) {
+    state.aimStick = null;
+    state.firing = false;
+    state.joy = null;
+    return;
+  }
+
+  // 菜单打开时冻结游戏
+  if (state.menuOpen) {
     state.aimStick = null;
     state.firing = false;
     state.joy = null;
@@ -625,21 +728,54 @@ function touchStart(e, now) {
     return;
   }
 
+  const p = e.touches && e.touches[0];
+
+  // 弹窗打开：只响应弹窗按钮
+  if (state.menuOpen) {
+    if (!p) return;
+
+    const b = hitPauseButton(p.x, p.y);
+    if (!b) return;
+
+    if (b.id === 'resume') {
+      closePause();
+      return;
+    }
+
+    if (b.id === 'menu') {
+      closePause();
+      saveProgress();
+      scenes.switchTo('menu');
+      return;
+    }
+
+    if (b.id === 'exit') exitApp();
+    return;
+  }
+
+  // 右上角菜单按钮
+  if (p && hitMenuButton(p.x, p.y)) {
+    openPause();
+    return;
+  }
+
   input.touchStart(e);
 }
 
 function touchMove(e) {
+  if (state.menuOpen) return;
   if (state.phase !== 'playing') return;
   input.touchMove(e);
 }
 
 function touchEnd(e) {
+  if (state.menuOpen) return;
   input.touchEnd(e);
 }
 
 if (typeof wx.onHide === 'function') {
   wx.onHide(function () {
-    if (state.phase === 'playing') {
+    if (state.phase === 'playing' && !state.menuOpen) {
       state.paused = true;
       saveProgress();
     }
