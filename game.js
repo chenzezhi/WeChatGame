@@ -1,8 +1,12 @@
 // 微信小游戏：弹跳小球 + 触屏挡板 + 主菜单 + 本地存档 + 递增难度
-// 难度规则：挡板初始占屏宽 50%，每得 20 分挡板变短一些，同时球速恢复为基础速度。
-// 构建号见 BUILD 常量，会显示在画面左上角，用于确认运行的是哪一版代码。
+//
+// 难度：挡板初始占屏宽 50%，每得 20 分挡板变短一些。
+//      升级时不立刻降速，而是让小球用原来的速度弹到原来那么高，
+//      等它过了顶点开始下落，再逐帧平滑降回基础速度。
+// 操作：手指按下后左右滑动，挡板按「相对位移」移动（不是直接跳到手指下）。
+// 构建号见 BUILD 常量，会显示在画面左上角，用于确认真机跑的是哪一版。
 
-const BUILD = 'B4';
+const BUILD = 'B5';
 
 const canvas = wx.createCanvas();
 const ctx = canvas.getContext('2d');
@@ -35,10 +39,13 @@ const START_PADDLE_RATIO = 0.50; // 初始挡板 = 屏宽 50%
 const MIN_PADDLE_RATIO = 0.12;   // 挡板最小宽度（占屏宽）
 const SHRINK = 0.82;             // 每升一级宽度乘以该系数
 
-// 基础球速（每升一级都恢复到这个速度）
+// 基础球速（升级后最终会回到这个速度）
 const BASE_VX = 4.5;
 const BASE_VY = 8;
 const BASE_SPEED = Math.sqrt(BASE_VX * BASE_VX + BASE_VY * BASE_VY);
+
+// 下落阶段每帧减速的幅度（越大恢复得越快）
+const SLOW_STEP = 0.40;
 
 // ---------------- 状态 ----------------
 let state = 'menu';   // menu | countdown | playing | over
@@ -53,6 +60,14 @@ let level = 0;
 let paddleW = width * START_PADDLE_RATIO;
 let paddleX = (width - paddleW) / 2;
 let paddleTargetX = paddleX;
+
+// 升级后待降速标记：true 表示「上升阶段不降速，下落阶段再慢慢降」
+let slowPending = false;
+
+// 拖动锚点（相对位移用）
+let dragId = null;          // 正在用于拖挡板的手指 identifier
+let dragStartX = 0;         // 按下时的 canvas x
+let dragPaddleStart = 0;    // 按下时的 paddleTargetX
 
 const ball = { x: width / 2, y: height * 0.4, vx: BASE_VX, vy: -BASE_VY };
 
@@ -110,6 +125,7 @@ function loadGame() {
     0, width - paddleW
   );
   paddleTargetX = paddleX;
+  slowPending = false;
   hasGame = true;
   return true;
 }
@@ -131,29 +147,32 @@ function refreshSaveFlag() {
   }
 }
 
-// ================= 难度 / 球速 =================
-// 保留当前速度方向，大小恢复为基础速度
-function normalizeBallSpeed() {
-  const sp = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-  if (!isFinite(sp) || sp < 0.001) {
-    ball.vx = BASE_VX;
-    ball.vy = -BASE_VY;
-    return;
-  }
-  const k = BASE_SPEED / sp;
-  ball.vx *= k;
-  ball.vy *= k;
-  if (Math.abs(ball.vy) < 0.5) ball.vy = ball.vy >= 0 ? 0.5 : -0.5;
-}
-
-// 切换等级：挡板变短（中心不动）+ 球速恢复基础速度
+// ================= 难度 =================
+// 升级：挡板变短（中心不动）+ 标记「稍后再降速」
+// 注意：这里故意不改速度，让小球用原来的速度弹到原来的高度。
 function setLevel(lv) {
   level = lv;
   const center = paddleX + paddleW / 2;
   paddleW = paddleWidthForLevel(level);
   paddleX = clamp(center - paddleW / 2, 0, width - paddleW);
   paddleTargetX = clamp(paddleTargetX, 0, width - paddleW);
-  normalizeBallSpeed();
+  slowPending = true;
+}
+
+// 下落阶段把速度平滑降回基础速度（只降不升，不会把水平速度放大）
+function applySlowDown() {
+  if (!slowPending) return;
+  if (ball.vy <= 0) return; // 还在上升（或刚到顶点）：保持原速度，弹得和之前一样高
+
+  const cur = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+  if (cur > BASE_SPEED + 0.05) {
+    const next = Math.max(BASE_SPEED, cur - SLOW_STEP);
+    const k = next / cur;
+    ball.vx *= k;
+    ball.vy *= k;
+  } else {
+    slowPending = false; // 已经回到基础速度
+  }
 }
 
 // ================= 流程控制 =================
@@ -167,12 +186,14 @@ function resetBall() {
 function beginCountdown() {
   state = 'countdown';
   paused = false;
+  dragId = null;
   countdownEnd = Date.now() + 3000; // 3 / 2 / 1
 }
 
 function startNewGame() {
   score = 0;
   level = 0;
+  slowPending = false;
   paddleW = paddleWidthForLevel(0);
   paddleX = (width - paddleW) / 2;
   paddleTargetX = paddleX;
@@ -184,6 +205,7 @@ function startNewGame() {
 function showMenu() {
   state = 'menu';
   paused = false;
+  dragId = null;
   refreshSaveFlag();
 }
 
@@ -234,13 +256,34 @@ function onMenuTouch(cx, cy) {
   }
 }
 
-// ================= 输入 =================
-function movePaddleToCanvasX(cx) {
-  paddleTargetX = clamp(cx - paddleW / 2, 0, width - paddleW);
-}
-
+// ================= 输入（相对位移拖动挡板） =================
 function touchPoint(t) {
   return { x: t.clientX * scaleX, y: t.clientY * scaleY };
+}
+
+// 按下：记录锚点，挡板此时不动
+function beginDrag(t) {
+  const p = touchPoint(t);
+  dragId = (typeof t.identifier === 'number') ? t.identifier : 0;
+  dragStartX = p.x;
+  dragPaddleStart = paddleTargetX;
+}
+
+// 移动：挡板位移 = 手指相对按下点的位移
+function updateDrag(t) {
+  const p = touchPoint(t);
+  const dx = p.x - dragStartX;
+  paddleTargetX = clamp(dragPaddleStart + dx, 0, width - paddleW);
+}
+
+function findTouch(list) {
+  if (!list || !list.length) return null;
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    const id = (typeof t.identifier === 'number') ? t.identifier : 0;
+    if (dragId === null || id === dragId) return t;
+  }
+  return null;
 }
 
 wx.onTouchStart(function (e) {
@@ -256,19 +299,38 @@ wx.onTouchStart(function (e) {
     showMenu();
     return;
   }
-  movePaddleToCanvasX(p.x);
+
+  // 倒计时 / 游戏中：开始拖动
+  if (dragId === null) beginDrag(t);
 });
 
 wx.onTouchMove(function (e) {
   if (state === 'menu' || state === 'over') return;
-  const t = e.touches && e.touches[0];
-  if (t) movePaddleToCanvasX(touchPoint(t).x);
+  if (dragId === null) return;
+  const t = findTouch(e.touches);
+  if (t) updateDrag(t);
 });
+
+function endDrag(e) {
+  if (dragId === null) return;
+  const list = e.changedTouches || [];
+  for (let i = 0; i < list.length; i++) {
+    const id = (typeof list[i].identifier === 'number') ? list[i].identifier : 0;
+    if (id === dragId) {
+      dragId = null;
+      return;
+    }
+  }
+}
+
+if (typeof wx.onTouchEnd === 'function') wx.onTouchEnd(endDrag);
+if (typeof wx.onTouchCancel === 'function') wx.onTouchCancel(endDrag);
 
 // 切后台 / 挂起 -> 存档并暂停；回到前台 -> 重新倒计时
 if (typeof wx.onHide === 'function') {
   wx.onHide(function () {
     saveGame();
+    dragId = null;
     if (state === 'playing' || state === 'countdown') paused = true;
   });
 }
@@ -281,8 +343,8 @@ if (typeof wx.onShow === 'function') {
 
 // ================= 逻辑更新 =================
 function update(now) {
-  // 挡板平滑跟随手指
-  paddleX += (paddleTargetX - paddleX) * 0.35;
+  // 挡板平滑跟随目标
+  paddleX += (paddleTargetX - paddleX) * 0.45;
   paddleX = clamp(paddleX, 0, width - paddleW);
 
   if (state === 'countdown') {
@@ -295,6 +357,9 @@ function update(now) {
 
   ball.vy += GRAVITY;
   if (ball.vy > MAX_SPEED) ball.vy = MAX_SPEED;
+
+  // 升级后的降速：上升阶段不动，下落阶段才平滑降回基础速度
+  applySlowDown();
 
   const prevBottom = ball.y + BALL_R;
 
@@ -325,6 +390,7 @@ function update(now) {
 
   if (ball.vy > 0 && overlapX && crossedTop && reachedTop) {
     ball.y = PADDLE_Y - BALL_R;
+    // 先用当前速度弹起（弹得和之前一样高），降速交给 applySlowDown 在下落时处理
     ball.vy = -Math.max(Math.abs(ball.vy) * 1.02, BASE_VY);
     const hitRatio = (ball.x - (paddleLeft + paddleW / 2)) / (paddleW / 2);
     ball.vx = clamp(ball.vx + hitRatio * 6, -MAX_SPEED, MAX_SPEED);
@@ -332,7 +398,7 @@ function update(now) {
 
     score++;
 
-    // 每 LEVEL_STEP 分升一级：挡板变短 + 球速恢复基础速度
+    // 每 LEVEL_STEP 分升一级：挡板变短；降速延后到下落阶段
     const newLevel = Math.floor(score / LEVEL_STEP);
     if (newLevel > level) setLevel(newLevel);
   }
@@ -341,6 +407,7 @@ function update(now) {
   if (ball.y - BALL_R > height) {
     if (score > best) best = score;
     state = 'over';
+    dragId = null;
     clearSave();
   }
 }
@@ -377,7 +444,7 @@ function drawBackground() {
   ctx.fillRect(0, 0, width, height);
 }
 
-// 球体：先画实心圆，再叠渐变和高光，保证任何情况下都是圆的
+// 球体：先画实心圆，再叠渐变和高光
 function drawBall() {
   fillCircle(ball.x, ball.y, BALL_R, '#b9b2d0');
   try {
@@ -440,7 +507,7 @@ function drawMenu() {
 
   ctx.font = '15px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText('滑动挡板，别让小球掉下去', width / 2, height * 0.24 + 32);
+  ctx.fillText('按住屏幕左右滑动，挡板跟着移动', width / 2, height * 0.24 + 32);
 
   for (let i = 0; i < buttons.length; i++) {
     const r = buttonRect(i);
