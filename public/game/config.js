@@ -32,13 +32,26 @@ const AIR_FRICTION = 0.0006;   // 空中阻力
 const COYOTE_MS = 90;          // 离地后还能跳的宽限时间
 const JUMP_BUFFER_MS = 130;    // 落地前提前按跳的缓冲时间
 
-// ---------------- 操作 ----------------
-const SWIPE_UP_PX = 36;        // 向上滑多少像素算一次跳跃
-
 // ---------------- 眨眼 ----------------
 const BLINK_MIN_MS = 2200;     // 两次眨眼之间的最短间隔
 const BLINK_MAX_MS = 4200;     // 两次眨眼之间的最长间隔
 const BLINK_DURATION_MS = 130; // 每次眨眼持续多久
+
+// ---------------- 摇杆（屏幕左下角固定） ----------------
+const JOY_RADIUS = Math.round(Math.min(WIDTH * 0.17, 78));
+const JOY_MARGIN = Math.round(Math.min(WIDTH, HEIGHT) * 0.07);
+const JOY_CX = JOY_MARGIN + JOY_RADIUS;              // 摇杆圆心 x
+const JOY_CY = HEIGHT - JOY_MARGIN - JOY_RADIUS;     // 摇杆圆心 y
+const JOY_GRAB_R = Math.round(JOY_RADIUS * 2);       // 按下多大的范围内算抓住摇杆
+const JOY_KNOB_RATIO = 0.46;   // 摇杆头半径 = 底盘半径 × 该系数
+const JOY_DEAD = 0.22;         // 水平死区（比例）
+const JOY_JUMP_Y = 0.62;       // 向上推超过该比例触发一次跳跃
+
+// ---------------- 子弹 ----------------
+const BULLET_SPEED = 1.15;     // 子弹速度（像素 / 毫秒）
+const BULLET_FIRE_MS = 130;    // 发射间隔（越小射速越快）
+const BULLET_LIFE_MS = 1500;   // 子弹存活时间
+const BULLET_R = Math.max(3, Math.round(PLAYER_W * 0.13));
 
 // ---------------- 相机 / 计分 ----------------
 const CAMERA_ANCHOR = 0.34;    // 人物停在屏幕横向 34% 处
@@ -63,11 +76,23 @@ module.exports = {
   COYOTE_MS: COYOTE_MS,
   JUMP_BUFFER_MS: JUMP_BUFFER_MS,
 
-  SWIPE_UP_PX: SWIPE_UP_PX,
-
   BLINK_MIN_MS: BLINK_MIN_MS,
   BLINK_MAX_MS: BLINK_MAX_MS,
   BLINK_DURATION_MS: BLINK_DURATION_MS,
+
+  JOY_RADIUS: JOY_RADIUS,
+  JOY_MARGIN: JOY_MARGIN,
+  JOY_CX: JOY_CX,
+  JOY_CY: JOY_CY,
+  JOY_GRAB_R: JOY_GRAB_R,
+  JOY_KNOB_RATIO: JOY_KNOB_RATIO,
+  JOY_DEAD: JOY_DEAD,
+  JOY_JUMP_Y: JOY_JUMP_Y,
+
+  BULLET_SPEED: BULLET_SPEED,
+  BULLET_FIRE_MS: BULLET_FIRE_MS,
+  BULLET_LIFE_MS: BULLET_LIFE_MS,
+  BULLET_R: BULLET_R,
 
   CAMERA_ANCHOR: CAMERA_ANCHOR,
   DISTANCE_PER_UNIT: DISTANCE_PER_UNIT,

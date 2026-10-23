@@ -1,9 +1,10 @@
 // 绘制层：只读状态、不修改状态。
-// 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物（走路摆腿、会眨眼）。
+// 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物（走路摆腿、会眨眼、手持小手枪）
+// 另外绘制：子弹、准星、左下角摇杆。
 
 const cfg = require('./config.js');
 
-const BUILD = 'game-5';
+const BUILD = 'game-6';
 
 const C = {
   skyTop: '#7fd0f7',
@@ -25,6 +26,15 @@ const C = {
   pants: '#33415c',
   shoe: '#2a3346',
   eye: '#22262e',
+  gun: '#8e97a5',
+  gunDark: '#4a525e',
+  bullet: '#ffd75e',
+  bulletCore: '#fffdf2',
+  bulletTrail: 'rgba(255,200,80,0.35)',
+  aimRing: 'rgba(255,86,86,0.85)',
+  joyBase: 'rgba(255,255,255,0.22)',
+  joyRing: 'rgba(255,255,255,0.55)',
+  joyKnob: 'rgba(255,255,255,0.72)',
   shadow: 'rgba(0,0,0,0.16)',
   hudBg: 'rgba(255,255,255,0.82)',
   hudText: '#1d3a52',
@@ -213,6 +223,139 @@ function drawGround(ctx, cameraX) {
   }
 }
 
+// ---------------------------------------------------------------- 子弹 / 准星
+function drawBullets(ctx, level, cameraX) {
+  const list = (level && level.list) || [];
+
+  ctx.lineCap = 'round';
+
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    const x = b.x - cameraX;
+    const y = b.y;
+
+    if (x < -40 || x > cfg.WIDTH + 40) continue;
+
+    // 拖尾
+    ctx.strokeStyle = C.bulletTrail;
+    ctx.lineWidth = b.r * 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x - b.vx * 12, y - b.vy * 12);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+
+    // 弹体
+    ctx.fillStyle = C.bullet;
+    ctx.beginPath();
+    ctx.arc(x, y, b.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 高光
+    ctx.fillStyle = C.bulletCore;
+    ctx.beginPath();
+    ctx.arc(x - b.vx * 2, y - b.vy * 2, b.r * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.lineCap = 'butt';
+}
+
+function drawAim(ctx, aim, now) {
+  if (!aim) return;
+
+  const pulse = 1 + Math.sin(now / 110) * 0.08;
+  const r = 13 * pulse;
+
+  ctx.strokeStyle = C.aimRing;
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+  ctx.arc(aim.x, aim.y, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(aim.x - r - 5, aim.y);
+  ctx.lineTo(aim.x - r + 2, aim.y);
+  ctx.moveTo(aim.x + r - 2, aim.y);
+  ctx.lineTo(aim.x + r + 5, aim.y);
+  ctx.moveTo(aim.x, aim.y - r - 5);
+  ctx.lineTo(aim.x, aim.y - r + 2);
+  ctx.moveTo(aim.x, aim.y + r - 2);
+  ctx.lineTo(aim.x, aim.y + r + 5);
+  ctx.stroke();
+}
+
+// ---------------------------------------------------------------- 摇杆
+function drawJoystick(ctx, joy) {
+  const cx = cfg.JOY_CX;
+  const cy = cfg.JOY_CY;
+  const r = cfg.JOY_RADIUS;
+  const active = !!(joy && joy.active);
+
+  const dx = active ? joy.dx : 0;
+  const dy = active ? joy.dy : 0;
+
+  ctx.save();
+  ctx.globalAlpha = active ? 1 : 0.8;
+
+  ctx.fillStyle = C.joyBase;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = C.joyRing;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const kx = cx + dx * r * 0.62;
+  const ky = cy + dy * r * 0.62;
+
+  ctx.fillStyle = C.joyKnob;
+  ctx.beginPath();
+  ctx.arc(kx, ky, r * cfg.JOY_KNOB_RATIO, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- 小手枪
+// 枪口朝 +x 方向；s 为整体缩放
+function drawGun(ctx, hx, hy, angle, s) {
+  ctx.save();
+  ctx.translate(hx, hy);
+  ctx.rotate(angle);
+  ctx.scale(s, s);
+
+  // 握把
+  ctx.fillStyle = C.gunDark;
+  roundRectPath(ctx, -3, -2, 6, 10, 2.4);
+  ctx.fill();
+
+  // 枪身
+  ctx.fillStyle = C.gun;
+  roundRectPath(ctx, -4, -6, 13, 7, 2.6);
+  ctx.fill();
+
+  // 枪管
+  ctx.fillStyle = C.gunDark;
+  roundRectPath(ctx, 8, -4.4, 7, 4, 1.8);
+  ctx.fill();
+
+  // 枪口
+  ctx.fillStyle = '#23282f';
+  roundRectPath(ctx, 14.2, -4, 2.2, 3.2, 1.1);
+  ctx.fill();
+
+  // 高光
+  ctx.fillStyle = 'rgba(255,255,255,0.38)';
+  roundRectPath(ctx, -2.4, -5.4, 8, 1.8, 0.9);
+  ctx.fill();
+
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------- 人物
 // 眼睛：眨眼时画成两条闭合的短横线
 function drawEyes(ctx, R, headCY, blinking) {
@@ -252,7 +395,8 @@ function drawEyes(ctx, R, headCY, blinking) {
   ctx.fill();
 }
 
-function drawPlayer(ctx, p, cameraX) {
+// aimAngle：世界坐标下的枪口角度（null = 没在瞄准，枪口朝面朝方向）
+function drawPlayer(ctx, p, cameraX, aimAngle) {
   const sx = p.x - cameraX;
   const sy = p.y;
   const w = p.w;
@@ -304,9 +448,28 @@ function drawPlayer(ctx, p, cameraX) {
   const shoulderY = bodyY + bodyH * 0.16;
   const shoulderX = bodyW * 0.5 - armW * 0.1;
 
+  // 把世界角度换算成「人物本地」角度（人物朝左时整体水平镜像）
+  const facing = p.facing >= 0 ? 1 : -1;
+  const aimLocal = (typeof aimAngle === 'number')
+    ? (facing >= 0 ? aimAngle : Math.PI - aimAngle)
+    : null;
+
+  // 前臂角度：瞄准时手臂指向准星，否则跟着跑步摆动
+  if (aimLocal !== null) armR = aimLocal - Math.PI / 2;
+
+  // 前手（握枪）的本地坐标
+  let handX, handY;
+  if (aimLocal !== null) {
+    handX = shoulderX + Math.cos(aimLocal) * armH * 0.92;
+    handY = shoulderY + Math.sin(aimLocal) * armH * 0.92;
+  } else {
+    handX = shoulderX - Math.sin(armR) * armH * 0.92;
+    handY = shoulderY + Math.cos(armR) * armH * 0.92;
+  }
+
   ctx.save();
   ctx.translate(cx, feetY - bob);
-  ctx.scale(p.facing >= 0 ? 1 : -1, 1);
+  ctx.scale(facing, 1);
 
   // ---- 后腿 / 后臂（先画，形成遮挡层次） ----
   drawLimb(ctx, -hipX, hipY, legH, legW, legL, C.pants);
@@ -328,6 +491,10 @@ function drawPlayer(ctx, p, cameraX) {
   drawFoot(ctx, hipX, hipY, legH, legW, legR);
 
   drawLimb(ctx, shoulderX, shoulderY, armH, armW, armR, C.skin);
+
+  // ---- 小手枪（握在前手里） ----
+  const gunAngle = (aimLocal !== null) ? aimLocal : 0;
+  drawGun(ctx, handX, handY, gunAngle, w / 30);
 
   // ---- 头 ----
   ctx.fillStyle = C.skin;
@@ -388,7 +555,7 @@ function drawHud(ctx, state) {
   ctx.textAlign = 'center';
   ctx.font = '12px sans-serif';
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
-  ctx.fillText('按住左/右移动 · 任意手指上滑跳跃', cfg.WIDTH / 2, cfg.HEIGHT - 16);
+  ctx.fillText('左下摇杆移动（上推跳跃） · 按住其它位置射击', cfg.WIDTH / 2, cfg.HEIGHT - 16);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
@@ -409,7 +576,14 @@ function draw(ctx, state, now) {
   drawTrees(ctx, cameraX);
   drawGround(ctx, cameraX);
 
-  if (state.player) drawPlayer(ctx, state.player, cameraX);
+  drawBullets(ctx, state.bullets, cameraX);
+
+  if (state.player) {
+    drawPlayer(ctx, state.player, cameraX, state.aim ? state.aimAngle : null);
+  }
+
+  drawAim(ctx, state.aim, now);
+  drawJoystick(ctx, state.joy);
 
   drawHud(ctx, state);
 }

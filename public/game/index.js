@@ -1,9 +1,10 @@
-// 游戏模块控制器：组合 配置 / 人物 / 操作 / 绘制。
+// 游戏模块控制器：组合 配置 / 人物 / 子弹 / 操作 / 绘制。
 // 对外只暴露场景接口：enter / update / render / touchStart / touchMove / touchEnd
 
 const cfg = require('./config.js');
 const input = require('./input.js');
 const playerKit = require('./player.js');
+const bullets = require('./bullets.js');
 const view = require('./view.js');
 
 const storage = require('../core/storage.js');
@@ -11,10 +12,17 @@ const storage = require('../core/storage.js');
 const state = {
   phase: 'idle',   // idle | playing
   player: null,
+  bullets: bullets.create(),
   cameraX: 0,
   distance: 0,
   best: 0,
   paused: false,
+
+  // 操作 / 瞄准相关（供绘制层只读）
+  joy: null,        // 摇杆状态
+  aim: null,        // 当前瞄准点（屏幕坐标），没有按住则为 null
+  aimAngle: 0,      // 当前枪口角度（弧度）
+  nextFireAt: 0,    // 下一次允许开火的时间
 };
 
 function distanceOf(x) {
@@ -49,8 +57,12 @@ function cameraTargetOf(playerX) {
 
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
+  state.bullets = bullets.create();
   state.cameraX = cameraTargetOf(state.player.x);
   state.distance = distanceOf(state.player.x);
+  state.aim = null;
+  state.aimAngle = 0;
+  state.nextFireAt = 0;
 }
 
 function enter(payload) {
@@ -61,6 +73,7 @@ function enter(payload) {
   state.phase = 'playing';
   state.paused = false;
   state.best = readBest();
+  state.joy = input.getJoystick();
 
   const save = storage.read();
 
@@ -78,7 +91,37 @@ function exit() {
   state.paused = false;
 }
 
+// 按住屏幕（摇杆以外）就按固定射速朝触摸点连发
+function fireUpdate(now) {
+  const p = state.player;
+  const aim = state.aim;
+  if (!p || !aim) return;
+
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h * 0.45;
+  const tx = aim.x + state.cameraX;
+  const ty = aim.y;
+
+  const angle = Math.atan2(ty - cy, tx - cx);
+  state.aimAngle = angle;
+
+  // 朝向跟着准星走
+  if (Math.abs(tx - cx) > p.w * 0.15) p.facing = tx > cx ? 1 : -1;
+
+  if (now < state.nextFireAt) return;
+  state.nextFireAt = now + cfg.BULLET_FIRE_MS;
+
+  // 枪口位置：从身体中心朝射击方向偏出去一点
+  const mx = cx + Math.cos(angle) * p.w * 0.75;
+  const my = cy + Math.sin(angle) * p.w * 0.75;
+
+  bullets.spawn(state.bullets, mx, my, tx, ty);
+}
+
 function update(dt, now) {
+  state.joy = input.getJoystick();
+  state.aim = input.getFireTarget();
+
   if (state.phase !== 'playing') return;
   if (state.paused) return;
   if (!state.player) return;
@@ -92,6 +135,18 @@ function update(dt, now) {
   // ---------- 相机：前后都跟随，往回走画面也跟着回来 ----------
   state.cameraX = cameraTargetOf(state.player.x);
 
+  // ---------- 射击 ----------
+  fireUpdate(now);
+
+  if (!state.aim) {
+    // 没在瞄准时枪口朝人物面朝方向
+    state.aimAngle = state.player.facing >= 0 ? 0 : Math.PI;
+  }
+
+  // ---------- 子弹 ----------
+  bullets.update(state.bullets, dt);
+  bullets.cull(state.bullets, state.cameraX);
+
   // ---------- 计分 ----------
   const d = distanceOf(state.player.x);
   if (d > state.distance) state.distance = d;
@@ -101,7 +156,7 @@ function render(ctx, now) {
   view.draw(ctx, state, now);
 }
 
-function touchStart(e, now) {
+function touchStart(e) {
   input.touchStart(e);
 }
 
@@ -127,6 +182,7 @@ if (typeof wx.onHide === 'function') {
 if (typeof wx.onShow === 'function') {
   wx.onShow(function () {
     state.paused = false;
+    input.reset();
   });
 }
 
