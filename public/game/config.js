@@ -75,20 +75,20 @@ const DAMAGE_SHOP_GAIN = 0.1;
 // ---------------- 弹夹 / 装填 ----------------
 // 每次开火（一轮齐射）消耗 1 发；空了不能打
 const PLAYER_AMMO_START = 10;          // 初始弹夹容量
-const PLAYER_AMMO_MAX = 40;            // 弹夹容量上限
+const PLAYER_AMMO_MAX = 200;           // 弹夹容量上限（需要升很多级）
 const SHOP_AMMO_GAIN = 1;              // 商店每级 +1 容量
 
 // 装填只跟「前进距离」有关：走够多少米补 1 发
-const RELOAD_M_START = 10;             // 初始每 10 米 +1 发
-const RELOAD_M_MIN = 3;                // 最快每 3 米 +1 发
+const RELOAD_M_START = 50;             // 初始每 50 米 +1 发
+const RELOAD_M_MIN = 1;                // 满级每 1 米 +1 发
 const RELOAD_SHOP_STEP_M = 1;          // 商店每级装填距离 -1 米
 const RELOAD_ITEM_RATIO = 0.80;        // 「快速装填」道具：距离 ×0.8
 
-// 「弹药」道具：立即补若干发
-const AMMO_ITEM_BASE = 3;
+// 「弹药」道具：立即补若干发（基础 10 发，随距离变多）
+const AMMO_ITEM_BASE = 10;
 const AMMO_ITEM_STEP_M = 400;
-const AMMO_ITEM_GAIN_PER_STEP = 1;
-const AMMO_ITEM_MAX = 12;
+const AMMO_ITEM_GAIN_PER_STEP = 2;
+const AMMO_ITEM_MAX = 40;
 
 // ---------------- 升级成长 ----------------
 const LEVEL_HP_GAIN = 1;
