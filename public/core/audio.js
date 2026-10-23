@@ -1,26 +1,30 @@
 // 音频：背景音乐 + 音效。
 //
-// 资源放在项目根目录的 audio/ 下（mp3 / m4a / wav 都行，按需改名）：
-//   audio/bgm.mp3          背景音乐（循环）
-//   audio/shoot.mp3        玩家开火
-//   audio/enemy-shoot.mp3  敌人开火
-//   audio/hit.mp3          子弹命中敌人
-//   audio/pickup.mp3       拾取道具
-//   audio/coin.mp3         拾取金币
-//   audio/hurt.mp3         玩家受伤
-//   audio/boss.mp3         Boss 登场
+// 资源放在项目根目录的 audio/ 下，**扩展名可任选其一**（按 EXT_ORDER 依次尝试）：
+//   audio/bgm            背景音乐（循环）
+//   audio/shoot          玩家开火
+//   audio/enemy-shoot    敌人开火
+//   audio/hit            子弹命中敌人
+//   audio/pickup         拾取道具
+//   audio/coin           拾取金币
+//   audio/hurt           玩家受伤
+//   audio/boss           Boss 登场
 //
+// 例如 bgm.mp3 / bgm.m4a / bgm.wav / bgm.aac 都行，代码会挑第一个能播的。
 // 资源缺失时静默降级：只标记缺失，不抛异常，不影响游戏运行。
 
-const FILES = {
-  bgm: 'audio/bgm.mp3',
-  shoot: 'audio/shoot.mp3',
-  enemyShoot: 'audio/enemy-shoot.mp3',
-  hit: 'audio/hit.mp3',
-  pickup: 'audio/pickup.mp3',
-  coin: 'audio/coin.mp3',
-  hurt: 'audio/hurt.mp3',
-  boss: 'audio/boss.mp3',
+// 尝试顺序：微信小游戏常见支持 mp3 / m4a / aac / wav
+const EXT_ORDER = ['mp3', 'm4a', 'wav', 'aac'];
+
+const BASE = {
+  bgm: 'audio/bgm',
+  shoot: 'audio/shoot',
+  enemyShoot: 'audio/enemy-shoot',
+  hit: 'audio/hit',
+  pickup: 'audio/pickup',
+  coin: 'audio/coin',
+  hurt: 'audio/hurt',
+  boss: 'audio/boss',
 };
 
 const BGM_VOLUME = 0.30;
@@ -49,14 +53,30 @@ try {
 const st = {
   muted: false,
   bgm: null,
+  bgmSrc: '',
   bgmPlaying: false,
   bgmWanted: false,
-  pools: {},
-  poolIdx: {},
-  missing: {},
-  lastAt: {},
+  pools: {},      // name -> [audio]
+  poolIdx: {},    // name -> 下一个要用的下标
+  poolSrc: {},    // name -> 当前池对应的 src
+  extIdx: {},     // name -> EXT_ORDER 的下标（回退用）
+  lastAt: {},     // name -> 上次播放时间
 };
 
+// ---------------- 扩展名回退 ----------------
+function extOf(name) {
+  const i = st.extIdx[name] || 0;
+  return i < EXT_ORDER.length ? EXT_ORDER[i] : null;
+}
+
+function srcOf(name) {
+  if (!BASE[name]) return null;
+  const ext = extOf(name);
+  if (!ext) return null;
+  return BASE[name] + '.' + ext;
+}
+
+// ---------------- 实例创建 / 销毁 ----------------
 function createAudio(src, loop, volume) {
   if (!supported || !src) return null;
 
@@ -74,11 +94,57 @@ function createAudio(src, loop, volume) {
   return a;
 }
 
-function ensureBgm() {
-  if (st.bgm) return st.bgm;
-  if (!supported || st.missing.bgm) return null;
+function destroyAudio(a) {
+  if (!a) return;
+  try { a.stop(); } catch (e) { /* 忽略 */ }
+  try { a.destroy(); } catch (e) { /* 忽略 */ }
+}
 
-  const a = createAudio(FILES.bgm, true, BGM_VOLUME);
+function destroyPool(name) {
+  const pool = st.pools[name];
+  if (!pool) return;
+
+  for (let i = 0; i < pool.length; i++) destroyAudio(pool[i]);
+
+  st.pools[name] = null;
+  st.poolIdx[name] = 0;
+  st.poolSrc[name] = '';
+}
+
+function destroyBgm() {
+  destroyAudio(st.bgm);
+  st.bgm = null;
+  st.bgmSrc = '';
+  st.bgmPlaying = false;
+}
+
+// 某个 src 播不了：换下一个扩展名再试
+function onMediaError(name, src) {
+  const cur = srcOf(name);
+  if (cur && src && cur !== src) return; // 已经换过，忽略旧实例的迟到错误
+
+  st.extIdx[name] = (st.extIdx[name] || 0) + 1;
+
+  if (name === 'bgm') {
+    destroyBgm();
+
+    // 还想放并且还有备选格式，就再试一次
+    if (st.bgmWanted && !st.muted && extOf('bgm')) playBgm();
+    return;
+  }
+
+  destroyPool(name);
+}
+
+// ---------------- 背景音乐 ----------------
+function ensureBgm() {
+  const src = srcOf('bgm');
+  if (!supported || !src) return null;
+  if (st.bgm && st.bgmSrc === src) return st.bgm;
+
+  if (st.bgm) destroyBgm();
+
+  const a = createAudio(src, true, BGM_VOLUME);
   if (!a) return null;
 
   try {
@@ -86,39 +152,13 @@ function ensureBgm() {
     a.onPause(function () { st.bgmPlaying = false; });
     a.onStop(function () { st.bgmPlaying = false; });
     a.onEnded(function () { st.bgmPlaying = false; });
-    a.onError(function () {
-      st.bgmPlaying = false;
-      st.missing.bgm = true;
-    });
+    a.onError(function () { onMediaError('bgm', src); });
   } catch (e) { /* 忽略 */ }
 
   st.bgm = a;
+  st.bgmSrc = src;
+
   return a;
-}
-
-function ensurePool(name) {
-  if (st.pools[name]) return st.pools[name];
-  if (!supported || st.missing[name] || !FILES[name]) return null;
-
-  const list = [];
-
-  for (let i = 0; i < POOL_SIZE; i++) {
-    const a = createAudio(FILES[name], false, SFX_VOLUME);
-    if (!a) continue;
-
-    try {
-      a.onError(function () { st.missing[name] = true; });
-    } catch (e) { /* 忽略 */ }
-
-    list.push(a);
-  }
-
-  if (!list.length) return null;
-
-  st.pools[name] = list;
-  st.poolIdx[name] = 0;
-
-  return list;
 }
 
 // 背景音乐：重复调用安全（已在播放就不动）
@@ -131,7 +171,7 @@ function playBgm() {
   const a = ensureBgm();
   if (!a || st.bgmPlaying) return;
 
-  try { a.play(); } catch (e) { /* 忽略 */ }
+  try { a.play(); } catch (e) { onMediaError('bgm', st.bgmSrc); }
 }
 
 function pauseBgm() {
@@ -142,7 +182,47 @@ function pauseBgm() {
   st.bgmPlaying = false;
 }
 
-// 播放一个音效：name 取 FILES 的键
+function stopBgm() {
+  st.bgmWanted = false;
+
+  const a = st.bgm;
+  if (!a) return;
+
+  try { a.stop(); } catch (e) { /* 忽略 */ }
+  st.bgmPlaying = false;
+}
+
+// ---------------- 音效 ----------------
+function ensurePool(name) {
+  const src = srcOf(name);
+  if (!supported || !src) return null;
+  if (st.pools[name] && st.poolSrc[name] === src) return st.pools[name];
+
+  if (st.pools[name]) destroyPool(name);
+
+  const list = [];
+
+  for (let i = 0; i < POOL_SIZE; i++) {
+    const a = createAudio(src, false, SFX_VOLUME);
+    if (!a) continue;
+
+    try {
+      a.onError(function () { onMediaError(name, src); });
+    } catch (e) { /* 忽略 */ }
+
+    list.push(a);
+  }
+
+  if (!list.length) return null;
+
+  st.pools[name] = list;
+  st.poolSrc[name] = src;
+  st.poolIdx[name] = 0;
+
+  return list;
+}
+
+// 播放一个音效：name 取 BASE 的键
 function play(name) {
   if (!supported || st.muted || !name) return;
 
@@ -163,9 +243,10 @@ function play(name) {
 
   // 先 stop 再 play，保证能立刻重新触发
   try { a.stop(); } catch (e) { /* 忽略 */ }
-  try { a.play(); } catch (e) { /* 忽略 */ }
+  try { a.play(); } catch (e) { onMediaError(name, st.poolSrc[name]); }
 }
 
+// ---------------- 静音开关 ----------------
 function setMuted(v) {
   st.muted = !!v;
 
@@ -190,6 +271,7 @@ module.exports = {
   play: play,
   playBgm: playBgm,
   pauseBgm: pauseBgm,
+  stopBgm: stopBgm,
   setMuted: setMuted,
   toggleMute: toggleMute,
   isMuted: isMuted,
