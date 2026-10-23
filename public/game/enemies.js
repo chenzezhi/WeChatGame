@@ -29,6 +29,7 @@ function gapForDistance(dist) {
   return g < cfg.ENEMY_GAP_MIN_M ? cfg.ENEMY_GAP_MIN_M : g;
 }
 
+// 行为决策间隔：一开始很迟钝，越深入越频繁
 function moveIntervalForDistance(dist) {
   const v = cfg.ENEMY_MOVE_MS_START - dist * cfg.ENEMY_MOVE_DECAY;
   return v < cfg.ENEMY_MOVE_MS_MIN ? cfg.ENEMY_MOVE_MS_MIN : v;
@@ -37,6 +38,13 @@ function moveIntervalForDistance(dist) {
 function fireIntervalForDistance(dist) {
   const v = cfg.ENEMY_FIRE_MS - dist * cfg.ENEMY_FIRE_DECAY;
   return v < cfg.ENEMY_FIRE_MS_MIN ? cfg.ENEMY_FIRE_MS_MIN : v;
+}
+
+// 追击概率：开局低，随距离提高
+function chaseChanceForDistance(dist) {
+  const steps = Math.floor(dist / cfg.ENEMY_CHASE_STEP_M);
+  const v = cfg.ENEMY_CHASE_BASE + steps * cfg.ENEMY_CHASE_GAIN;
+  return v > cfg.ENEMY_CHASE_MAX ? cfg.ENEMY_CHASE_MAX : v;
 }
 
 function contactDamageForDistance(dist) {
@@ -65,9 +73,10 @@ function reset(level, dist) {
   level.nextBossDist = (level.bossCount + 1) * cfg.BOSS_EVERY_M;
 }
 
-function spawnOne(level, x, hp, dmg, now) {
+function spawnOne(level, x, hp, dmg, now, dist) {
   const w = Math.round(cfg.PLAYER_W * 1.02);
   const h = Math.round(cfg.PLAYER_H * 0.92);
+  const d = typeof dist === 'number' ? dist : 0;
 
   level.list.push({
     x: x,
@@ -82,14 +91,14 @@ function spawnOne(level, x, hp, dmg, now) {
     vx: 0,
     vy: 0,
     onGround: true,
-    dir: Math.random() < 0.5 ? -1 : 1,
-    speed: cfg.ENEMY_MOVE_SPEED,
+    dir: 0,
+    speed: 0,
     hurtAt: 0,
     bornAt: now,
     bobPhase: Math.random(),
-    nextMoveAt: now + 200 + Math.random() * 500,
+    nextMoveAt: now + moveIntervalForDistance(d) * (0.6 + Math.random() * 0.8),
     jumpQueuedAt: NEVER,
-    nextFireAt: now + cfg.ENEMY_FIRE_MS * (0.35 + Math.random() * 0.9),
+    nextFireAt: now + cfg.ENEMY_FIRE_MS * (0.6 + Math.random() * 1.2),
   });
 }
 
@@ -156,7 +165,7 @@ function spawnAhead(level, playerX, dist, now) {
     const baseX = playerX + cfg.WIDTH * 0.9;
 
     for (let i = 0; i < count; i++) {
-      spawnOne(level, baseX + i * cfg.PLAYER_W * 1.9, hp, dmg, now);
+      spawnOne(level, baseX + i * cfg.PLAYER_W * 1.9, hp, dmg, now, at);
     }
 
     level.spawned += count;
@@ -179,24 +188,39 @@ function spawnAhead(level, playerX, dist, now) {
   }
 }
 
-function decideMove(e, now, player) {
+// 行为决策：追击 / 游走 / 发呆 / 起跳
+function decideMove(e, now, player, dist) {
   const cx = e.x + e.w / 2;
   const px = player ? player.x + player.w / 2 : cx;
   const toward = px >= cx ? 1 : -1;
 
   if (e.isBoss) {
     e.dir = Math.random() < 0.85 ? toward : (Math.random() < 0.5 ? -1 : 1);
+    e.speed = cfg.ENEMY_MOVE_SPEED * 0.55;
     if (e.onGround && Math.random() < 0.25) e.jumpQueuedAt = now;
     return;
   }
 
-  e.dir = Math.random() < 0.7 ? toward : (Math.random() < 0.5 ? -1 : 1);
-  e.speed = cfg.ENEMY_MOVE_SPEED * (0.6 + Math.random() * 0.9);
+  const chase = chaseChanceForDistance(dist);
+
+  if (Math.random() < chase) {
+    // 追人
+    e.dir = toward;
+    e.speed = cfg.ENEMY_MOVE_SPEED * (0.6 + Math.random() * 0.5);
+  } else if (Math.random() < cfg.ENEMY_IDLE_CHANCE) {
+    // 发呆
+    e.dir = 0;
+    e.speed = 0;
+  } else {
+    // 随机游走
+    e.dir = Math.random() < 0.5 ? -1 : 1;
+    e.speed = cfg.ENEMY_MOVE_SPEED * (0.35 + Math.random() * 0.5);
+  }
 
   if (!e.onGround) return;
 
   const near = player && Math.abs(px - cx) < e.w * 2.4;
-  const chance = near ? cfg.ENEMY_JUMP_CHANCE : cfg.ENEMY_JUMP_CHANCE * 0.5;
+  const chance = near ? cfg.ENEMY_JUMP_CHANCE : cfg.ENEMY_JUMP_CHANCE * 0.4;
 
   if (Math.random() < chance) e.jumpQueuedAt = now;
 }
@@ -229,7 +253,7 @@ function update(level, dt, now, player, eBullets, dist) {
     if (now >= e.nextMoveAt) {
       const scale = e.isBoss ? 2.2 : 1;
       e.nextMoveAt = now + moveMs * scale * (0.7 + Math.random() * 0.6);
-      decideMove(e, now, player);
+      decideMove(e, now, player, d);
     }
 
     if (e.onGround && now - e.jumpQueuedAt <= 80) {
@@ -281,7 +305,7 @@ function update(level, dt, now, player, eBullets, dist) {
       e.nextMinionAt = now + e.minionMin + Math.random() * (e.minionMax - e.minionMin);
 
       const mx = e.x + e.w * (Math.random() < 0.5 ? -0.35 : 0.35);
-      spawnOne(level, mx, smallHp, smallDmg, now);
+      spawnOne(level, mx, smallHp, smallDmg, now, d);
     }
 
     if (!near) continue;
@@ -363,6 +387,7 @@ module.exports = {
   countForDistance: countForDistance,
   moveIntervalForDistance: moveIntervalForDistance,
   fireIntervalForDistance: fireIntervalForDistance,
+  chaseChanceForDistance: chaseChanceForDistance,
   contactDamageForDistance: contactDamageForDistance,
   bossHpMult: bossHpMult,
   bossFireMult: bossFireMult,

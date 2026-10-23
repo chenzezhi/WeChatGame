@@ -11,6 +11,7 @@ const view = require('./view.js');
 
 const scenes = require('../core/scenes.js');
 const storage = require('../core/storage.js');
+const profile = require('../core/profile.js');
 
 const DEAD_TAP_DELAY = 420;
 
@@ -25,6 +26,8 @@ const state = {
   cameraX: 0,
   distance: 0,
   best: 0,
+  coins: 0,
+  coinValue: cfg.COIN_VALUE_BASE,
   paused: false,
   deadAt: 0,
   playerHitAt: 0,
@@ -36,7 +39,8 @@ const state = {
   multishot: cfg.PLAYER_MULTI_START,
 
   joy: null,
-  aim: null,
+  aimStick: null,
+  firing: false,
   aimAngle: 0,
   nextFireAt: 0,
 };
@@ -55,6 +59,7 @@ function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
+// 进度存档（可被死亡删除）
 function saveProgress() {
   if (!state.player) return;
 
@@ -85,7 +90,8 @@ function resetWorld(startX) {
   enemies.reset(state.enemies, state.distance);
   pickups.reset(state.pickups, state.distance);
   clones.reset(state.clones);
-  state.aim = null;
+  state.aimStick = null;
+  state.firing = false;
   state.aimAngle = 0;
   state.nextFireAt = 0;
   state.deadAt = 0;
@@ -98,6 +104,73 @@ function resetWorld(startX) {
   state.multishot = cfg.PLAYER_MULTI_START;
 }
 
+// 开局套用玩家资产：永久升级 + 本局已购道具（用完即扣）
+function applyProfileAssets() {
+  const prof = profile.read();
+
+  state.coins = prof.coins;
+  state.coinValue = Math.min(
+    cfg.COIN_VALUE_MAX,
+    cfg.COIN_VALUE_BASE + prof.bossKills * cfg.COIN_VALUE_GROWTH
+  );
+
+  const p = state.player;
+
+  // 永久属性升级
+  const hpLv = prof.upgrades.hp || 0;
+  if (hpLv > 0 && p) {
+    p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + hpLv * 2);
+    p.hp = p.maxHp;
+  }
+
+  const fireLv = prof.upgrades.fire || 0;
+  if (fireLv > 0) {
+    let f = Math.round(state.fireMs * Math.pow(0.92, fireLv));
+    if (f < cfg.PLAYER_FIRE_MS_MIN) f = cfg.PLAYER_FIRE_MS_MIN;
+    state.fireMs = f;
+  }
+
+  const multiLv = prof.upgrades.multi || 0;
+  if (multiLv > 0) {
+    state.multishot = Math.min(cfg.PLAYER_MULTI_MAX, state.multishot + multiLv);
+  }
+
+  // 本局道具（买多少用多少）
+  const items = prof.items || {};
+  let used = false;
+
+  if (items.heal > 0 && p) {
+    p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + 3 * items.heal);
+    p.hp = p.maxHp;
+    used = true;
+  }
+
+  if (items.speed > 0) {
+    let f = Math.round(state.fireMs * Math.pow(cfg.SPEED_ITEM_RATIO, items.speed));
+    if (f < cfg.PLAYER_FIRE_MS_MIN) f = cfg.PLAYER_FIRE_MS_MIN;
+    state.fireMs = f;
+    used = true;
+  }
+
+  if (items.multi > 0) {
+    state.multishot = Math.min(cfg.PLAYER_MULTI_MAX, state.multishot + items.multi);
+    used = true;
+  }
+
+  if (items.clone > 0 && p) {
+    for (let i = 0; i < items.clone; i++) {
+      clones.spawn(state.clones, p, cfg.CLONE_HP_BASE, 0);
+    }
+    used = true;
+  }
+
+  // 消耗掉本局道具
+  if (used) {
+    prof.items = { heal: 0, speed: 0, multi: 0, clone: 0 };
+    profile.write(prof);
+  }
+}
+
 function enter(payload) {
   payload = payload || {};
 
@@ -107,6 +180,8 @@ function enter(payload) {
   state.paused = false;
   state.best = readBest();
   state.joy = input.getJoystick();
+  state.aimStick = input.getAimStick();
+  state.firing = false;
 
   const save = storage.read();
 
@@ -115,12 +190,25 @@ function enter(payload) {
   } else {
     resetWorld(cfg.START_X);
   }
+
+  applyProfileAssets();
 }
 
 function exit() {
-  saveProgress();
+  if (state.phase === 'playing') saveProgress();
   input.reset();
   state.paused = false;
+}
+
+// ---------- 金币 ----------
+function addCoins(n) {
+  if (!(n > 0)) return;
+
+  state.coins += n;
+
+  const prof = profile.read();
+  prof.coins = state.coins;
+  profile.write(prof);
 }
 
 // ---------- 升级：血量 / 攻速 / 子弹数一起成长 ----------
@@ -130,18 +218,15 @@ function applyLevelUp() {
 
   const p = state.player;
 
-  // 血量
   if (p) {
     p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + cfg.LEVEL_HP_GAIN);
     p.hp = Math.min(p.maxHp, p.hp + cfg.LEVEL_HP_GAIN);
   }
 
-  // 攻速
   let f = Math.round(state.fireMs * cfg.LEVEL_FIRE_RATIO);
   if (f < cfg.PLAYER_FIRE_MS_MIN) f = cfg.PLAYER_FIRE_MS_MIN;
   state.fireMs = f;
 
-  // 子弹数量
   if (state.level % cfg.LEVEL_MULTI_EVERY === 0 && state.multishot < cfg.PLAYER_MULTI_MAX) {
     state.multishot += 1;
   }
@@ -167,27 +252,33 @@ function damagePlayer(amount, now) {
 
   state.phase = 'dead';
   state.deadAt = now;
-  state.aim = null;
-  saveProgress();
+  state.firing = false;
+  state.aimStick = null;
+
+  // 死亡：删掉进度存档（玩家资产 profile.json 不受影响）
+  storage.clear();
 }
 
+// 右摇杆方向 = 子弹方向
 function fireUpdate(now) {
   const p = state.player;
-  const aim = state.aim;
-  if (!p || !aim || !p.alive) return;
+  const s = state.aimStick;
 
-  const cx = p.x + p.w / 2;
-  const cy = p.y + p.h * 0.45;
-  const tx = aim.x + state.cameraX;
-  const ty = aim.y;
+  state.firing = !!(s && s.active);
 
-  const angle = Math.atan2(ty - cy, tx - cx);
+  if (!p || !p.alive || !state.firing) return;
+
+  const angle = Math.atan2(s.dy, s.dx);
   state.aimAngle = angle;
 
-  if (Math.abs(tx - cx) > p.w * 0.15) p.facing = tx > cx ? 1 : -1;
+  if (Math.cos(angle) >= 0) p.facing = 1;
+  else p.facing = -1;
 
   if (now < state.nextFireAt) return;
   state.nextFireAt = now + state.fireMs;
+
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h * 0.45;
 
   const n = Math.max(1, state.multishot);
   const step = (cfg.MULTI_SPREAD_DEG * Math.PI) / 180;
@@ -223,6 +314,17 @@ function resolvePlayerBullets(now) {
         gainXp(xp);
 
         if (wasBoss) {
+          // Boss 击杀：记录次数（影响金币价值）+ 掉落大量道具
+          const prof = profile.read();
+          prof.bossKills = (prof.bossKills || 0) + 1;
+          prof.coins = state.coins;
+          profile.write(prof);
+
+          state.coinValue = Math.min(
+            cfg.COIN_VALUE_MAX,
+            cfg.COIN_VALUE_BASE + prof.bossKills * cfg.COIN_VALUE_GROWTH
+          );
+
           const count = cfg.BOSS_DROP_BASE + cfg.BOSS_DROP_STEP * (stage - 1) + Math.floor(state.distance / 1000);
           const n = count > cfg.BOSS_DROP_MAX ? cfg.BOSS_DROP_MAX : count;
           pickups.spawnBurst(state.pickups, bossX, state.distance, now, n);
@@ -338,6 +440,11 @@ function applyPickup(it, now) {
     return;
   }
 
+  if (it.kind === 'coin') {
+    addCoins(it.amount || state.coinValue);
+    return;
+  }
+
   clones.spawn(state.clones, state.player, it.power, now);
 }
 
@@ -361,13 +468,14 @@ function resolvePickups(now) {
 
 function update(dt, now) {
   if (state.phase !== 'playing' || state.paused || !state.player) {
-    state.aim = null;
+    state.aimStick = null;
+    state.firing = false;
     state.joy = null;
     return;
   }
 
   state.joy = input.getJoystick();
-  state.aim = input.getFireTarget();
+  state.aimStick = input.getAimStick();
 
   if (input.consumeJump()) playerKit.requestJump(state.player, now);
 
@@ -382,11 +490,10 @@ function update(dt, now) {
   enemies.update(state.enemies, dt, now, state.player, state.eBullets, state.distance);
   enemies.cull(state.enemies, state.cameraX);
 
-  pickups.spawnAhead(state.pickups, state.player.x, state.distance, now);
+  pickups.spawnAhead(state.pickups, state.player.x, state.distance, now, state.coinValue);
   pickups.update(state.pickups, dt, now);
   pickups.cull(state.pickups, state.cameraX);
 
-  // 分身：射速与子弹数跟主体同步
   clones.update(state.clones, dt, now, state.player, state.enemies, state.bullets, {
     fireMs: state.fireMs,
     multishot: state.multishot,
@@ -395,7 +502,7 @@ function update(dt, now) {
 
   fireUpdate(now);
 
-  if (!state.aim) {
+  if (!state.firing) {
     state.aimAngle = state.player.facing >= 0 ? 0 : Math.PI;
   }
 

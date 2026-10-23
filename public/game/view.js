@@ -10,7 +10,7 @@ const drawPickup = require('./drawPickup.js');
 const drawClone = require('./drawClone.js');
 
 const C = pal.C;
-const BUILD = 'game-11';
+const BUILD = 'game-13';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';
@@ -156,6 +156,16 @@ function heartPath(ctx, cx, cy, r) {
   ctx.closePath();
 }
 
+function iconCoin(ctx, cx, cy, r) {
+  ctx.fillStyle = '#ffd34d';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.30)';
+  ctx.fillRect(cx - r * 0.14, cy - r * 0.45, r * 0.28, r * 0.9);
+}
+
 function iconClone(ctx, cx, cy, r) {
   ctx.fillStyle = ICON_DARK;
 
@@ -201,6 +211,12 @@ function iconBullet(ctx, cx, cy, r) {
   }
 }
 
+function iconHeart(ctx, cx, cy, r) {
+  ctx.fillStyle = C.hpPip;
+  heartPath(ctx, cx, cy, r);
+  ctx.fill();
+}
+
 // ---------------- HUD ----------------
 function drawHp(ctx, player) {
   if (!player) return;
@@ -239,6 +255,34 @@ function drawHp(ctx, player) {
   ctx.fillStyle = C.hudText;
   ctx.font = font;
   ctx.fillText(num, x0 + r * 2 + 12, cy + 1);
+
+  ctx.textBaseline = 'alphabetic';
+}
+
+// 右上角：金币
+function drawCoins(ctx, state) {
+  const num = String(state.coins || 0);
+
+  ctx.font = 'bold 20px sans-serif';
+  const tw = ctx.measureText(num).width;
+
+  const padR = 12;
+  const pillW = 22 + tw + padR;
+  const pillH = 34;
+  const pillX = cfg.WIDTH - pillW - 12;
+  const pillY = 24;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.80)';
+  util.roundRectPath(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+  ctx.fill();
+
+  iconCoin(ctx, pillX + 16, pillY + pillH / 2, 10);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#8a6100';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillText(num, pillX + 30, pillY + pillH / 2 + 1);
 
   ctx.textBaseline = 'alphabetic';
 }
@@ -316,6 +360,7 @@ function drawStats(ctx, state) {
 
 function drawHud(ctx, state) {
   drawHp(ctx, state.player);
+  drawCoins(ctx, state);
   drawXp(ctx, state);
   drawStats(ctx, state);
 
@@ -344,7 +389,7 @@ function drawHud(ctx, state) {
   ctx.textBaseline = 'alphabetic';
   ctx.font = '12px sans-serif';
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
-  ctx.fillText('左下摇杆移动（上推跳跃） · 按住其它位置射击', cfg.WIDTH / 2, cfg.HEIGHT - 16);
+  ctx.fillText('左下摇杆移动（上推跳跃） · 右下摇杆瞄准射击', cfg.WIDTH / 2, cfg.HEIGHT - 16);
 
   ctx.textAlign = 'left';
   ctx.font = '10px sans-serif';
@@ -382,9 +427,13 @@ function drawDead(ctx, state, now) {
     ctx.fillText('最佳 ' + state.best + ' m', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 74);
   }
 
+  ctx.font = '15px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('金币 ' + (state.coins || 0) + ' · 进度已清除', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 104);
+
   ctx.font = '16px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText('点击屏幕返回主菜单', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 118);
+  ctx.fillText('点击屏幕返回主菜单', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 142);
 
   ctx.font = '10px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
@@ -413,11 +462,11 @@ function draw(ctx, state, now) {
   drawClone.draw(ctx, state.clones, cameraX, now);
 
   if (state.player) {
-    drawPlayer.draw(ctx, state.player, cameraX, state.aim ? state.aimAngle : null, now);
+    drawPlayer.draw(ctx, state.player, cameraX, state.firing ? state.aimAngle : null, now);
   }
 
-  drawFx.drawAim(ctx, state.aim, now);
   drawFx.drawJoystick(ctx, state.joy);
+  drawFx.drawAimStick(ctx, state.aimStick);
 
   drawHud(ctx, state);
   drawHurtFlash(ctx, state.player, now);

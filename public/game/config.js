@@ -25,14 +25,23 @@ const BLINK_MIN_MS = 2200;
 const BLINK_MAX_MS = 4200;
 const BLINK_DURATION_MS = 130;
 
+// ---------------- 移动摇杆（左下角固定） ----------------
 const JOY_RADIUS = Math.round(Math.min(WIDTH * 0.17, 78));
 const JOY_MARGIN = Math.round(Math.min(WIDTH, HEIGHT) * 0.07);
 const JOY_CX = JOY_MARGIN + JOY_RADIUS;
 const JOY_CY = HEIGHT - JOY_MARGIN - JOY_RADIUS;
-const JOY_GRAB_R = Math.round(JOY_RADIUS * 2);
+const JOY_GRAB_R = Math.round(JOY_RADIUS * 1.5);
 const JOY_KNOB_RATIO = 0.46;
 const JOY_DEAD = 0.22;
 const JOY_JUMP_Y = 0.62;
+
+// ---------------- 瞄准摇杆（右下角固定，左右对称） ----------------
+const AIM_RADIUS = Math.round(Math.min(WIDTH * 0.17, 78));
+const AIM_CX = WIDTH - JOY_MARGIN - AIM_RADIUS;
+const AIM_CY = HEIGHT - JOY_MARGIN - AIM_RADIUS;
+const AIM_GRAB_R = Math.round(AIM_RADIUS * 1.5);
+const AIM_KNOB_RATIO = 0.46;
+const AIM_DEAD = 0.30;   // 推过这个死区才开火
 
 const BULLET_SPEED = 1.15;
 const BULLET_LIFE_MS = 1500;
@@ -50,12 +59,12 @@ const PLAYER_MULTI_MAX = 7;
 const MULTI_SPREAD_DEG = 8;
 
 // ---------------- 升级成长 ----------------
-const LEVEL_HP_GAIN = 1;        // 每级最大生命 +1（并立即回满该血量）
-const LEVEL_FIRE_RATIO = 0.94;  // 每级射击间隔 ×0.94（越升越快）
-const LEVEL_MULTI_EVERY = 3;    // 每 3 级子弹数 +1（上限 PLAYER_MULTI_MAX）
-const LEVEL_HP_MAX = 60;        // 最大生命上限
+const LEVEL_HP_GAIN = 1;
+const LEVEL_FIRE_RATIO = 0.94;
+const LEVEL_MULTI_EVERY = 3;
+const LEVEL_HP_MAX = 60;
 
-// 小怪
+// ---------------- 小怪 ----------------
 const ENEMY_GAP_START_M = 100;
 const ENEMY_GAP_MIN_M = 40;
 const ENEMY_GAP_DECAY = 0.02;
@@ -69,18 +78,26 @@ const ENEMY_FIRE_MS_MIN = 380;
 const ENEMY_BULLET_SPEED = 0.60;
 const ENEMY_DAMAGE = 1;
 
-const ENEMY_MOVE_MS_START = 850;
-const ENEMY_MOVE_DECAY = 0.13;
-const ENEMY_MOVE_MS_MIN = 220;
-const ENEMY_MOVE_SPEED = 0.24;
-const ENEMY_JUMP_CHANCE = 0.45;
+// 随机行为：一开始很迟钝，越深入越频繁
+const ENEMY_MOVE_MS_START = 2000;   // 初始 2 秒才做一次行为决策
+const ENEMY_MOVE_DECAY = 0.45;      // 每深入 1 米，间隔缩短 0.45 毫秒
+const ENEMY_MOVE_MS_MIN = 380;      // 决策间隔下限
+const ENEMY_MOVE_SPEED = 0.22;
+const ENEMY_JUMP_CHANCE = 0.42;     // 决策时起跳的概率（靠近玩家）
 const ENEMY_JUMP_V = -0.72;
+
+// 追击概率：开局低，随距离提高
+const ENEMY_CHASE_BASE = 0.35;
+const ENEMY_CHASE_GAIN = 0.08;
+const ENEMY_CHASE_STEP_M = 400;
+const ENEMY_CHASE_MAX = 0.85;
+const ENEMY_IDLE_CHANCE = 0.30;     // 不追人时原地发呆的概率
 
 const ENEMY_CONTACT_DMG_STEP_M = 350;
 const ENEMY_CONTACT_DMG_MAX = 6;
 const ENEMY_CONTACT_COOLDOWN_MS = 700;
 
-// Boss
+// ---------------- Boss ----------------
 const BOSS_EVERY_M = 1000;
 const BOSS_SCALE = 2.4;
 const BOSS_HP_MULT_START = 30;
@@ -99,11 +116,11 @@ const BOSS_DROP_BASE = 3;
 const BOSS_DROP_STEP = 2;
 const BOSS_DROP_MAX = 14;
 
-// 经验
+// ---------------- 经验 ----------------
 const XP_BASE = 10;
 const XP_STEP = 5;
 
-// 道具
+// ---------------- 道具 ----------------
 const ITEM_FIRST_M = 160;
 const ITEM_SIZE = Math.round(PLAYER_W * 0.78);
 const ITEM_GAP_MIN_START_M = 150;
@@ -116,6 +133,7 @@ const ITEM_WEIGHT_CLONE = 1.0;
 const ITEM_WEIGHT_SPEED = 3.0;
 const ITEM_WEIGHT_MULTI = 2.6;
 const ITEM_WEIGHT_HEAL = 2.4;
+const ITEM_WEIGHT_COIN = 3.4;
 const ITEM_REPEAT_FACTOR = 0.35;
 
 // 血瓶：回血量随路程提升
@@ -124,7 +142,12 @@ const HEAL_STEP_M = 350;
 const HEAL_GAIN_PER_STEP = 1;
 const HEAL_MAX = 12;
 
-// 分身
+// 金币：每击败 1 个 Boss，单个金币的价值 +1
+const COIN_VALUE_BASE = 1;
+const COIN_VALUE_GROWTH = 1;
+const COIN_VALUE_MAX = 10;
+
+// ---------------- 分身 ----------------
 const CLONE_MAX = 3;
 const CLONE_FIRE_MS = 260;
 const CLONE_JUMP_MIN_MS = 900;
@@ -164,6 +187,12 @@ module.exports = {
   JOY_KNOB_RATIO: JOY_KNOB_RATIO,
   JOY_DEAD: JOY_DEAD,
   JOY_JUMP_Y: JOY_JUMP_Y,
+  AIM_RADIUS: AIM_RADIUS,
+  AIM_CX: AIM_CX,
+  AIM_CY: AIM_CY,
+  AIM_GRAB_R: AIM_GRAB_R,
+  AIM_KNOB_RATIO: AIM_KNOB_RATIO,
+  AIM_DEAD: AIM_DEAD,
   BULLET_SPEED: BULLET_SPEED,
   BULLET_FIRE_MS: BULLET_FIRE_MS,
   BULLET_LIFE_MS: BULLET_LIFE_MS,
@@ -195,6 +224,11 @@ module.exports = {
   ENEMY_MOVE_SPEED: ENEMY_MOVE_SPEED,
   ENEMY_JUMP_CHANCE: ENEMY_JUMP_CHANCE,
   ENEMY_JUMP_V: ENEMY_JUMP_V,
+  ENEMY_CHASE_BASE: ENEMY_CHASE_BASE,
+  ENEMY_CHASE_GAIN: ENEMY_CHASE_GAIN,
+  ENEMY_CHASE_STEP_M: ENEMY_CHASE_STEP_M,
+  ENEMY_CHASE_MAX: ENEMY_CHASE_MAX,
+  ENEMY_IDLE_CHANCE: ENEMY_IDLE_CHANCE,
   ENEMY_CONTACT_DMG_STEP_M: ENEMY_CONTACT_DMG_STEP_M,
   ENEMY_CONTACT_DMG_MAX: ENEMY_CONTACT_DMG_MAX,
   ENEMY_CONTACT_COOLDOWN_MS: ENEMY_CONTACT_COOLDOWN_MS,
@@ -228,11 +262,15 @@ module.exports = {
   ITEM_WEIGHT_SPEED: ITEM_WEIGHT_SPEED,
   ITEM_WEIGHT_MULTI: ITEM_WEIGHT_MULTI,
   ITEM_WEIGHT_HEAL: ITEM_WEIGHT_HEAL,
+  ITEM_WEIGHT_COIN: ITEM_WEIGHT_COIN,
   ITEM_REPEAT_FACTOR: ITEM_REPEAT_FACTOR,
   HEAL_BASE: HEAL_BASE,
   HEAL_STEP_M: HEAL_STEP_M,
   HEAL_GAIN_PER_STEP: HEAL_GAIN_PER_STEP,
   HEAL_MAX: HEAL_MAX,
+  COIN_VALUE_BASE: COIN_VALUE_BASE,
+  COIN_VALUE_GROWTH: COIN_VALUE_GROWTH,
+  COIN_VALUE_MAX: COIN_VALUE_MAX,
   CLONE_MAX: CLONE_MAX,
   CLONE_FIRE_MS: CLONE_FIRE_MS,
   CLONE_JUMP_MIN_MS: CLONE_JUMP_MIN_MS,

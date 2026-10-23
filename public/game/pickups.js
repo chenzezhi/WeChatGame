@@ -3,6 +3,7 @@
 //   speed  攻速
 //   multi  散射
 //   heal   血瓶
+//   coin   金币
 // 只维护数据，绘制在 drawPickup.js。
 
 const cfg = require('./config.js');
@@ -33,13 +34,11 @@ function gapRangeForDistance(dist) {
   return { min: min, max: max };
 }
 
-// 分身强度：随距离推进变强（血量更多）
 function powerForDistance(dist) {
   const n = cfg.CLONE_HP_BASE + Math.floor(dist / cfg.CLONE_HP_STEP_M);
   return n > cfg.CLONE_HP_MAX ? cfg.CLONE_HP_MAX : n;
 }
 
-// 血瓶回血量：随距离推进变多
 function healForDistance(dist) {
   const n = cfg.HEAL_BASE + Math.floor(dist / cfg.HEAL_STEP_M) * cfg.HEAL_GAIN_PER_STEP;
   return n > cfg.HEAL_MAX ? cfg.HEAL_MAX : n;
@@ -51,12 +50,13 @@ function nextDistFrom(dist) {
 }
 
 function pickKind(level) {
-  const kinds = ['clone', 'speed', 'multi', 'heal'];
+  const kinds = ['clone', 'speed', 'multi', 'heal', 'coin'];
   const base = [
     cfg.ITEM_WEIGHT_CLONE,
     cfg.ITEM_WEIGHT_SPEED,
     cfg.ITEM_WEIGHT_MULTI,
     cfg.ITEM_WEIGHT_HEAL,
+    cfg.ITEM_WEIGHT_COIN,
   ];
 
   let total = 0;
@@ -85,7 +85,7 @@ function reset(level, dist) {
   level.nextSpawnDist = dist + cfg.ITEM_FIRST_M + randRange(0, 60);
 }
 
-function createOne(level, kind, x, y, dist, now) {
+function createOne(level, kind, x, y, dist, now, coinValue) {
   const size = cfg.ITEM_SIZE;
 
   level.list.push({
@@ -94,8 +94,10 @@ function createOne(level, kind, x, y, dist, now) {
     y: y,
     w: size,
     h: size,
-    power: powerForDistance(dist),   // 分身血量
-    amount: healForDistance(dist),   // 血瓶回血量
+    power: powerForDistance(dist),
+    amount: kind === 'coin'
+      ? (coinValue || cfg.COIN_VALUE_BASE)
+      : healForDistance(dist),
     bobPhase: Math.random(),
     bornAt: now,
   });
@@ -103,7 +105,7 @@ function createOne(level, kind, x, y, dist, now) {
   level.lastKind = kind;
 }
 
-function spawnAhead(level, playerX, dist, now) {
+function spawnAhead(level, playerX, dist, now, coinValue) {
   let guard = 0;
 
   while (dist >= level.nextSpawnDist && guard < 3) {
@@ -114,14 +116,13 @@ function spawnAhead(level, playerX, dist, now) {
     const x = playerX + cfg.WIDTH * (0.35 + Math.random() * 0.5);
     const y = cfg.GROUND_Y - cfg.ITEM_SIZE * (1.5 + Math.random() * 1.6);
 
-    createOne(level, kind, x, y, at, now);
+    createOne(level, kind, x, y, at, now, coinValue);
     level.spawned += 1;
     level.nextSpawnDist = nextDistFrom(at);
   }
 }
 
-// 掉落一批道具（Boss 击杀）：散落在 centerX 附近
-function spawnBurst(level, centerX, dist, now, count) {
+function spawnBurst(level, centerX, dist, now, count, coinValue) {
   const n = Math.max(1, count | 0);
 
   for (let i = 0; i < n; i++) {
@@ -129,7 +130,7 @@ function spawnBurst(level, centerX, dist, now, count) {
     const x = centerX + (Math.random() - 0.5) * cfg.WIDTH * 0.9;
     const y = cfg.GROUND_Y - cfg.ITEM_SIZE * (1.4 + Math.random() * 2.2);
 
-    createOne(level, kind, x, y, dist, now);
+    createOne(level, kind, x, y, dist, now, coinValue);
     level.spawned += 1;
   }
 }

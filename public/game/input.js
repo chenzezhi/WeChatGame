@@ -1,23 +1,25 @@
-// 操作层：支持多点触控。
+// 操作层：双摇杆，多点触控。
 //
-// 规则：
-//   移动：屏幕左下角的固定摇杆。按在摇杆范围内就「抓住」摇杆，左右推 = 左右移动。
-//   跳跃：把摇杆向上推超过阈值触发一次跳跃（推回去再推可以再跳）。
-//   射击：按在摇杆范围以外的任何地方，就是按住开火，子弹朝该触摸点飞。
+//   左摇杆（左下）：左右推 = 移动；上推过阈值 = 跳跃。
+//   右摇杆（右下）：推动方向 = 子弹发射方向；推过死区即持续开火，回中停火。
 //
-// 所以可以：左手搓摇杆跑动，右手随便按哪都能打枪，互不干扰。
+// 两个摇杆可同时操作，互不干扰。手指落在两个抓取范围重叠处时，取更近的那个。
 
 const cfg = require('./config.js');
 
 let seq = 0;
 
 const state = {
-  pointers: [],        // { id, x, y, isJoy, order }
-  joystickId: -1,      // 当前抓住摇杆的手指 id，-1 = 没有
-  joyDX: 0,            // 摇杆水平偏移（-1 ~ 1）
-  joyDY: 0,            // 摇杆垂直偏移（-1 ~ 1）
-  joyJumpDone: false,  // 这次上推是否已经触发过跳跃
+  pointers: [],        // { id, x, y, role, order }
+  joystickId: -1,
+  joyDX: 0,
+  joyDY: 0,
+  joyJumpDone: false,
   jumpRequested: false,
+
+  aimId: -1,
+  aimDX: 0,
+  aimDY: 0,
 };
 
 function reset() {
@@ -27,6 +29,9 @@ function reset() {
   state.joyDY = 0;
   state.joyJumpDone = false;
   state.jumpRequested = false;
+  state.aimId = -1;
+  state.aimDX = 0;
+  state.aimDY = 0;
 }
 
 function findPointer(id) {
@@ -36,11 +41,10 @@ function findPointer(id) {
   return null;
 }
 
-// 是否落在摇杆的可抓取范围里
-function inJoyZone(x, y) {
-  const dx = x - cfg.JOY_CX;
-  const dy = y - cfg.JOY_CY;
-  return dx * dx + dy * dy <= cfg.JOY_GRAB_R * cfg.JOY_GRAB_R;
+function distTo(x, y, cx, cy) {
+  const dx = x - cx;
+  const dy = y - cy;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 // 根据摇杆手指位置更新偏移量与「上推跳跃」
@@ -67,6 +71,21 @@ function updateJoy(p) {
   }
 }
 
+// 瞄准摇杆：方向就是子弹方向
+function updateAim(p) {
+  let dx = (p.x - cfg.AIM_CX) / cfg.AIM_RADIUS;
+  let dy = (p.y - cfg.AIM_CY) / cfg.AIM_RADIUS;
+
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len > 1) {
+    dx /= len;
+    dy /= len;
+  }
+
+  state.aimDX = dx;
+  state.aimDY = dy;
+}
+
 function addPointer(t) {
   if (findPointer(t.id)) return;
   seq++;
@@ -75,16 +94,42 @@ function addPointer(t) {
     id: t.id,
     x: t.x,
     y: t.y,
-    isJoy: false,
+    role: 'none',
     order: seq,
   };
   state.pointers.push(p);
 
-  // 第一个按在摇杆范围内的手指抓住摇杆，其余都算射击手指
-  if (state.joystickId < 0 && inJoyZone(t.x, t.y)) {
+  const dJoy = distTo(t.x, t.y, cfg.JOY_CX, cfg.JOY_CY);
+  const dAim = distTo(t.x, t.y, cfg.AIM_CX, cfg.AIM_CY);
+
+  const canJoy = state.joystickId < 0 && dJoy <= cfg.JOY_GRAB_R;
+  const canAim = state.aimId < 0 && dAim <= cfg.AIM_GRAB_R;
+
+  if (canJoy && canAim) {
+    // 两个范围重叠时，取更近的那个
+    if (dJoy <= dAim) {
+      state.joystickId = t.id;
+      p.role = 'joy';
+      updateJoy(p);
+    } else {
+      state.aimId = t.id;
+      p.role = 'aim';
+      updateAim(p);
+    }
+    return;
+  }
+
+  if (canJoy) {
     state.joystickId = t.id;
-    p.isJoy = true;
+    p.role = 'joy';
     updateJoy(p);
+    return;
+  }
+
+  if (canAim) {
+    state.aimId = t.id;
+    p.role = 'aim';
+    updateAim(p);
   }
 }
 
@@ -100,6 +145,13 @@ function removePointer(id) {
       state.joyDY = 0;
       state.joyJumpDone = false;
     }
+
+    if (state.aimId === id) {
+      state.aimId = -1;
+      state.aimDX = 0;
+      state.aimDY = 0;
+    }
+
     return;
   }
 }
@@ -127,7 +179,8 @@ function touchMove(e) {
     p.x = t.x;
     p.y = t.y;
 
-    if (p.isJoy) updateJoy(p);
+    if (p.role === 'joy') updateJoy(p);
+    else if (p.role === 'aim') updateAim(p);
   }
 }
 
@@ -140,7 +193,7 @@ function touchEnd(e) {
   if (!(e.touches && e.touches.length) && !changed.length) reset();
 }
 
-// 移动方向：-1 左 / 0 不动 / 1 右（由摇杆水平偏移决定）
+// 移动方向：-1 左 / 0 不动 / 1 右
 function getDir() {
   if (state.joystickId < 0) return 0;
   if (state.joyDX > cfg.JOY_DEAD) return 1;
@@ -148,21 +201,20 @@ function getDir() {
   return 0;
 }
 
-// 射击目标：取「最近按下、且不是摇杆」的那根手指，没有则 null
-function getFireTarget() {
-  let best = null;
+// 瞄准摇杆状态：held = 是否被按住；active = 推过死区（此时开火）
+function getAimStick() {
+  const len = Math.sqrt(state.aimDX * state.aimDX + state.aimDY * state.aimDY);
+  const held = state.aimId >= 0;
 
-  for (let i = 0; i < state.pointers.length; i++) {
-    const p = state.pointers[i];
-    if (p.isJoy) continue;
-    if (!best || p.order > best.order) best = p;
-  }
-
-  if (!best) return null;
-  return { x: best.x, y: best.y };
+  return {
+    held: held,
+    active: held && len >= cfg.AIM_DEAD,
+    dx: held ? state.aimDX : 0,
+    dy: held ? state.aimDY : 0,
+    len: held ? len : 0,
+  };
 }
 
-// 供绘制层读取的摇杆状态
 function getJoystick() {
   return {
     active: state.joystickId >= 0,
@@ -186,7 +238,7 @@ module.exports = {
   touchMove: touchMove,
   touchEnd: touchEnd,
   getDir: getDir,
-  getFireTarget: getFireTarget,
+  getAimStick: getAimStick,
   getJoystick: getJoystick,
   consumeJump: consumeJump,
 };
