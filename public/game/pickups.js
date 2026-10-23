@@ -5,6 +5,8 @@
 //   heal   血瓶
 //   coin   金币
 //   damage 伤害
+//   ammo   弹药（立即补若干发）
+//   reload 快速装填（装填距离变短）
 // 只维护数据，绘制在 drawPickup.js。
 
 const cfg = require('./config.js');
@@ -45,13 +47,20 @@ function healForDistance(dist) {
   return n > cfg.HEAL_MAX ? cfg.HEAL_MAX : n;
 }
 
+// 弹药道具补充的发数：随距离提升
+function ammoGainForDistance(dist) {
+  const n = cfg.AMMO_ITEM_BASE +
+    Math.floor(dist / cfg.AMMO_ITEM_STEP_M) * cfg.AMMO_ITEM_GAIN_PER_STEP;
+  return n > cfg.AMMO_ITEM_MAX ? cfg.AMMO_ITEM_MAX : n;
+}
+
 function nextDistFrom(dist) {
   const g = gapRangeForDistance(dist);
   return dist + randRange(g.min, g.max);
 }
 
 function pickKind(level) {
-  const kinds = ['clone', 'speed', 'multi', 'heal', 'coin', 'damage'];
+  const kinds = ['clone', 'speed', 'multi', 'heal', 'coin', 'damage', 'ammo', 'reload'];
   const base = [
     cfg.ITEM_WEIGHT_CLONE,
     cfg.ITEM_WEIGHT_SPEED,
@@ -59,6 +68,8 @@ function pickKind(level) {
     cfg.ITEM_WEIGHT_HEAL,
     cfg.ITEM_WEIGHT_COIN,
     cfg.ITEM_WEIGHT_DAMAGE,
+    cfg.ITEM_WEIGHT_AMMO,
+    cfg.ITEM_WEIGHT_RELOAD,
   ];
 
   let total = 0;
@@ -90,6 +101,10 @@ function reset(level, dist) {
 function createOne(level, kind, x, y, dist, now, coinValue) {
   const size = cfg.ITEM_SIZE;
 
+  let amount = healForDistance(dist);
+  if (kind === 'coin') amount = coinValue || cfg.COIN_VALUE_BASE;
+  else if (kind === 'ammo') amount = ammoGainForDistance(dist);
+
   level.list.push({
     kind: kind,
     x: x,
@@ -97,9 +112,7 @@ function createOne(level, kind, x, y, dist, now, coinValue) {
     w: size,
     h: size,
     power: powerForDistance(dist),
-    amount: kind === 'coin'
-      ? (coinValue || cfg.COIN_VALUE_BASE)
-      : healForDistance(dist),
+    amount: amount,
     bobPhase: Math.random(),
     bornAt: now,
   });
@@ -183,5 +196,6 @@ module.exports = {
   gapRangeForDistance: gapRangeForDistance,
   powerForDistance: powerForDistance,
   healForDistance: healForDistance,
+  ammoGainForDistance: ammoGainForDistance,
   pickKind: pickKind,
 };
