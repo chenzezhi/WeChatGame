@@ -1,8 +1,9 @@
-// 玩家资产（金币 / 商店升级 / 已购道具）：与游戏进度存档无关，永久保留。
+// 玩家资产（金币 / 商店升级 / 已购道具 / 永久分身）：与游戏进度存档无关，永久保留。
 // 进度存档是 save.json（可被死亡删除），资产存档是 profile.json（永不删除）。
 //
 // upgrades      主体属性升级
 // cloneUpgrades 分身属性升级（独立计算，价格是主体的两倍）
+// permClones    已拥有的永久分身数量（每局开局都会生成）
 
 const FILE_NAME = 'profile.json';
 const USER_DATA = (wx.env && wx.env.USER_DATA_PATH) || '';
@@ -22,9 +23,10 @@ function defaults() {
   return {
     coins: 0,
     bossKills: 0,
-    upgrades: { hp: 0, fire: 0, multi: 0, damage: 0 },
+    upgrades: { hp: 0, fire: 0, multi: 0, damage: 0, cloneLife: 0 },
     cloneUpgrades: { hp: 0, fire: 0, multi: 0, damage: 0 },
     items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0 },
+    permClones: 0,
   };
 }
 
@@ -40,6 +42,7 @@ function readUpgrades(src) {
     fire: int(u.fire),
     multi: int(u.multi),
     damage: int(u.damage),
+    cloneLife: int(u.cloneLife),
   };
 }
 
@@ -49,6 +52,7 @@ function normalize(src) {
 
   out.coins = int(src.coins);
   out.bossKills = int(src.bossKills);
+  out.permClones = int(src.permClones);
 
   out.upgrades = readUpgrades(src.upgrades);
   out.cloneUpgrades = readUpgrades(src.cloneUpgrades);

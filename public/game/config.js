@@ -72,7 +72,7 @@ const DAMAGE_SHOP_GAIN = 0.1;
 
 // ---------------- 升级成长 ----------------
 const LEVEL_HP_GAIN = 1;
-const LEVEL_FIRE_RATIO = 0.985;  // 每级只快 1.5%（成长速度再次下调）
+const LEVEL_FIRE_RATIO = 0.985;  // 每级只快 1.5%
 const LEVEL_MULTI_EVERY = 3;
 const LEVEL_HP_MAX = 60;
 
@@ -122,21 +122,18 @@ const ENEMY_CONTACT_COOLDOWN_MS = 2000;  // 撞上后 2 秒内不再扣血
 // ---------------- Boss ----------------
 const BOSS_EVERY_M = 1000;
 const BOSS_SCALE = 2.4;
-const BOSS_HP_MULT_START = 10;          // 血量 = 当前小怪血量 × 10（第 1 个 Boss）
-const BOSS_HP_MULT_GROWTH = 0.45;       // 成长比原来快 50% → 10 / 15 / 19 / 24 …
+const BOSS_HP_MULT_START = 10;
+const BOSS_HP_MULT_GROWTH = 0.45;
 
-// 开火倍率：数值越大开火越快（1.0 = 与小怪同速，<1 = 比小怪慢）
-const BOSS_FIRE_MULT_START = 0.9;       // 第 1 个 Boss：比小怪慢 10%
-const BOSS_FIRE_MULT_GROWTH = 0.525;    // 成长比原来快 50%
+const BOSS_FIRE_MULT_START = 0.9;
+const BOSS_FIRE_MULT_GROWTH = 0.525;
 const BOSS_FIRE_MS_MIN = 130;
 
-// 一次散射发数
-const BOSS_BULLET_BASE = 2;             // 第 1 个 Boss：2 发
-const BOSS_BULLET_STEP = 3;             // 每个 Boss 再 +3 发 → 2 / 5 / 8 / 9 …
+const BOSS_BULLET_BASE = 2;
+const BOSS_BULLET_STEP = 3;
 const BOSS_BULLET_MAX = 9;
 const BOSS_BULLET_SPREAD_DEG = 13;
 
-// 召唤小怪：间隔越大 = 越少（玩家走到 Boss 面前才开始计时）
 const BOSS_MINION_MIN_MS = 3200;
 const BOSS_MINION_MAX_MS = 7000;
 const BOSS_MINION_SHRINK_MS = 200;
@@ -178,11 +175,21 @@ const COIN_VALUE_GROWTH = 1;
 const COIN_VALUE_MAX = 10;
 
 // ---------------- 分身 ----------------
-const CLONE_MAX = 3;
+const CLONE_MAX = 8;                 // 同时最多 8 个分身
+
+// 生存时间：默认 10 秒，主体商店每级 +2 秒
+const CLONE_LIFE_BASE_MS = 10000;
+const CLONE_LIFE_STEP_MS = 2000;
+const CLONE_LIFE_MAX_MS = 60000;
+
+// 永久分身（每局开局自动生成，价格递增）
+const PERM_CLONE_BASE_COST = 1000;
+const PERM_CLONE_COST_STEP = 1000;
+
 const CLONE_FIRE_MS = 260;
 const CLONE_JUMP_MIN_MS = 900;
 const CLONE_JUMP_MAX_MS = 2600;
-const CLONE_HP_BASE = 3;      // 分身道具额外附带的血量
+const CLONE_HP_BASE = 3;      // 分身基础血量
 const CLONE_HP_STEP_M = 400;
 const CLONE_HP_MAX = 12;
 
@@ -316,6 +323,11 @@ module.exports = {
   COIN_VALUE_GROWTH: COIN_VALUE_GROWTH,
   COIN_VALUE_MAX: COIN_VALUE_MAX,
   CLONE_MAX: CLONE_MAX,
+  CLONE_LIFE_BASE_MS: CLONE_LIFE_BASE_MS,
+  CLONE_LIFE_STEP_MS: CLONE_LIFE_STEP_MS,
+  CLONE_LIFE_MAX_MS: CLONE_LIFE_MAX_MS,
+  PERM_CLONE_BASE_COST: PERM_CLONE_BASE_COST,
+  PERM_CLONE_COST_STEP: PERM_CLONE_COST_STEP,
   CLONE_FIRE_MS: CLONE_FIRE_MS,
   CLONE_JUMP_MIN_MS: CLONE_JUMP_MIN_MS,
   CLONE_JUMP_MAX_MS: CLONE_JUMP_MAX_MS,

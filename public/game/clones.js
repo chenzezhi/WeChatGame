@@ -1,6 +1,9 @@
-// 分身（复制体）：玩家吃到「分身」道具后生成一个客体。
-// 物理与动画复用 player.js；但射速 / 发数 / 伤害用的是「分身自己的属性」，
-// 和主体完全独立（主体升级了也不会让分身变强）。
+// 分身（复制体）：玩家吃到「分身」道具 / 商店购买后生成一个客体。
+//
+// 物理与动画复用 player.js；射速 / 发数 / 伤害用的是「分身自己的属性」，与主体独立。
+// 生存时间：
+//   spawn(..., lifeMs)  lifeMs > 0 → 存活这么多毫秒后消失
+//                       lifeMs = 0 → 永久（直到血量归零）
 
 const cfg = require('./config.js');
 const playerKit = require('./player.js');
@@ -33,8 +36,8 @@ function nearestEnemy(enemies, x) {
   return best;
 }
 
-// hp：这个分身的最大生命（由调用方算好：基础 + 升级 + 道具强度）
-function spawn(level, owner, hp, now) {
+// hp：最大生命；lifeMs：0 = 永久，>0 = 剩余存活毫秒
+function spawn(level, owner, hp, now, lifeMs) {
   const ox = owner ? owner.x : cfg.START_X;
   const c = playerKit.create(Math.max(0, ox - cfg.PLAYER_W * 1.4));
 
@@ -46,6 +49,10 @@ function spawn(level, owner, hp, now) {
   c.bornAt = now;
   c.nextFireAt = now + cfg.PLAYER_FIRE_MS_START;
   c.nextJumpAt = now + cfg.CLONE_JUMP_MIN_MS;
+
+  const life = typeof lifeMs === 'number' ? lifeMs : 0;
+  c.lifeTotal = life > 0 ? life : 0;
+  c.lifeUntil = life > 0 ? now + life : 0;   // 0 = 永久
 
   if (level.list.length >= cfg.CLONE_MAX) level.list.shift();
   level.list.push(c);
@@ -65,6 +72,12 @@ function update(level, dt, now, owner, enemies, playerBullets, stats) {
   let i = 0;
   while (i < list.length) {
     const c = list[i];
+
+    // 过期消失
+    if (c.lifeUntil && now >= c.lifeUntil) {
+      list.splice(i, 1);
+      continue;
+    }
 
     if (!c.alive) {
       list.splice(i, 1);
@@ -96,7 +109,14 @@ function update(level, dt, now, owner, enemies, playerBullets, stats) {
           const mx = cx + Math.cos(a) * c.w * 0.75;
           const my = cy + Math.sin(a) * c.w * 0.75;
 
-          bullets.spawn(playerBullets, mx, my, cx + Math.cos(a) * 900, cy + Math.sin(a) * 900, undefined, undefined, dmg);
+          bullets.spawn(
+            playerBullets,
+            mx, my,
+            cx + Math.cos(a) * 900,
+            cy + Math.sin(a) * 900,
+            undefined, undefined,
+            dmg
+          );
         }
       }
     } else {
