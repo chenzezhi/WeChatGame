@@ -2,8 +2,8 @@
 
 const canvasKit = require('../core/canvas.js');
 
-// 版本标记，显示在左上角，用于确认真机跑的是哪一版
-const BUILD = 'menu-1';
+// 版本标记，用于确认真机跑的是哪一版
+const BUILD = 'menu-2';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -16,6 +16,7 @@ const COLOR = {
   disabledFill: 'rgba(255,255,255,0.08)',
   disabledStroke: 'rgba(255,255,255,0.15)',
   disabledText: 'rgba(255,255,255,0.35)',
+  coin: '#ffd34d',
 };
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -54,6 +55,28 @@ function drawTitle(ctx, width, height) {
   ctx.fillText('按住屏幕左右滑动，挡板跟着移动', width / 2, height * 0.24 + 32);
 }
 
+// 右上角金币
+function drawCoins(ctx, width, state) {
+  const cx = width - 78;
+  const cy = 32;
+
+  ctx.fillStyle = COLOR.coin;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(cx - 1.4, cy - 4.5, 2.8, 9);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillStyle = COLOR.coin;
+  ctx.fillText(String(state.coins || 0), cx + 14, cy + 1);
+
+  ctx.textBaseline = 'alphabetic';
+}
+
 function disabledOf(item, state) {
   return item.id === 'load' && !state.hasSave;
 }
@@ -89,16 +112,15 @@ function drawFooter(ctx, width, height, state) {
   ctx.textBaseline = 'alphabetic';
   ctx.font = '14px sans-serif';
   ctx.fillStyle = COLOR.textFaint;
-  ctx.fillText('最高得分 ' + state.best, width / 2, height * 0.9);
+  ctx.fillText('最佳距离 ' + state.best + ' m', width / 2, height * 0.92);
 }
 
 function drawBuildTag(ctx) {
   ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.font = '11px sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText(BUILD, 8, 8);
   ctx.textBaseline = 'alphabetic';
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillText(BUILD, 10, canvasKit.height - 10);
 }
 
 function draw(ctx, state) {
@@ -107,6 +129,7 @@ function draw(ctx, state) {
 
   drawBackground(ctx, width, height);
   drawTitle(ctx, width, height);
+  drawCoins(ctx, width, state);
   drawButtons(ctx, state);
   drawFooter(ctx, width, height, state);
   drawBuildTag(ctx);

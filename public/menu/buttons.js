@@ -4,14 +4,15 @@ const canvasKit = require('../core/canvas.js');
 
 const WIDTH_RATIO = 0.68;   // 按钮宽度占屏宽
 const WIDTH_MAX = 420;
-const HEIGHT_MIN = 52;
-const HEIGHT_RATIO = 0.075; // 按钮高度占屏高
-const GAP_RATIO = 0.42;     // 按钮间距 = 高度 × 该系数
+const HEIGHT_MIN = 46;
+const HEIGHT_RATIO = 0.066; // 按钮高度占屏高
+const GAP_RATIO = 0.40;     // 按钮间距 = 高度 × 该系数
 const TOP_RATIO = 0.44;     // 第一个按钮的 y 位置
 
 const DEFS = [
   { id: 'start', label: '开始游戏' },
   { id: 'load', label: '读取游戏' },
+  { id: 'shop', label: '商店' },
   { id: 'exit', label: '退出游戏' },
 ];
 

@@ -1,9 +1,8 @@
 // 主界面模块控制器：组合按钮布局、绘制、交互，对外只暴露场景接口。
-//
-// 对外：enter / update / render / touchStart
 
 const scenes = require('../core/scenes.js');
 const storage = require('../core/storage.js');
+const profile = require('../core/profile.js');
 const buttons = require('./buttons.js');
 const view = require('./view.js');
 
@@ -11,19 +10,23 @@ const state = {
   items: [],
   best: 0,
   hasSave: false,
+  coins: 0,
 };
 
 function toast(title) {
   try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
-// 重新计算布局并刷新存档状态
+// 重新计算布局并刷新存档 / 资产状态
 function refresh() {
   state.items = buttons.build();
   state.hasSave = storage.has();
 
   const data = storage.read();
   state.best = (data && typeof data.best === 'number') ? data.best : 0;
+
+  const prof = profile.read();
+  state.coins = prof.coins;
 }
 
 function isDisabled(item) {
@@ -36,6 +39,11 @@ function goGame(mode) {
   if (!ok) toast('游戏模块还没接入');
 }
 
+function goShop() {
+  const ok = scenes.switchTo('shop');
+  if (!ok) toast('商店模块还没接入');
+}
+
 function exitApp() {
   if (typeof wx.exitMiniProgram === 'function') {
     try { wx.exitMiniProgram({}); return; } catch (e) { /* 不支持 */ }
@@ -46,6 +54,7 @@ function exitApp() {
 const actions = {
   start: function () { goGame('new'); },
   load: function () { goGame('load'); },
+  shop: function () { goShop(); },
   exit: function () { exitApp(); },
 };
 

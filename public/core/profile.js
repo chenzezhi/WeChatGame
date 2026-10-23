@@ -1,0 +1,82 @@
+// 玩家资产（金币 / 商店升级 / 已购道具）：与游戏进度存档无关，永久保留。
+// 进度存档是 save.json（可被死亡删除），资产存档是 profile.json（永不删除）。
+
+const FILE_NAME = 'profile.json';
+const USER_DATA = (wx.env && wx.env.USER_DATA_PATH) || '';
+
+let fs = null;
+try { fs = wx.getFileSystemManager(); } catch (e) { fs = null; }
+
+function ready() {
+  return !!fs && !!USER_DATA;
+}
+
+function filePath() {
+  return USER_DATA + '/' + FILE_NAME;
+}
+
+function defaults() {
+  return {
+    coins: 0,
+    bossKills: 0,
+    upgrades: { hp: 0, fire: 0, multi: 0 },
+    items: { heal: 0, speed: 0, multi: 0, clone: 0 },
+  };
+}
+
+// 非负整数
+function int(v) {
+  const n = (typeof v === 'number' && isFinite(v)) ? Math.floor(v) : 0;
+  return n > 0 ? n : 0;
+}
+
+function normalize(src) {
+  const out = defaults();
+  if (!src || typeof src !== 'object') return out;
+
+  out.coins = int(src.coins);
+  out.bossKills = int(src.bossKills);
+
+  const u = src.upgrades || {};
+  out.upgrades.hp = int(u.hp);
+  out.upgrades.fire = int(u.fire);
+  out.upgrades.multi = int(u.multi);
+
+  const it = src.items || {};
+  out.items.heal = int(it.heal);
+  out.items.speed = int(it.speed);
+  out.items.multi = int(it.multi);
+  out.items.clone = int(it.clone);
+
+  return out;
+}
+
+function read() {
+  if (!ready()) return defaults();
+
+  let raw = null;
+  try { raw = fs.readFileSync(filePath(), 'utf8'); } catch (e) { return defaults(); }
+
+  try { return normalize(JSON.parse(raw)); } catch (e) { return defaults(); }
+}
+
+function write(data) {
+  const out = normalize(data);
+  if (!ready()) return out;
+
+  try { fs.writeFileSync(filePath(), JSON.stringify(out), 'utf8'); } catch (e) { /* 忽略 */ }
+  return out;
+}
+
+function addCoins(n) {
+  const data = read();
+  data.coins = int(data.coins + int(n));
+  return write(data);
+}
+
+module.exports = {
+  read: read,
+  write: write,
+  addCoins: addCoins,
+  defaults: defaults,
+};
