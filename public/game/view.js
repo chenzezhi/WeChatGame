@@ -1,101 +1,15 @@
-// 绘制层：只读状态、不修改状态。
-// 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物（走路摆腿、会眨眼、手持小手枪）
-// 另外绘制：玩家子弹 / 敌人子弹 / 准星 / 敌人 / 摇杆 / 血条 / 死亡结算。
+// 绘制总入口：背景 + 敌人 + 子弹 + 玩家 + HUD。
+// 具体人物 / 敌人 / 特效分别在同目录的 draw*.js 里。
 
 const cfg = require('./config.js');
+const pal = require('./palette.js');
+const util = require('./drawUtil.js');
+const drawPlayer = require('./drawPlayer.js');
+const drawEnemy = require('./drawEnemy.js');
+const drawFx = require('./drawFx.js');
 
-const BUILD = 'game-7';
-
-const C = {
-  skyTop: '#7fd0f7',
-  skyBottom: '#dff4ff',
-  cloud: 'rgba(255,255,255,0.9)',
-  hillFar: '#a8e0a4',
-  hillMid: '#7fca78',
-  treeTrunk: '#8a5a3b',
-  treeLeaf: '#4fae52',
-  treeLeafDark: '#3d9142',
-  grass: '#5fd06a',
-  grassDark: '#3fa84d',
-  soilTop: '#8b6b4a',
-  soilBottom: '#57422e',
-  skin: '#ffd9b3',
-  hair: '#5a3a22',
-  shirt: '#3f7fd6',
-  shirtDark: '#2f63aa',
-  pants: '#33415c',
-  shoe: '#2a3346',
-  eye: '#22262e',
-  gun: '#8e97a5',
-  gunDark: '#4a525e',
-  aimRing: 'rgba(255,86,86,0.85)',
-  joyBase: 'rgba(255,255,255,0.22)',
-  joyRing: 'rgba(255,255,255,0.55)',
-  joyKnob: 'rgba(255,255,255,0.72)',
-  enemyBody: '#8a5bd6',
-  enemyBodyDark: '#5f3a9c',
-  enemyHorn: '#e0d6f5',
-  enemyEye: '#ff4d4d',
-  enemyHurt: '#ffffff',
-  enemyHp: '#5ad46a',
-  hpPip: '#ff5a5a',
-  hpPipOff: 'rgba(0,0,0,0.18)',
-  shadow: 'rgba(0,0,0,0.16)',
-  hudBg: 'rgba(255,255,255,0.82)',
-  hudText: '#1d3a52',
-};
-
-const PLAYER_BULLET = { trail: 'rgba(255,200,80,0.35)', body: '#ffd75e', core: '#fffdf2' };
-const ENEMY_BULLET = { trail: 'rgba(255,90,90,0.30)', body: '#ff6b6b', core: '#ffe3e3' };
-
-// ---------------------------------------------------------------- 小工具
-function roundRectPath(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.lineTo(x + w - rr, y);
-  ctx.arcTo(x + w, y, x + w, y + rr, rr);
-  ctx.lineTo(x + w, y + h - rr);
-  ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
-  ctx.lineTo(x + rr, y + h);
-  ctx.arcTo(x, y + h, x, y + h - rr, rr);
-  ctx.lineTo(x, y + rr);
-  ctx.arcTo(x, y, x + rr, y, rr);
-  ctx.closePath();
-}
-
-function fillEllipse(ctx, cx, cy, rx, ry, style) {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(1, ry / rx);
-  ctx.beginPath();
-  ctx.arc(0, 0, rx, 0, Math.PI * 2);
-  ctx.fillStyle = style;
-  ctx.fill();
-  ctx.restore();
-}
-
-// 以「关节」为轴心画一段圆角肢体：肢体从轴心向下延伸 len
-function drawLimb(ctx, jointX, jointY, len, thick, angle, color) {
-  ctx.save();
-  ctx.translate(jointX, jointY);
-  ctx.rotate(angle);
-  ctx.fillStyle = color;
-  roundRectPath(ctx, -thick / 2, 0, thick, len, thick * 0.46);
-  ctx.fill();
-  ctx.restore();
-}
-
-// 脚掌（画在腿末端，跟随腿一起旋转）
-function drawFoot(ctx, jointX, jointY, len, thick, angle) {
-  ctx.save();
-  ctx.translate(jointX, jointY);
-  ctx.rotate(angle);
-  ctx.fillStyle = C.shoe;
-  roundRectPath(ctx, -thick * 0.55, len - thick * 0.62, thick * 1.55, thick * 0.72, thick * 0.34);
-  ctx.fill();
-  ctx.restore();
-}
+const C = pal.C;
+const BUILD = 'game-8';
 
 // ---------------------------------------------------------------- 背景
 const CLOUD_SPAN = 1500;
@@ -129,8 +43,7 @@ function puffyCloud(ctx, x, y, s) {
 }
 
 function drawClouds(ctx, cameraX) {
-  const factor = 0.15;
-  const shift = (cameraX * factor) % CLOUD_SPAN;
+  const shift = (cameraX * 0.15) % CLOUD_SPAN;
 
   for (let k = -1; k <= 1; k++) {
     for (let i = 0; i < CLOUDS.length; i++) {
@@ -159,10 +72,9 @@ function drawHills(ctx, cameraX, factor, color, baseY, radius, spacing) {
 }
 
 function drawTrees(ctx, cameraX) {
-  const factor = 0.5;
   const spacing = 230;
 
-  let shift = (cameraX * factor) % spacing;
+  let shift = (cameraX * 0.5) % spacing;
   if (shift < 0) shift += spacing;
 
   let x = -spacing - shift;
@@ -231,405 +143,7 @@ function drawGround(ctx, cameraX) {
   }
 }
 
-// ---------------------------------------------------------------- 子弹 / 准星
-function drawBullets(ctx, level, cameraX, palette) {
-  const list = (level && level.list) || [];
-
-  ctx.lineCap = 'round';
-
-  for (let i = 0; i < list.length; i++) {
-    const b = list[i];
-    const x = b.x - cameraX;
-    const y = b.y;
-
-    if (x < -40 || x > cfg.WIDTH + 40) continue;
-
-    // 拖尾
-    ctx.strokeStyle = palette.trail;
-    ctx.lineWidth = b.r * 1.6;
-    ctx.beginPath();
-    ctx.moveTo(x - b.vx * 12, y - b.vy * 12);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-
-    // 弹体
-    ctx.fillStyle = palette.body;
-    ctx.beginPath();
-    ctx.arc(x, y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 高光
-    ctx.fillStyle = palette.core;
-    ctx.beginPath();
-    ctx.arc(x - b.vx * 2, y - b.vy * 2, b.r * 0.45, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.lineCap = 'butt';
-}
-
-function drawAim(ctx, aim, now) {
-  if (!aim) return;
-
-  const pulse = 1 + Math.sin(now / 110) * 0.08;
-  const r = 13 * pulse;
-
-  ctx.strokeStyle = C.aimRing;
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.arc(aim.x, aim.y, r, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(aim.x - r - 5, aim.y);
-  ctx.lineTo(aim.x - r + 2, aim.y);
-  ctx.moveTo(aim.x + r - 2, aim.y);
-  ctx.lineTo(aim.x + r + 5, aim.y);
-  ctx.moveTo(aim.x, aim.y - r - 5);
-  ctx.lineTo(aim.x, aim.y - r + 2);
-  ctx.moveTo(aim.x, aim.y + r - 2);
-  ctx.lineTo(aim.x, aim.y + r + 5);
-  ctx.stroke();
-}
-
-// ---------------------------------------------------------------- 敌人
-function drawEnemy(ctx, e, cameraX, now) {
-  const x = e.x - cameraX;
-  const y = e.y;
-  const w = e.w;
-  const h = e.h;
-
-  if (x + w < -60 || x > cfg.WIDTH + 60) return;
-
-  const hurt = !!(e.hurtAt && now - e.hurtAt < 150);
-  const bob = Math.sin(now / 420 + (e.bobPhase || 0) * 6.283) * h * 0.028;
-
-  const cx = x + w / 2;
-  const baseY = y + h + bob;
-
-  const bodyW = w * 0.86;
-  const bodyH = h * 0.80;
-  const bodyX = cx - bodyW / 2;
-  const bodyY = baseY - bodyH;
-
-  // 影子
-  fillEllipse(ctx, cx, cfg.GROUND_Y + 3, w * 0.44, w * 0.14, C.shadow);
-
-  // 犄角
-  ctx.fillStyle = C.enemyHorn;
-  ctx.beginPath();
-  ctx.moveTo(bodyX + bodyW * 0.20, bodyY + bodyH * 0.12);
-  ctx.lineTo(bodyX + bodyW * 0.05, bodyY - bodyH * 0.22);
-  ctx.lineTo(bodyX + bodyW * 0.38, bodyY + bodyH * 0.04);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.moveTo(bodyX + bodyW * 0.80, bodyY + bodyH * 0.12);
-  ctx.lineTo(bodyX + bodyW * 0.95, bodyY - bodyH * 0.22);
-  ctx.lineTo(bodyX + bodyW * 0.62, bodyY + bodyH * 0.04);
-  ctx.closePath();
-  ctx.fill();
-
-  // 身体
-  ctx.fillStyle = hurt ? C.enemyHurt : C.enemyBody;
-  roundRectPath(ctx, bodyX, bodyY, bodyW, bodyH, bodyW * 0.42);
-  ctx.fill();
-
-  // 底部暗部
-  ctx.fillStyle = hurt ? 'rgba(255,255,255,0.5)' : C.enemyBodyDark;
-  roundRectPath(ctx, bodyX, bodyY + bodyH * 0.64, bodyW, bodyH * 0.36, bodyW * 0.3);
-  ctx.fill();
-
-  // 眼睛
-  ctx.fillStyle = C.enemyEye;
-  const eyeR = bodyW * 0.11;
-  ctx.beginPath();
-  ctx.arc(cx - bodyW * 0.18, bodyY + bodyH * 0.32, eyeR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx + bodyW * 0.18, bodyY + bodyH * 0.32, eyeR, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 嘴
-  ctx.strokeStyle = hurt ? 'rgba(120,90,160,0.5)' : C.enemyBodyDark;
-  ctx.lineWidth = Math.max(1.5, bodyW * 0.05);
-  ctx.beginPath();
-  ctx.arc(cx, bodyY + bodyH * 0.58, bodyW * 0.2, Math.PI * 0.18, Math.PI * 0.82);
-  ctx.stroke();
-
-  // 血条（多血或掉血时才画）
-  if (e.maxHp > 1 || e.hp < e.maxHp) {
-    const barW = bodyW * 0.92;
-    const barH = 5;
-    const barX = cx - barW / 2;
-    const barY = bodyY - barH - 9;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    roundRectPath(ctx, barX, barY, barW, barH, barH / 2);
-    ctx.fill();
-
-    const ratio = e.hp > 0 ? e.hp / e.maxHp : 0;
-    if (ratio > 0) {
-      ctx.fillStyle = C.enemyHp;
-      roundRectPath(ctx, barX, barY, barW * ratio, barH, barH / 2);
-      ctx.fill();
-    }
-  }
-}
-
-function drawEnemies(ctx, level, cameraX, now) {
-  const list = (level && level.list) || [];
-  for (let i = 0; i < list.length; i++) drawEnemy(ctx, list[i], cameraX, now);
-}
-
-// ---------------------------------------------------------------- 摇杆
-function drawJoystick(ctx, joy) {
-  const cx = cfg.JOY_CX;
-  const cy = cfg.JOY_CY;
-  const r = cfg.JOY_RADIUS;
-  const active = !!(joy && joy.active);
-
-  const dx = active ? joy.dx : 0;
-  const dy = active ? joy.dy : 0;
-
-  ctx.save();
-  ctx.globalAlpha = active ? 1 : 0.8;
-
-  ctx.fillStyle = C.joyBase;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = C.joyRing;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-
-  const kx = cx + dx * r * 0.62;
-  const ky = cy + dy * r * 0.62;
-
-  ctx.fillStyle = C.joyKnob;
-  ctx.beginPath();
-  ctx.arc(kx, ky, r * cfg.JOY_KNOB_RATIO, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-// ---------------------------------------------------------------- 小手枪
-// 枪口朝 +x 方向；s 为整体缩放
-function drawGun(ctx, hx, hy, angle, s) {
-  ctx.save();
-  ctx.translate(hx, hy);
-  ctx.rotate(angle);
-  ctx.scale(s, s);
-
-  // 握把
-  ctx.fillStyle = C.gunDark;
-  roundRectPath(ctx, -3, -2, 6, 10, 2.4);
-  ctx.fill();
-
-  // 枪身
-  ctx.fillStyle = C.gun;
-  roundRectPath(ctx, -4, -6, 13, 7, 2.6);
-  ctx.fill();
-
-  // 枪管
-  ctx.fillStyle = C.gunDark;
-  roundRectPath(ctx, 8, -4.4, 7, 4, 1.8);
-  ctx.fill();
-
-  // 枪口
-  ctx.fillStyle = '#23282f';
-  roundRectPath(ctx, 14.2, -4, 2.2, 3.2, 1.1);
-  ctx.fill();
-
-  // 高光
-  ctx.fillStyle = 'rgba(255,255,255,0.38)';
-  roundRectPath(ctx, -2.4, -5.4, 8, 1.8, 0.9);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-// ---------------------------------------------------------------- 人物
-// 眼睛：眨眼时画成两条闭合的短横线
-function drawEyes(ctx, R, headCY, blinking) {
-  if (blinking) {
-    ctx.strokeStyle = C.eye;
-    ctx.lineWidth = Math.max(1.6, R * 0.11);
-    ctx.lineCap = 'round';
-
-    ctx.beginPath();
-    ctx.moveTo(R * 0.02, headCY + R * 0.16);
-    ctx.lineTo(R * 0.30, headCY + R * 0.16);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(R * 0.42, headCY + R * 0.16);
-    ctx.lineTo(R * 0.70, headCY + R * 0.16);
-    ctx.stroke();
-
-    ctx.lineCap = 'butt';
-    return;
-  }
-
-  ctx.fillStyle = C.eye;
-  ctx.beginPath();
-  ctx.arc(R * 0.16, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(R * 0.56, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(R * 0.21, headCY + R * 0.07, R * 0.05, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(R * 0.61, headCY + R * 0.07, R * 0.05, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// aimAngle：世界坐标下的枪口角度（null = 没在瞄准，枪口朝面朝方向）
-function drawPlayer(ctx, p, cameraX, aimAngle) {
-  const sx = p.x - cameraX;
-  const sy = p.y;
-  const w = p.w;
-  const h = p.h;
-  const cx = sx + w / 2;
-  const feetY = sy + h;
-
-  // 影子（不随身体起伏）
-  fillEllipse(ctx, cx, cfg.GROUND_Y + 3, w * 0.46, w * 0.15, C.shadow);
-
-  const R = w * 0.55;        // 头半径
-  const headCY = -h * 0.70;  // 头心（相对脚底）
-
-  const legW = w * 0.24;
-  const legH = h * 0.26;
-  const bodyW = w * 0.64;
-  const bodyH = h * 0.34;
-  const bodyY = -legH - bodyH + h * 0.02;
-  const armW = w * 0.19;
-  const armH = h * 0.24;
-
-  const isJump = p.anim === 'jump';
-  const isRun = p.anim === 'run';
-
-  // 摆动相位：一整套步 = 2π
-  const phase = p.runPhase * Math.PI * 2;
-  const swing = isRun ? Math.sin(phase) : 0;
-
-  // 跑步时身体轻微上下起伏（每半步一次）
-  const bob = isRun ? Math.abs(Math.sin(phase)) * h * 0.035 : 0;
-
-  // 各个关节的角度
-  let legL, legR, armL, armR;
-
-  if (isJump) {
-    legL = 0.55;
-    legR = -0.32;
-    armL = 2.35;
-    armR = -2.35;
-  } else {
-    legL = swing * 0.62;
-    legR = -swing * 0.62;
-    armL = -swing * 0.55;
-    armR = swing * 0.55;
-  }
-
-  const hipY = -legH;
-  const hipX = legW * 0.42;
-  const shoulderY = bodyY + bodyH * 0.16;
-  const shoulderX = bodyW * 0.5 - armW * 0.1;
-
-  // 把世界角度换算成「人物本地」角度（人物朝左时整体水平镜像）
-  const facing = p.facing >= 0 ? 1 : -1;
-  const aimLocal = (typeof aimAngle === 'number')
-    ? (facing >= 0 ? aimAngle : Math.PI - aimAngle)
-    : null;
-
-  // 前臂角度：瞄准时手臂指向准星，否则跟着跑步摆动
-  if (aimLocal !== null) armR = aimLocal - Math.PI / 2;
-
-  // 前手（握枪）的本地坐标
-  let handX, handY;
-  if (aimLocal !== null) {
-    handX = shoulderX + Math.cos(aimLocal) * armH * 0.92;
-    handY = shoulderY + Math.sin(aimLocal) * armH * 0.92;
-  } else {
-    handX = shoulderX - Math.sin(armR) * armH * 0.92;
-    handY = shoulderY + Math.cos(armR) * armH * 0.92;
-  }
-
-  ctx.save();
-  ctx.translate(cx, feetY - bob);
-  ctx.scale(facing, 1);
-
-  // ---- 后腿 / 后臂（先画，形成遮挡层次） ----
-  drawLimb(ctx, -hipX, hipY, legH, legW, legL, C.pants);
-  drawFoot(ctx, -hipX, hipY, legH, legW, legL);
-
-  drawLimb(ctx, -shoulderX, shoulderY, armH, armW, armL, C.skin);
-
-  // ---- 身体（衣服） ----
-  ctx.fillStyle = C.shirt;
-  roundRectPath(ctx, -bodyW / 2, bodyY, bodyW, bodyH, bodyW * 0.34);
-  ctx.fill();
-
-  ctx.fillStyle = C.shirtDark;
-  roundRectPath(ctx, -bodyW / 2, bodyY + bodyH * 0.66, bodyW, bodyH * 0.34, bodyW * 0.3);
-  ctx.fill();
-
-  // ---- 前腿 / 前臂 ----
-  drawLimb(ctx, hipX, hipY, legH, legW, legR, C.pants);
-  drawFoot(ctx, hipX, hipY, legH, legW, legR);
-
-  drawLimb(ctx, shoulderX, shoulderY, armH, armW, armR, C.skin);
-
-  // ---- 小手枪（握在前手里） ----
-  const gunAngle = (aimLocal !== null) ? aimLocal : 0;
-  drawGun(ctx, handX, handY, gunAngle, w / 30);
-
-  // ---- 头 ----
-  ctx.fillStyle = C.skin;
-  ctx.beginPath();
-  ctx.arc(0, headCY, R, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 头发（上半圆帽 + 刘海）
-  ctx.fillStyle = C.hair;
-  ctx.beginPath();
-  ctx.arc(0, headCY, R * 1.02, Math.PI * 1.02, Math.PI * 1.98);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.moveTo(R * 0.1, headCY - R * 0.86);
-  ctx.lineTo(R * 0.78, headCY - R * 0.42);
-  ctx.lineTo(R * 0.2, headCY - R * 0.3);
-  ctx.closePath();
-  ctx.fill();
-
-  // ---- 眼睛（会眨） ----
-  drawEyes(ctx, R, headCY, p.blinking);
-
-  // ---- 嘴 ----
-  ctx.strokeStyle = 'rgba(90,58,34,0.8)';
-  ctx.lineWidth = Math.max(1, R * 0.08);
-  ctx.beginPath();
-  ctx.arc(R * 0.36, headCY + R * 0.42, R * 0.16, 0.15 * Math.PI, 0.85 * Math.PI);
-  ctx.stroke();
-
-  ctx.restore();
-}
-
 // ---------------------------------------------------------------- HUD
-// 左上角血条：一格 = 1 点血
 function drawHp(ctx, player) {
   if (!player) return;
 
@@ -641,15 +155,15 @@ function drawHp(ctx, player) {
   const pipW = Math.max(4, (avail - gap * (max - 1)) / max);
   const pipH = 9;
   const x0 = 14;
-  const y0 = 22;
+  const y0 = 24;
 
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  roundRectPath(ctx, x0 - 7, y0 - 6, avail + 14, pipH + 12, 8);
+  util.roundRectPath(ctx, x0 - 7, y0 - 6, avail + 14, pipH + 12, 8);
   ctx.fill();
 
   for (let i = 0; i < max; i++) {
     ctx.fillStyle = i < hp ? C.hpPip : C.hpPipOff;
-    roundRectPath(ctx, x0 + i * (pipW + gap), y0, pipW, pipH, 3);
+    util.roundRectPath(ctx, x0 + i * (pipW + gap), y0, pipW, pipH, 3);
     ctx.fill();
   }
 }
@@ -662,7 +176,7 @@ function drawHud(ctx, state) {
   const x = (cfg.WIDTH - w) / 2;
 
   ctx.fillStyle = C.hudBg;
-  roundRectPath(ctx, x, 22, w, h, h / 2);
+  util.roundRectPath(ctx, x, 22, w, h, h / 2);
   ctx.fill();
 
   ctx.textAlign = 'center';
@@ -691,7 +205,6 @@ function drawHud(ctx, state) {
   ctx.textBaseline = 'alphabetic';
 }
 
-// 受伤时的红色描边
 function drawHurtFlash(ctx, player, now) {
   if (!player || !player.hurtAt || now - player.hurtAt > 220) return;
 
@@ -740,16 +253,16 @@ function draw(ctx, state, now) {
   drawTrees(ctx, cameraX);
   drawGround(ctx, cameraX);
 
-  drawEnemies(ctx, state.enemies, cameraX, now);
-  drawBullets(ctx, state.eBullets, cameraX, ENEMY_BULLET);
-  drawBullets(ctx, state.bullets, cameraX, PLAYER_BULLET);
+  drawEnemy.draw(ctx, state.enemies, cameraX, now);
+  drawFx.drawBullets(ctx, state.eBullets, cameraX, pal.ENEMY_BULLET);
+  drawFx.drawBullets(ctx, state.bullets, cameraX, pal.PLAYER_BULLET);
 
   if (state.player) {
-    drawPlayer(ctx, state.player, cameraX, state.aim ? state.aimAngle : null);
+    drawPlayer.draw(ctx, state.player, cameraX, state.aim ? state.aimAngle : null, now);
   }
 
-  drawAim(ctx, state.aim, now);
-  drawJoystick(ctx, state.joy);
+  drawFx.drawAim(ctx, state.aim, now);
+  drawFx.drawJoystick(ctx, state.joy);
 
   drawHud(ctx, state);
   drawHurtFlash(ctx, state.player, now);
