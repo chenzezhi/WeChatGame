@@ -1,10 +1,8 @@
-// 道具模块：随路程生成的补给品（目前只有「分身」一种）。
-//
-// 规则：
-//   出现位置：在一段「随机区间」内跳动（不是固定米数）。
-//   出现频率：随距离推进，区间整体收窄 → 出现得越来越勤。
-//   道具强度：随距离推进而变强（分身血量更多、更耐打）。
-//
+// 道具：随路程生成的补给品。
+//   clone  分身
+//   speed  攻速
+//   multi  散射
+//   heal   血瓶
 // 只维护数据，绘制在 drawPickup.js。
 
 const cfg = require('./config.js');
@@ -18,10 +16,10 @@ function create() {
     list: [],
     nextSpawnDist: 0,
     spawned: 0,
+    lastKind: null,
   };
 }
 
-// 当前距离下「两次道具之间」的随机间隔范围（米），随距离收窄
 function gapRangeForDistance(dist) {
   const shrink = dist * cfg.ITEM_GAP_DECAY;
 
@@ -35,40 +33,76 @@ function gapRangeForDistance(dist) {
   return { min: min, max: max };
 }
 
-// 道具强度：随距离推进变强（分身血量 / 耐打程度）
+// 分身强度：随距离推进变强（血量更多）
 function powerForDistance(dist) {
   const n = cfg.CLONE_HP_BASE + Math.floor(dist / cfg.CLONE_HP_STEP_M);
   return n > cfg.CLONE_HP_MAX ? cfg.CLONE_HP_MAX : n;
 }
 
-// 下一次出现的米数 = 当前米数 + 区间内随机值
+// 血瓶回血量：随距离推进变多
+function healForDistance(dist) {
+  const n = cfg.HEAL_BASE + Math.floor(dist / cfg.HEAL_STEP_M) * cfg.HEAL_GAIN_PER_STEP;
+  return n > cfg.HEAL_MAX ? cfg.HEAL_MAX : n;
+}
+
 function nextDistFrom(dist) {
   const g = gapRangeForDistance(dist);
   return dist + randRange(g.min, g.max);
 }
 
+function pickKind(level) {
+  const kinds = ['clone', 'speed', 'multi', 'heal'];
+  const base = [
+    cfg.ITEM_WEIGHT_CLONE,
+    cfg.ITEM_WEIGHT_SPEED,
+    cfg.ITEM_WEIGHT_MULTI,
+    cfg.ITEM_WEIGHT_HEAL,
+  ];
+
+  let total = 0;
+  const w = [];
+
+  for (let i = 0; i < kinds.length; i++) {
+    let v = base[i];
+    if (kinds[i] === level.lastKind) v *= cfg.ITEM_REPEAT_FACTOR;
+    w.push(v);
+    total += v;
+  }
+
+  let r = Math.random() * total;
+  for (let i = 0; i < kinds.length; i++) {
+    r -= w[i];
+    if (r <= 0) return kinds[i];
+  }
+
+  return kinds[kinds.length - 1];
+}
+
 function reset(level, dist) {
   level.list.length = 0;
   level.spawned = 0;
-  level.nextSpawnDist = dist + cfg.ITEM_FIRST_M + randRange(0, 40);
+  level.lastKind = null;
+  level.nextSpawnDist = dist + cfg.ITEM_FIRST_M + randRange(0, 60);
 }
 
-function createOne(level, x, dist, now) {
+function createOne(level, kind, x, y, dist, now) {
   const size = cfg.ITEM_SIZE;
 
   level.list.push({
-    kind: 'clone',                       // 目前只有分身
+    kind: kind,
     x: x,
-    y: cfg.GROUND_Y - size * 1.9,        // 悬浮在地面上方
+    y: y,
     w: size,
     h: size,
-    power: powerForDistance(dist),
+    power: powerForDistance(dist),   // 分身血量
+    amount: healForDistance(dist),   // 血瓶回血量
     bobPhase: Math.random(),
     bornAt: now,
   });
+
+  level.lastKind = kind;
 }
 
-// 玩家跑到一定米数就在前方随机落点生成道具
 function spawnAhead(level, playerX, dist, now) {
   let guard = 0;
 
@@ -76,18 +110,32 @@ function spawnAhead(level, playerX, dist, now) {
     guard++;
 
     const at = level.nextSpawnDist;
+    const kind = pickKind(level);
     const x = playerX + cfg.WIDTH * (0.35 + Math.random() * 0.5);
+    const y = cfg.GROUND_Y - cfg.ITEM_SIZE * (1.5 + Math.random() * 1.6);
 
-    createOne(level, x, at, now);
+    createOne(level, kind, x, y, at, now);
     level.spawned += 1;
     level.nextSpawnDist = nextDistFrom(at);
   }
 }
 
-// 浮动动画在绘制时按 now 计算，这里留空以保持模块接口一致
+// 掉落一批道具（Boss 击杀）：散落在 centerX 附近
+function spawnBurst(level, centerX, dist, now, count) {
+  const n = Math.max(1, count | 0);
+
+  for (let i = 0; i < n; i++) {
+    const kind = pickKind(level);
+    const x = centerX + (Math.random() - 0.5) * cfg.WIDTH * 0.9;
+    const y = cfg.GROUND_Y - cfg.ITEM_SIZE * (1.4 + Math.random() * 2.2);
+
+    createOne(level, kind, x, y, dist, now);
+    level.spawned += 1;
+  }
+}
+
 function update() {}
 
-// 回收：已经跑出屏幕左侧的道具
 function cull(level, cameraX) {
   const minX = cameraX - cfg.WIDTH * 0.6;
   let i = 0;
@@ -99,7 +147,6 @@ function cull(level, cameraX) {
   }
 }
 
-// 目标 AABB 是否吃到道具：返回道具对象（没有则 null）
 function hitTest(level, x, y, w, h) {
   const list = level.list;
 
@@ -111,7 +158,6 @@ function hitTest(level, x, y, w, h) {
   return null;
 }
 
-// 吃掉 / 移除
 function take(level, item) {
   for (let i = 0; i < level.list.length; i++) {
     if (level.list[i] === item) {
@@ -126,10 +172,13 @@ module.exports = {
   create: create,
   reset: reset,
   spawnAhead: spawnAhead,
+  spawnBurst: spawnBurst,
   update: update,
   cull: cull,
   hitTest: hitTest,
   take: take,
   gapRangeForDistance: gapRangeForDistance,
   powerForDistance: powerForDistance,
+  healForDistance: healForDistance,
+  pickKind: pickKind,
 };

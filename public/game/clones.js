@@ -1,8 +1,5 @@
-// 分身（复制体）模块：玩家吃到「分身」道具后生成一个客体。
-//
-// 行为：找最近的敌人 → 靠近到射程内站住并朝它开枪；会随机跳跃；
-//       有独立血量，被敌人子弹 / 身体碰撞打到也会掉血，血量归零就消失。
-// 物理与动画完全复用 player.js（playerKit），所以动作和主体一模一样。
+// 分身（复制体）：玩家吃到「分身」道具后生成一个客体。
+// 物理与动画完全复用 player.js；射速与子弹数跟主体同步。
 
 const cfg = require('./config.js');
 const playerKit = require('./player.js');
@@ -16,7 +13,6 @@ function reset(level) {
   level.list.length = 0;
 }
 
-// 找离 x 最近的敌人（超出一定范围就不算目标）
 function nearestEnemy(enemies, x) {
   const list = (enemies && enemies.list) || [];
   let best = null;
@@ -36,7 +32,6 @@ function nearestEnemy(enemies, x) {
   return best;
 }
 
-// 生成一个分身：hp 来自道具强度
 function spawn(level, owner, hp, now) {
   const ox = owner ? owner.x : cfg.START_X;
   const c = playerKit.create(Math.max(0, ox - cfg.PLAYER_W * 1.4));
@@ -45,8 +40,9 @@ function spawn(level, owner, hp, now) {
   c.hp = hp;
   c.maxHp = hp;
   c.aimAngle = 0;
+  c.hitAt = 0;
   c.bornAt = now;
-  c.nextFireAt = now + cfg.CLONE_FIRE_MS;
+  c.nextFireAt = now + cfg.PLAYER_FIRE_MS_START;
   c.nextJumpAt = now + cfg.CLONE_JUMP_MIN_MS;
 
   if (level.list.length >= cfg.CLONE_MAX) level.list.shift();
@@ -55,8 +51,13 @@ function spawn(level, owner, hp, now) {
   return c;
 }
 
-function update(level, dt, now, owner, enemies, playerBullets) {
+// stats: { fireMs, multishot } —— 跟主体完全一致
+function update(level, dt, now, owner, enemies, playerBullets, stats) {
   const list = level.list;
+
+  const fireMs = (stats && stats.fireMs > 0) ? stats.fireMs : cfg.PLAYER_FIRE_MS_START;
+  const multi = (stats && stats.multishot > 0) ? stats.multishot : 1;
+  const step = (cfg.MULTI_SPREAD_DEG * Math.PI) / 180;
 
   let i = 0;
   while (i < list.length) {
@@ -75,24 +76,27 @@ function update(level, dt, now, owner, enemies, playerBullets) {
 
     if (target) {
       const tx = target.x + target.w / 2;
+      const ty = target.y + target.h * 0.45;
       const dx = tx - cx;
 
       if (Math.abs(dx) > c.w * 3) dir = dx > 0 ? 1 : -1;
       else if (Math.abs(dx) < c.w * 1.4) dir = dx > 0 ? -1 : 1;
 
-      const angle = Math.atan2(target.y + target.h * 0.45 - cy, dx);
+      const angle = Math.atan2(ty - cy, dx);
       c.aimAngle = angle;
 
       if (now >= c.nextFireAt) {
-        c.nextFireAt = now + cfg.CLONE_FIRE_MS;
+        c.nextFireAt = now + fireMs;
 
-        const mx = cx + Math.cos(angle) * c.w * 0.75;
-        const my = cy + Math.sin(angle) * c.w * 0.75;
+        for (let k = 0; k < multi; k++) {
+          const a = angle + (k - (multi - 1) / 2) * step;
+          const mx = cx + Math.cos(a) * c.w * 0.75;
+          const my = cy + Math.sin(a) * c.w * 0.75;
 
-        bullets.spawn(playerBullets, mx, my, tx, target.y + target.h * 0.45);
+          bullets.spawn(playerBullets, mx, my, cx + Math.cos(a) * 900, cy + Math.sin(a) * 900);
+        }
       }
     } else {
-      // 没有目标就跟着主体，别掉队太远
       if (owner && owner.alive) {
         const dx = owner.x - c.x;
         if (Math.abs(dx) > c.w * 3.2) dir = dx > 0 ? 1 : -1;
@@ -100,9 +104,9 @@ function update(level, dt, now, owner, enemies, playerBullets) {
       c.aimAngle = c.facing >= 0 ? 0 : Math.PI;
     }
 
-    // 随机跳跃
     if (now >= c.nextJumpAt) {
-      c.nextJumpAt = now + cfg.CLONE_JUMP_MIN_MS + Math.random() * (cfg.CLONE_JUMP_MAX_MS - cfg.CLONE_JUMP_MIN_MS);
+      c.nextJumpAt = now + cfg.CLONE_JUMP_MIN_MS +
+        Math.random() * (cfg.CLONE_JUMP_MAX_MS - cfg.CLONE_JUMP_MIN_MS);
       if (c.onGround && Math.random() < 0.7) playerKit.requestJump(c, now);
     }
 

@@ -123,6 +123,30 @@ function exit() {
   state.paused = false;
 }
 
+// ---------- 升级：血量 / 攻速 / 子弹数一起成长 ----------
+function applyLevelUp() {
+  state.level += 1;
+  state.xpNeed = cfg.XP_BASE + cfg.XP_STEP * (state.level - 1);
+
+  const p = state.player;
+
+  // 血量
+  if (p) {
+    p.maxHp = Math.min(cfg.LEVEL_HP_MAX, p.maxHp + cfg.LEVEL_HP_GAIN);
+    p.hp = Math.min(p.maxHp, p.hp + cfg.LEVEL_HP_GAIN);
+  }
+
+  // 攻速
+  let f = Math.round(state.fireMs * cfg.LEVEL_FIRE_RATIO);
+  if (f < cfg.PLAYER_FIRE_MS_MIN) f = cfg.PLAYER_FIRE_MS_MIN;
+  state.fireMs = f;
+
+  // 子弹数量
+  if (state.level % cfg.LEVEL_MULTI_EVERY === 0 && state.multishot < cfg.PLAYER_MULTI_MAX) {
+    state.multishot += 1;
+  }
+}
+
 function gainXp(amount) {
   if (!(amount > 0)) return;
 
@@ -130,8 +154,7 @@ function gainXp(amount) {
 
   while (state.xp >= state.xpNeed) {
     state.xp -= state.xpNeed;
-    state.level += 1;
-    state.xpNeed = cfg.XP_BASE + cfg.XP_STEP * (state.level - 1);
+    applyLevelUp();
   }
 }
 
@@ -309,6 +332,12 @@ function applyPickup(it, now) {
     return;
   }
 
+  if (it.kind === 'heal') {
+    const p = state.player;
+    if (p) p.hp = Math.min(p.maxHp, p.hp + (it.amount || 1));
+    return;
+  }
+
   clones.spawn(state.clones, state.player, it.power, now);
 }
 
@@ -357,7 +386,11 @@ function update(dt, now) {
   pickups.update(state.pickups, dt, now);
   pickups.cull(state.pickups, state.cameraX);
 
-  clones.update(state.clones, dt, now, state.player, state.enemies, state.bullets);
+  // 分身：射速与子弹数跟主体同步
+  clones.update(state.clones, dt, now, state.player, state.enemies, state.bullets, {
+    fireMs: state.fireMs,
+    multishot: state.multishot,
+  });
   clones.cull(state.clones, state.cameraX);
 
   fireUpdate(now);
