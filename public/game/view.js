@@ -1,10 +1,10 @@
 // 绘制层：只读状态、不修改状态。
 // 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物（走路摆腿、会眨眼、手持小手枪）
-// 另外绘制：子弹、准星、左下角摇杆。
+// 另外绘制：玩家子弹 / 敌人子弹 / 准星 / 敌人 / 摇杆 / 血条 / 死亡结算。
 
 const cfg = require('./config.js');
 
-const BUILD = 'game-6';
+const BUILD = 'game-7';
 
 const C = {
   skyTop: '#7fd0f7',
@@ -28,17 +28,25 @@ const C = {
   eye: '#22262e',
   gun: '#8e97a5',
   gunDark: '#4a525e',
-  bullet: '#ffd75e',
-  bulletCore: '#fffdf2',
-  bulletTrail: 'rgba(255,200,80,0.35)',
   aimRing: 'rgba(255,86,86,0.85)',
   joyBase: 'rgba(255,255,255,0.22)',
   joyRing: 'rgba(255,255,255,0.55)',
   joyKnob: 'rgba(255,255,255,0.72)',
+  enemyBody: '#8a5bd6',
+  enemyBodyDark: '#5f3a9c',
+  enemyHorn: '#e0d6f5',
+  enemyEye: '#ff4d4d',
+  enemyHurt: '#ffffff',
+  enemyHp: '#5ad46a',
+  hpPip: '#ff5a5a',
+  hpPipOff: 'rgba(0,0,0,0.18)',
   shadow: 'rgba(0,0,0,0.16)',
   hudBg: 'rgba(255,255,255,0.82)',
   hudText: '#1d3a52',
 };
+
+const PLAYER_BULLET = { trail: 'rgba(255,200,80,0.35)', body: '#ffd75e', core: '#fffdf2' };
+const ENEMY_BULLET = { trail: 'rgba(255,90,90,0.30)', body: '#ff6b6b', core: '#ffe3e3' };
 
 // ---------------------------------------------------------------- 小工具
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -224,7 +232,7 @@ function drawGround(ctx, cameraX) {
 }
 
 // ---------------------------------------------------------------- 子弹 / 准星
-function drawBullets(ctx, level, cameraX) {
+function drawBullets(ctx, level, cameraX, palette) {
   const list = (level && level.list) || [];
 
   ctx.lineCap = 'round';
@@ -237,7 +245,7 @@ function drawBullets(ctx, level, cameraX) {
     if (x < -40 || x > cfg.WIDTH + 40) continue;
 
     // 拖尾
-    ctx.strokeStyle = C.bulletTrail;
+    ctx.strokeStyle = palette.trail;
     ctx.lineWidth = b.r * 1.6;
     ctx.beginPath();
     ctx.moveTo(x - b.vx * 12, y - b.vy * 12);
@@ -245,13 +253,13 @@ function drawBullets(ctx, level, cameraX) {
     ctx.stroke();
 
     // 弹体
-    ctx.fillStyle = C.bullet;
+    ctx.fillStyle = palette.body;
     ctx.beginPath();
     ctx.arc(x, y, b.r, 0, Math.PI * 2);
     ctx.fill();
 
     // 高光
-    ctx.fillStyle = C.bulletCore;
+    ctx.fillStyle = palette.core;
     ctx.beginPath();
     ctx.arc(x - b.vx * 2, y - b.vy * 2, b.r * 0.45, 0, Math.PI * 2);
     ctx.fill();
@@ -283,6 +291,97 @@ function drawAim(ctx, aim, now) {
   ctx.moveTo(aim.x, aim.y + r - 2);
   ctx.lineTo(aim.x, aim.y + r + 5);
   ctx.stroke();
+}
+
+// ---------------------------------------------------------------- 敌人
+function drawEnemy(ctx, e, cameraX, now) {
+  const x = e.x - cameraX;
+  const y = e.y;
+  const w = e.w;
+  const h = e.h;
+
+  if (x + w < -60 || x > cfg.WIDTH + 60) return;
+
+  const hurt = !!(e.hurtAt && now - e.hurtAt < 150);
+  const bob = Math.sin(now / 420 + (e.bobPhase || 0) * 6.283) * h * 0.028;
+
+  const cx = x + w / 2;
+  const baseY = y + h + bob;
+
+  const bodyW = w * 0.86;
+  const bodyH = h * 0.80;
+  const bodyX = cx - bodyW / 2;
+  const bodyY = baseY - bodyH;
+
+  // 影子
+  fillEllipse(ctx, cx, cfg.GROUND_Y + 3, w * 0.44, w * 0.14, C.shadow);
+
+  // 犄角
+  ctx.fillStyle = C.enemyHorn;
+  ctx.beginPath();
+  ctx.moveTo(bodyX + bodyW * 0.20, bodyY + bodyH * 0.12);
+  ctx.lineTo(bodyX + bodyW * 0.05, bodyY - bodyH * 0.22);
+  ctx.lineTo(bodyX + bodyW * 0.38, bodyY + bodyH * 0.04);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(bodyX + bodyW * 0.80, bodyY + bodyH * 0.12);
+  ctx.lineTo(bodyX + bodyW * 0.95, bodyY - bodyH * 0.22);
+  ctx.lineTo(bodyX + bodyW * 0.62, bodyY + bodyH * 0.04);
+  ctx.closePath();
+  ctx.fill();
+
+  // 身体
+  ctx.fillStyle = hurt ? C.enemyHurt : C.enemyBody;
+  roundRectPath(ctx, bodyX, bodyY, bodyW, bodyH, bodyW * 0.42);
+  ctx.fill();
+
+  // 底部暗部
+  ctx.fillStyle = hurt ? 'rgba(255,255,255,0.5)' : C.enemyBodyDark;
+  roundRectPath(ctx, bodyX, bodyY + bodyH * 0.64, bodyW, bodyH * 0.36, bodyW * 0.3);
+  ctx.fill();
+
+  // 眼睛
+  ctx.fillStyle = C.enemyEye;
+  const eyeR = bodyW * 0.11;
+  ctx.beginPath();
+  ctx.arc(cx - bodyW * 0.18, bodyY + bodyH * 0.32, eyeR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + bodyW * 0.18, bodyY + bodyH * 0.32, eyeR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 嘴
+  ctx.strokeStyle = hurt ? 'rgba(120,90,160,0.5)' : C.enemyBodyDark;
+  ctx.lineWidth = Math.max(1.5, bodyW * 0.05);
+  ctx.beginPath();
+  ctx.arc(cx, bodyY + bodyH * 0.58, bodyW * 0.2, Math.PI * 0.18, Math.PI * 0.82);
+  ctx.stroke();
+
+  // 血条（多血或掉血时才画）
+  if (e.maxHp > 1 || e.hp < e.maxHp) {
+    const barW = bodyW * 0.92;
+    const barH = 5;
+    const barX = cx - barW / 2;
+    const barY = bodyY - barH - 9;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    roundRectPath(ctx, barX, barY, barW, barH, barH / 2);
+    ctx.fill();
+
+    const ratio = e.hp > 0 ? e.hp / e.maxHp : 0;
+    if (ratio > 0) {
+      ctx.fillStyle = C.enemyHp;
+      roundRectPath(ctx, barX, barY, barW * ratio, barH, barH / 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawEnemies(ctx, level, cameraX, now) {
+  const list = (level && level.list) || [];
+  for (let i = 0; i < list.length; i++) drawEnemy(ctx, list[i], cameraX, now);
 }
 
 // ---------------------------------------------------------------- 摇杆
@@ -530,7 +629,34 @@ function drawPlayer(ctx, p, cameraX, aimAngle) {
 }
 
 // ---------------------------------------------------------------- HUD
+// 左上角血条：一格 = 1 点血
+function drawHp(ctx, player) {
+  if (!player) return;
+
+  const max = player.maxHp || cfg.PLAYER_MAX_HP;
+  const hp = Math.max(0, player.hp);
+
+  const gap = 3;
+  const avail = cfg.WIDTH * 0.26;
+  const pipW = Math.max(4, (avail - gap * (max - 1)) / max);
+  const pipH = 9;
+  const x0 = 14;
+  const y0 = 22;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  roundRectPath(ctx, x0 - 7, y0 - 6, avail + 14, pipH + 12, 8);
+  ctx.fill();
+
+  for (let i = 0; i < max; i++) {
+    ctx.fillStyle = i < hp ? C.hpPip : C.hpPipOff;
+    roundRectPath(ctx, x0 + i * (pipW + gap), y0, pipW, pipH, 3);
+    ctx.fill();
+  }
+}
+
 function drawHud(ctx, state) {
+  drawHp(ctx, state.player);
+
   const w = 112;
   const h = 36;
   const x = (cfg.WIDTH - w) / 2;
@@ -565,6 +691,44 @@ function drawHud(ctx, state) {
   ctx.textBaseline = 'alphabetic';
 }
 
+// 受伤时的红色描边
+function drawHurtFlash(ctx, player, now) {
+  if (!player || !player.hurtAt || now - player.hurtAt > 220) return;
+
+  const a = 1 - (now - player.hurtAt) / 220;
+  ctx.strokeStyle = 'rgba(255,60,60,' + (0.55 * a).toFixed(3) + ')';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(0, 0, cfg.WIDTH, cfg.HEIGHT);
+}
+
+function drawDead(ctx, state, now) {
+  ctx.fillStyle = 'rgba(0,0,0,0.58)';
+  ctx.fillRect(0, 0, cfg.WIDTH, cfg.HEIGHT);
+
+  const pulse = 1 + Math.sin((now - state.deadAt) / 260) * 0.02;
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold ' + Math.round(30 * pulse) + 'px sans-serif';
+  ctx.fillText('被击倒了', cfg.WIDTH / 2, cfg.HEIGHT * 0.36);
+
+  ctx.font = '18px sans-serif';
+  ctx.fillText('本局 ' + state.distance + ' m', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 44);
+
+  if (state.best > 0) {
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText('最佳 ' + state.best + ' m', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 74);
+  }
+
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillText('点击屏幕返回主菜单', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 118);
+
+  ctx.textBaseline = 'alphabetic';
+}
+
 // ---------------------------------------------------------------- 总入口
 function draw(ctx, state, now) {
   const cameraX = state.cameraX || 0;
@@ -576,7 +740,9 @@ function draw(ctx, state, now) {
   drawTrees(ctx, cameraX);
   drawGround(ctx, cameraX);
 
-  drawBullets(ctx, state.bullets, cameraX);
+  drawEnemies(ctx, state.enemies, cameraX, now);
+  drawBullets(ctx, state.eBullets, cameraX, ENEMY_BULLET);
+  drawBullets(ctx, state.bullets, cameraX, PLAYER_BULLET);
 
   if (state.player) {
     drawPlayer(ctx, state.player, cameraX, state.aim ? state.aimAngle : null);
@@ -586,6 +752,9 @@ function draw(ctx, state, now) {
   drawJoystick(ctx, state.joy);
 
   drawHud(ctx, state);
+  drawHurtFlash(ctx, state.player, now);
+
+  if (state.phase === 'dead') drawDead(ctx, state, now);
 }
 
 module.exports = { draw: draw };

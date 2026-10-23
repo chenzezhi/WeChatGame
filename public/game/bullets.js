@@ -1,4 +1,5 @@
 // 子弹模块：生成、飞行、回收。只维护数据，绘制在 view.js。
+// 玩家子弹与敌人子弹各用一个容器（create() 出来的对象互不影响）。
 
 const cfg = require('./config.js');
 
@@ -6,8 +7,8 @@ function create() {
   return { list: [] };
 }
 
-// 从 (ox, oy) 朝 (tx, ty) 打一发
-function spawn(level, ox, oy, tx, ty) {
+// 从 (ox, oy) 朝 (tx, ty) 打一发；speed / radius 可选
+function spawn(level, ox, oy, tx, ty, speed, radius) {
   let dx = tx - ox;
   let dy = ty - oy;
 
@@ -20,12 +21,14 @@ function spawn(level, ox, oy, tx, ty) {
     dy /= len;
   }
 
+  const v = typeof speed === 'number' ? speed : cfg.BULLET_SPEED;
+
   level.list.push({
     x: ox,
     y: oy,
-    vx: dx * cfg.BULLET_SPEED,
-    vy: dy * cfg.BULLET_SPEED,
-    r: cfg.BULLET_R,
+    vx: dx * v,
+    vy: dy * v,
+    r: typeof radius === 'number' ? radius : cfg.BULLET_R,
     life: cfg.BULLET_LIFE_MS,
     age: 0,
   });
@@ -60,9 +63,19 @@ function cull(level, cameraX) {
   }
 }
 
+// 圆形子弹与某个 AABB 是否相交
+function hitsRect(b, x, y, w, h) {
+  const nx = b.x < x ? x : (b.x > x + w ? x + w : b.x);
+  const ny = b.y < y ? y : (b.y > y + h ? y + h : b.y);
+  const dx = b.x - nx;
+  const dy = b.y - ny;
+  return dx * dx + dy * dy <= b.r * b.r;
+}
+
 module.exports = {
   create: create,
   spawn: spawn,
   update: update,
   cull: cull,
+  hitsRect: hitsRect,
 };

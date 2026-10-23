@@ -30,6 +30,11 @@ function create(startX) {
     alive: true,
     anim: 'idle',
 
+    // 血量
+    hp: cfg.PLAYER_MAX_HP,
+    maxHp: cfg.PLAYER_MAX_HP,
+    hurtAt: 0,       // 最近一次受伤的时间点（用于闪红）
+
     // 眨眼状态
     blinking: false,
     blinkUntil: 0,
@@ -68,6 +73,9 @@ function update(p, dir, now, dt) {
 
   // ---------- 眨眼 ----------
   updateBlink(p, now);
+
+  // ---------- 受伤闪红计时 ----------
+  if (p.hurtAt && now - p.hurtAt > 220) p.hurtAt = 0;
 
   // ---------- 水平：加速 / 摩擦 ----------
   if (dir !== 0) {
@@ -134,6 +142,20 @@ function update(p, dir, now, dt) {
   }
 }
 
+// 受伤：扣血，扣到 0 就死亡。返回「是否被打死」
+function damage(p, amount, now) {
+  if (!p.alive) return false;
+
+  p.hp -= amount;
+  p.hurtAt = now;
+
+  if (p.hp > 0) return false;
+
+  p.hp = 0;
+  kill(p);
+  return true;
+}
+
 function kill(p) {
   p.alive = false;
   p.vx = 0;
@@ -144,5 +166,6 @@ module.exports = {
   create: create,
   requestJump: requestJump,
   update: update,
+  damage: damage,
   kill: kill,
 };
