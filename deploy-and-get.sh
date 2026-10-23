@@ -60,34 +60,5 @@ for i in {60..1}; do
   echo -n "$i... "
   sleep 1
 done
-echo ""
 
-echo ""
-echo "================================================================"
-echo "[5/5] 正在从云端拉取最新二维码并打开..."
-echo "================================================================"
-
-DOWNLOAD_URL=$(curl -s -H "Authorization: token $TOKEN" \
-  "https://api.github.com/repos/$REPO/actions/artifacts" \
-  | grep -o '"archive_download_url": *"[^"]*"' | head -n 1 | cut -d'"' -f4)
-
-if [ -z "$DOWNLOAD_URL" ]; then
-  echo "[错误] 未能获取到下载链接，可能云端还在打包中，请稍后单独运行获取脚本！"
-  exit 1
-fi
-
-curl -s -L -H "Authorization: token $TOKEN" "$DOWNLOAD_URL" -o artifact.zip
-unzip -o artifact.zip qrcode.jpg > /dev/null
-rm -f artifact.zip
-
-if [ -f "qrcode.jpg" ]; then
-  echo "🎉 成功！正在唤起手机图片查看器展示二维码..."
-  if command -v termux-open &> /dev/null; then
-    termux-open qrcode.jpg
-  else
-    echo "提示：二维码已下载到当前目录下的 qrcode.jpg"
-  fi
-else
-  echo "[错误] 解压未找到 qrcode.jpg，请检查云端 Actions 运行状态。"
-  exit 1
-fi
+bash get-qr.sh
