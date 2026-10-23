@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * 微信小游戏 —— 预览二维码生成脚本
+ * 每次都用时间戳作为预览版本号，避免微信端命中旧包缓存。
  */
 'use strict';
 
@@ -57,6 +58,12 @@ const CONFIG_APPID = readConfigAppid(projectPath);
 const APPID = process.env.WX_APPID || CONFIG_APPID || 'wx03f8c7b1fb104183';
 const privateKeyPath = process.env.WX_KEY_PATH || path.join(projectPath, 'private.' + APPID + '.key');
 
+// 关键：版本号每次都不同，避免预览包被微信缓存复用
+const BUILD_VERSION = process.env.WX_VERSION && /^[0-9.]+$/.test(process.env.WX_VERSION)
+  ? process.env.WX_VERSION
+  : '1.0.' + String(Date.now()).slice(-9);
+const BUILD_DESC = process.env.WX_DESC || ('CI 自动预览 ' + new Date().toISOString());
+
 const project = new ci.Project({
   appid: APPID,
   type: 'miniGame',
@@ -80,11 +87,16 @@ const project = new ci.Project({
 });
 
 async function preview() {
+  console.log('项目目录 : ' + projectPath);
+  console.log('AppID    : ' + APPID);
+  console.log('版本号   : ' + BUILD_VERSION);
+  console.log('描述     : ' + BUILD_DESC);
   console.log('正在生成预览二维码...');
+
   const result = await ci.preview({
     project: project,
-    version: '1.0.0',
-    desc: 'CI 自动预览二维码',
+    version: BUILD_VERSION,
+    desc: BUILD_DESC,
     robot: 1,
     qrcodeFormat: 'image',
     qrcodeOutputDest: path.join(projectPath, 'qrcode.jpg'),
@@ -99,6 +111,8 @@ async function preview() {
   });
 
   console.log('预览二维码生成成功！');
+  console.log('提示：扫二维码前，先在微信里把旧的小游戏进程彻底关闭（上滑删除/清除缓存）。');
+  return result;
 }
 
 preview().catch(function (error) {

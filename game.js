@@ -1,44 +1,45 @@
 // 微信小游戏：弹跳小球 + 触屏挡板 + 主菜单 + 本地存档
-// 玩法：小球受重力下落，左右滑动屏幕移动底部挡板接住小球；
-// 接住 +1 分并反弹，掉出屏幕则本局结束。
-// 主菜单：开始游戏 / 读取游戏 / 退出游戏。
-// 存档：切后台、挂起时自动覆盖保存（得分 + 球位置 + 挡板位置）。
+// 构建号见 BUILD 常量，会显示在画面上，用于确认运行的是哪一版代码。
+
+const BUILD = 'B3';
 
 const canvas = wx.createCanvas();
 const ctx = canvas.getContext('2d');
 
-// 画布尺寸（px）
-const width = canvas.width;
-const height = canvas.height;
+// 画布尺寸：优先用 canvas，兜底用系统信息
+const sysInfo = (function () {
+  try { return wx.getSystemInfoSync() || {}; } catch (e) { return {}; }
+})();
+
+const width = canvas.width || sysInfo.windowWidth || 375;
+const height = canvas.height || sysInfo.windowHeight || 667;
 
 // 触摸事件是逻辑像素，canvas 可能是物理像素，需要换算
-const sysInfo = (wx.getSystemInfoSync && wx.getSystemInfoSync()) || {};
 const scaleX = sysInfo.windowWidth ? width / sysInfo.windowWidth : 1;
 const scaleY = (sysInfo.screenHeight || sysInfo.windowHeight)
   ? height / (sysInfo.screenHeight || sysInfo.windowHeight)
   : 1;
 
 // ---------------- 参数 ----------------
-const BALL_R = 23;             // 小球半径
-const GRAVITY = 0.55;          // 重力加速度
-const MAX_SPEED = 22;          // 速度上限
+const BALL_R = Math.max(16, width * 0.055);   // 小球半径
+const GRAVITY = 0.55;
+const MAX_SPEED = 22;
 const PADDLE_W = Math.max(96, width * 0.28);
 const PADDLE_H = 18;
-const PADDLE_Y = height - 120; // 挡板顶部 y（底部留白，避开手势区）
+const PADDLE_Y = height - 120;   // 挡板顶部 y
 
 // ---------------- 状态 ----------------
 let state = 'menu';   // menu | countdown | playing | over
-let paused = false;   // 切后台时暂停
+let paused = false;
 let score = 0;
 let best = 0;
-let hasGame = false;  // 是否有"进行中"的对局（避免在主菜单覆盖存档）
-let hasSave = false;  // 本地是否存在存档
-let countdownEnd = 0; // 倒计时结束时间戳
+let hasGame = false;
+let hasSave = false;
+let countdownEnd = 0;
 
 let paddleX = (width - PADDLE_W) / 2;
 let paddleTargetX = paddleX;
 
-// 小球用圆心坐标
 const ball = { x: width / 2, y: height * 0.4, vx: 4.5, vy: -8 };
 
 function clamp(v, min, max) {
@@ -46,12 +47,14 @@ function clamp(v, min, max) {
 }
 
 // ================= 存档 =================
-const SAVE_PATH = ((wx.env && wx.env.USER_DATA_PATH) || '') + '/save.json';
+const USER_DATA = (wx.env && wx.env.USER_DATA_PATH) || '';
+const SAVE_PATH = USER_DATA + '/save.json';
+
 let fs = null;
 try { fs = wx.getFileSystemManager(); } catch (e) { fs = null; }
 
 function saveGame() {
-  if (!fs || !hasGame) return;
+  if (!fs || !hasGame || !USER_DATA) return;
   const data = {
     score: score,
     ball: { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy },
@@ -61,13 +64,11 @@ function saveGame() {
   try {
     fs.writeFileSync(SAVE_PATH, JSON.stringify(data), 'utf8');
     hasSave = true;
-  } catch (e) {
-    // 忽略写入失败
-  }
+  } catch (e) { /* 忽略 */ }
 }
 
 function loadGame() {
-  if (!fs) return false;
+  if (!fs || !USER_DATA) return false;
   let raw = null;
   try { raw = fs.readFileSync(SAVE_PATH, 'utf8'); } catch (e) { return false; }
   let data = null;
@@ -76,7 +77,7 @@ function loadGame() {
 
   score = typeof data.score === 'number' ? data.score : 0;
   ball.x = clamp(typeof data.ball.x === 'number' ? data.ball.x : width / 2, BALL_R, width - BALL_R);
-  ball.y = clamp(typeof data.ball.y === 'number' ? data.ball.y : height * 0.4, BALL_R, height - BALL_R);
+  ball.y = clamp(typeof data.ball.y === 'number' ? data.ball.y : height * 0.4, BALL_R, PADDLE_Y - BALL_R);
   ball.vx = typeof data.ball.vx === 'number' ? data.ball.vx : 4.5;
   ball.vy = typeof data.ball.vy === 'number' ? data.ball.vy : -8;
   paddleX = clamp(
@@ -90,13 +91,13 @@ function loadGame() {
 
 function clearSave() {
   hasGame = false;
-  if (!fs) return;
-  try { fs.unlinkSync(SAVE_PATH); } catch (e) { /* 文件不存在 */ }
   hasSave = false;
+  if (!fs || !USER_DATA) return;
+  try { fs.unlinkSync(SAVE_PATH); } catch (e) { /* 不存在 */ }
 }
 
 function refreshSaveFlag() {
-  if (!fs) { hasSave = false; return; }
+  if (!fs || !USER_DATA) { hasSave = false; return; }
   try {
     fs.accessSync(SAVE_PATH);
     hasSave = true;
@@ -116,7 +117,7 @@ function resetBall() {
 function beginCountdown() {
   state = 'countdown';
   paused = false;
-  countdownEnd = Date.now() + 3000; // 3 秒倒计时：3 / 2 / 1
+  countdownEnd = Date.now() + 3000; // 3 / 2 / 1
 }
 
 function startNewGame() {
@@ -125,10 +126,6 @@ function startNewGame() {
   paddleX = (width - PADDLE_W) / 2;
   paddleTargetX = paddleX;
   hasGame = true;
-  beginCountdown();
-}
-
-function resumeFromSave() {
   beginCountdown();
 }
 
@@ -143,18 +140,16 @@ function exitGame() {
   if (typeof wx.exitMiniProgram === 'function') {
     try { wx.exitMiniProgram({}); return; } catch (e) { /* 不支持 */ }
   }
-  try {
-    wx.showToast({ title: '当前环境不支持退出', icon: 'none' });
-  } catch (e) { /* 忽略 */ }
+  try { wx.showToast({ title: '当前环境不支持退出', icon: 'none' }); } catch (e) { /* 忽略 */ }
   showMenu();
 }
 
 // ================= 菜单按钮 =================
 const BTN_W = Math.min(width * 0.68, 420);
-const BTN_H = Math.max(54, height * 0.075);
+const BTN_H = Math.max(52, height * 0.075);
 const BTN_GAP = BTN_H * 0.42;
 const BTN_X = (width - BTN_W) / 2;
-const BTN_Y0 = height * 0.46;
+const BTN_Y0 = height * 0.44;
 
 const buttons = [
   { id: 'start', label: '开始游戏' },
@@ -175,7 +170,7 @@ function onMenuTouch(cx, cy) {
         startNewGame();
       } else if (id === 'load') {
         if (loadGame()) {
-          resumeFromSave();
+          beginCountdown();
         } else {
           try { wx.showToast({ title: '没有找到存档', icon: 'none' }); } catch (e) { /* 忽略 */ }
         }
@@ -196,7 +191,7 @@ function touchPoint(t) {
   return { x: t.clientX * scaleX, y: t.clientY * scaleY };
 }
 
-wx.onTouchStart((e) => {
+wx.onTouchStart(function (e) {
   const t = e.touches && e.touches[0];
   if (!t) return;
   const p = touchPoint(t);
@@ -209,29 +204,32 @@ wx.onTouchStart((e) => {
     showMenu();
     return;
   }
-  // 倒计时 / 游戏中都可以拖挡板
   movePaddleToCanvasX(p.x);
 });
 
-wx.onTouchMove((e) => {
+wx.onTouchMove(function (e) {
   if (state === 'menu' || state === 'over') return;
   const t = e.touches && e.touches[0];
   if (t) movePaddleToCanvasX(touchPoint(t).x);
 });
 
-// 切后台 / 挂起 -> 自动存档并暂停；回到前台 -> 重新倒计时
-wx.onHide(() => {
-  saveGame();
-  if (state === 'playing' || state === 'countdown') paused = true;
-});
+// 切后台 / 挂起 -> 存档并暂停；回到前台 -> 重新倒计时
+if (typeof wx.onHide === 'function') {
+  wx.onHide(function () {
+    saveGame();
+    if (state === 'playing' || state === 'countdown') paused = true;
+  });
+}
 
-wx.onShow(() => {
-  if (paused) beginCountdown();
-});
+if (typeof wx.onShow === 'function') {
+  wx.onShow(function () {
+    if (paused) beginCountdown();
+  });
+}
 
 // ================= 逻辑更新 =================
 function update(now) {
-  // 挡板平滑跟随手指（任何非菜单状态都可以）
+  // 挡板平滑跟随手指
   paddleX += (paddleTargetX - paddleX) * 0.35;
   paddleX = clamp(paddleX, 0, width - PADDLE_W);
 
@@ -243,7 +241,6 @@ function update(now) {
   if (paused) return;
   if (state !== 'playing') return;
 
-  // 重力
   ball.vy += GRAVITY;
   if (ball.vy > MAX_SPEED) ball.vy = MAX_SPEED;
 
@@ -252,7 +249,7 @@ function update(now) {
   ball.x += ball.vx;
   ball.y += ball.vy;
 
-  // 左右墙反弹（圆的边界）
+  // 左右墙反弹
   if (ball.x - BALL_R <= 0) {
     ball.x = BALL_R;
     ball.vx = Math.abs(ball.vx);
@@ -267,7 +264,7 @@ function update(now) {
     ball.vy = Math.abs(ball.vy);
   }
 
-  // 与挡板碰撞：下落中 + 上一帧球底还在挡板上方，避免"粘住"
+  // 与挡板碰撞
   const paddleLeft = paddleX;
   const paddleRight = paddleX + PADDLE_W;
   const overlapX = ball.x + BALL_R > paddleLeft && ball.x - BALL_R < paddleRight;
@@ -283,7 +280,7 @@ function update(now) {
     score++;
   }
 
-  // 掉出屏幕 -> 本局结束，清掉存档（否则会读到已结束的局）
+  // 掉出屏幕 -> 结束
   if (ball.y - BALL_R > height) {
     if (score > best) best = score;
     state = 'over';
@@ -291,7 +288,7 @@ function update(now) {
   }
 }
 
-// ================= 绘制辅助 =================
+// ================= 绘制 =================
 function roundRect(x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -307,6 +304,14 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+function fillCircle(cx, cy, r, style) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.fillStyle = style;
+  ctx.fill();
+}
+
 function drawBackground() {
   const g = ctx.createLinearGradient(0, 0, 0, height);
   g.addColorStop(0, '#1e1e2e');
@@ -315,27 +320,22 @@ function drawBackground() {
   ctx.fillRect(0, 0, width, height);
 }
 
-// 球体：径向渐变 + 高光，确保看起来是圆的
+// 球体：先画实心圆，再叠渐变和高光，保证任何情况下都是圆的
 function drawBall() {
-  const grad = ctx.createRadialGradient(
-    ball.x - BALL_R * 0.35, ball.y - BALL_R * 0.35, BALL_R * 0.12,
-    ball.x, ball.y, BALL_R
-  );
-  grad.addColorStop(0, '#ffffff');
-  grad.addColorStop(0.65, '#e3dff0');
-  grad.addColorStop(1, '#b9b2d0');
-
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // 高光小圆点
-  ctx.beginPath();
-  ctx.arc(ball.x - BALL_R * 0.32, ball.y - BALL_R * 0.34, BALL_R * 0.18, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fill();
+  fillCircle(ball.x, ball.y, BALL_R, '#b9b2d0');
+  try {
+    const grad = ctx.createRadialGradient(
+      ball.x - BALL_R * 0.35, ball.y - BALL_R * 0.35, BALL_R * 0.12,
+      ball.x, ball.y, BALL_R
+    );
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.65, '#e3dff0');
+    grad.addColorStop(1, '#b9b2d0');
+    fillCircle(ball.x, ball.y, BALL_R, grad);
+  } catch (e) {
+    // 渐变失败就用纯色
+  }
+  fillCircle(ball.x - BALL_R * 0.32, ball.y - BALL_R * 0.34, BALL_R * 0.18, 'rgba(255,255,255,0.9)');
 }
 
 function drawPaddle() {
@@ -346,6 +346,7 @@ function drawPaddle() {
 
 function drawHud() {
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 22px sans-serif';
   ctx.fillText('得分 ' + score, width / 2, 56);
@@ -354,21 +355,30 @@ function drawHud() {
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText('最高 ' + best, width / 2, 82);
   }
+  drawBuildTag();
+}
+
+function drawBuildTag() {
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillText(BUILD, 8, 8);
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawMenu() {
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
 
-  // 标题
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 34px sans-serif';
-  ctx.fillText('弹跳小球', width / 2, height * 0.26);
+  ctx.fillText('弹跳小球', width / 2, height * 0.24);
 
   ctx.font = '15px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText('滑动挡板，别让小球掉下去', width / 2, height * 0.26 + 32);
+  ctx.fillText('滑动挡板，别让小球掉下去', width / 2, height * 0.24 + 32);
 
-  // 按钮
   for (let i = 0; i < buttons.length; i++) {
     const r = buttonRect(i);
     const b = buttons[i];
@@ -384,40 +394,39 @@ function drawMenu() {
 
     ctx.fillStyle = disabled ? 'rgba(255,255,255,0.35)' : '#ffffff';
     ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(b.label, r.x + r.w / 2, r.y + r.h / 2 + 1);
     ctx.textBaseline = 'alphabetic';
   }
 
-  // 底部提示
   if (best > 0) {
     ctx.textAlign = 'center';
     ctx.font = '14px sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.fillText('最高得分 ' + best, width / 2, height * 0.9);
   }
+
+  drawBuildTag();
 }
 
 function drawCountdown(now) {
   const remain = countdownEnd - now;
   const num = Math.max(1, Math.ceil(remain / 1000));
+  const frac = 1 - (((remain % 1000) + 1000) % 1000) / 1000;
 
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.fillRect(0, 0, width, height);
 
-  // 数字随剩余时间轻微缩放
-  const frac = 1 - (remain % 1000) / 1000; // 0 -> 1
-  const size = 96 + (1 - frac) * 40;
-
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold ' + Math.round(size) + 'px sans-serif';
-  ctx.fillText(String(num), width / 2, height / 2);
+  ctx.font = 'bold ' + Math.round(96 + (1 - frac) * 40) + 'px sans-serif';
+  ctx.fillText(String(num), width / 2, height / 2 - 20);
 
   ctx.font = '16px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('准备开始', width / 2, height / 2 + 90);
+  ctx.fillText('准备开始', width / 2, height / 2 + 80);
   ctx.textBaseline = 'alphabetic';
 }
 
@@ -426,6 +435,7 @@ function drawOver() {
   ctx.fillRect(0, 0, width, height);
 
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 30px sans-serif';
   ctx.fillText('游戏结束', width / 2, height / 2 - 24);
@@ -456,16 +466,27 @@ function draw(now) {
 
 // ================= 主循环 =================
 if (typeof requestAnimationFrame !== 'function') {
-  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 1000 / 60);
+  globalThis.requestAnimationFrame = function (cb) {
+    return setTimeout(function () { cb(Date.now()); }, 1000 / 60);
+  };
 }
 
 function loop() {
   const now = Date.now();
-  update(now);
-  draw(now);
+  try {
+    update(now);
+    draw(now);
+  } catch (e) {
+    // 绘制异常时也不让循环中断，并在角落提示
+    try {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ff5555';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('ERR: ' + (e && e.message ? e.message : e), 8, height - 12);
+    } catch (e2) { /* 忽略 */ }
+  }
   requestAnimationFrame(loop);
 }
 
-// 启动
 refreshSaveFlag();
 loop();
