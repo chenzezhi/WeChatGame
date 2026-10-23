@@ -1,27 +1,14 @@
-// 游戏模块参数：尺寸 / 物理 / 手感 / 战斗 / 道具，全部集中在这里调。
-//
-// 单位约定：
-//   距离 = 画布像素（展示用米数 = 像素 / DISTANCE_PER_UNIT）
-//   时间 = 毫秒
-//   速度 = 像素 / 毫秒
-//   加速度 = 像素 / 毫秒²
-
+// 游戏参数集中配置（距离=像素，时间=毫秒，速度=像素/毫秒）
 const canvasKit = require('../core/canvas.js');
 
 const WIDTH = canvasKit.width;
 const HEIGHT = canvasKit.height;
 
-// ---------------- 人物尺寸 ----------------
 const PLAYER_W = Math.max(26, Math.round(WIDTH * 0.078));
 const PLAYER_H = Math.round(PLAYER_W * 1.5);
-
-// 地面在屏幕上的 y
 const GROUND_Y = Math.round(HEIGHT * 0.76);
-
-// 人物出生点（世界坐标）
 const START_X = Math.round(WIDTH * 0.3);
 
-// ---------------- 物理 ----------------
 const GRAVITY = 0.0016;
 const MAX_FALL = 1.25;
 const JUMP_V = -0.80;
@@ -32,15 +19,12 @@ const AIR_FRICTION = 0.0006;
 const COYOTE_MS = 90;
 const JUMP_BUFFER_MS = 130;
 
-// ---------------- 血量 ----------------
 const PLAYER_MAX_HP = 10;
 
-// ---------------- 眨眼 ----------------
 const BLINK_MIN_MS = 2200;
 const BLINK_MAX_MS = 4200;
 const BLINK_DURATION_MS = 130;
 
-// ---------------- 摇杆（左下角固定） ----------------
 const JOY_RADIUS = Math.round(Math.min(WIDTH * 0.17, 78));
 const JOY_MARGIN = Math.round(Math.min(WIDTH, HEIGHT) * 0.07);
 const JOY_CX = JOY_MARGIN + JOY_RADIUS;
@@ -50,71 +34,95 @@ const JOY_KNOB_RATIO = 0.46;
 const JOY_DEAD = 0.22;
 const JOY_JUMP_Y = 0.62;
 
-// ---------------- 玩家子弹 ----------------
 const BULLET_SPEED = 1.15;
-const BULLET_FIRE_MS = 130;
 const BULLET_LIFE_MS = 1500;
 const BULLET_R = Math.max(3, Math.round(PLAYER_W * 0.13));
 
-// ---------------- 敌人：生成 ----------------
-const ENEMY_GAP_START_M = 100;   // 初始每 100 米一波
-const ENEMY_GAP_MIN_M = 40;      // 间隔下限
-const ENEMY_GAP_DECAY = 0.02;    // 每深入 1 米，间隔缩短 0.02 米
-const ENEMY_COUNT_STEP_M = 500;  // 每 500 米一波 +1 个
-const ENEMY_MAX_COUNT = 4;       // 一波最多几个
-const ENEMY_HP_STEP_M = 500;     // 每 500 米血量 +1
+const PLAYER_FIRE_MS_START = 2000;
+const PLAYER_FIRE_MS_MIN = 90;
+const BULLET_FIRE_MS = PLAYER_FIRE_MS_START;
+const SPEED_ITEM_RATIO = 0.80;
 
-// ---------------- 敌人：开火 ----------------
-const ENEMY_FIRE_MS = 1500;      // 初始开火间隔
-const ENEMY_FIRE_DECAY = 1.6;    // 每深入 1 米，开火间隔缩短 1.6 毫秒
-const ENEMY_FIRE_MS_MIN = 420;   // 开火间隔下限（最快）
-const ENEMY_BULLET_SPEED = 0.55; // 敌人子弹速度
-const ENEMY_DAMAGE = 1;          // 敌人初始伤害（子掸 / 碰撞共用基数）
+const PLAYER_MULTI_START = 1;
+const PLAYER_MULTI_MAX = 7;
+const MULTI_SPREAD_DEG = 8;
 
-// ---------------- 敌人：随机移动 ----------------
-const ENEMY_MOVE_MS_START = 900; // 初始：多久换一次移动决策
-const ENEMY_MOVE_DECAY = 0.12;   // 每深入 1 米，决策间隔缩短 0.12 毫秒
-const ENEMY_MOVE_MS_MIN = 240;   // 决策间隔下限（动得最勤）
-const ENEMY_MOVE_SPEED = 0.20;   // 敌人走路速度
-const ENEMY_JUMP_CHANCE = 0.42;  // 每次决策时起跳的概率
-const ENEMY_JUMP_V = -0.72;      // 敌人起跳初速度
+const ENEMY_GAP_START_M = 100;
+const ENEMY_GAP_MIN_M = 40;
+const ENEMY_GAP_DECAY = 0.02;
+const ENEMY_COUNT_STEP_M = 400;
+const ENEMY_MAX_COUNT = 5;
+const ENEMY_HP_STEP_M = 400;
 
-// ---------------- 敌人：碰撞伤害 ----------------
-const ENEMY_CONTACT_DMG_STEP_M = 400;   // 每 400 米碰撞伤害 +1
-const ENEMY_CONTACT_DMG_MAX = 6;        // 碰撞伤害上限
-const ENEMY_CONTACT_COOLDOWN_MS = 700;  // 同一个人的碰撞二次受伤冷却
+const ENEMY_FIRE_MS = 1400;
+const ENEMY_FIRE_DECAY = 1.8;
+const ENEMY_FIRE_MS_MIN = 380;
+const ENEMY_BULLET_SPEED = 0.60;
+const ENEMY_DAMAGE = 1;
 
-// ---------------- 道具（分身补给） ----------------
-const ITEM_FIRST_M = 120;               // 第 120 米左右开始出现
+const ENEMY_MOVE_MS_START = 850;
+const ENEMY_MOVE_DECAY = 0.13;
+const ENEMY_MOVE_MS_MIN = 220;
+const ENEMY_MOVE_SPEED = 0.24;
+const ENEMY_JUMP_CHANCE = 0.45;
+const ENEMY_JUMP_V = -0.72;
+
+const ENEMY_CONTACT_DMG_STEP_M = 350;
+const ENEMY_CONTACT_DMG_MAX = 6;
+const ENEMY_CONTACT_COOLDOWN_MS = 700;
+
+const BOSS_EVERY_M = 1000;
+const BOSS_SCALE = 2.4;
+const BOSS_HP_MULT_START = 30;
+const BOSS_HP_MULT_GROWTH = 0.3;
+const BOSS_FIRE_MULT_START = 1.5;
+const BOSS_FIRE_MULT_GROWTH = 0.35;
+const BOSS_FIRE_MS_MIN = 130;
+const BOSS_BULLET_BASE = 3;
+const BOSS_BULLET_STEP = 2;
+const BOSS_BULLET_MAX = 9;
+const BOSS_BULLET_SPREAD_DEG = 13;
+const BOSS_MINION_MIN_MS = 1700;
+const BOSS_MINION_MAX_MS = 4300;
+const BOSS_MINION_SHRINK_MS = 220;
+const BOSS_DROP_BASE = 3;
+const BOSS_DROP_STEP = 2;
+const BOSS_DROP_MAX = 14;
+
+const XP_BASE = 10;
+const XP_STEP = 5;
+
+const ITEM_FIRST_M = 160;
 const ITEM_SIZE = Math.round(PLAYER_W * 0.78);
-const ITEM_GAP_MIN_START_M = 110;       // 初始间隔范围（下限）
-const ITEM_GAP_MAX_START_M = 240;       // 初始间隔范围（上限）
-const ITEM_GAP_DECAY = 0.045;           // 每深入 1 米，间隔收窄 0.045 米
-const ITEM_GAP_MIN_MIN_M = 60;          // 间隔下限（最勤）
-const ITEM_GAP_MAX_MIN_M = 120;         // 间隔上限（最勤）
+const ITEM_GAP_MIN_START_M = 150;
+const ITEM_GAP_MAX_START_M = 300;
+const ITEM_GAP_DECAY = 0.045;
+const ITEM_GAP_MIN_MIN_M = 80;
+const ITEM_GAP_MAX_MIN_M = 160;
 
-// ---------------- 分身（复制体） ----------------
-const CLONE_MAX = 3;                    // 同时最多几个分身
-const CLONE_FIRE_MS = 260;              // 分身开火间隔
-const CLONE_JUMP_MIN_MS = 900;          // 随机跳跃间隔下限
-const CLONE_JUMP_MAX_MS = 2600;         // 随机跳跃间隔上限
-const CLONE_HP_BASE = 3;                // 分身基础血量（道具强度）
-const CLONE_HP_STEP_M = 400;            // 每 400 米强度 +1 血
-const CLONE_HP_MAX = 12;                // 分身血量上限
+const ITEM_WEIGHT_CLONE = 1.0;
+const ITEM_WEIGHT_SPEED = 3.0;
+const ITEM_WEIGHT_MULTI = 2.6;
+const ITEM_REPEAT_FACTOR = 0.35;
 
-// ---------------- 相机 / 计分 ----------------
+const CLONE_MAX = 3;
+const CLONE_FIRE_MS = 260;
+const CLONE_JUMP_MIN_MS = 900;
+const CLONE_JUMP_MAX_MS = 2600;
+const CLONE_HP_BASE = 3;
+const CLONE_HP_STEP_M = 400;
+const CLONE_HP_MAX = 12;
+
 const CAMERA_ANCHOR = 0.34;
 const DISTANCE_PER_UNIT = 10;
 
 module.exports = {
   WIDTH: WIDTH,
   HEIGHT: HEIGHT,
-
   PLAYER_W: PLAYER_W,
   PLAYER_H: PLAYER_H,
   GROUND_Y: GROUND_Y,
   START_X: START_X,
-
   GRAVITY: GRAVITY,
   MAX_FALL: MAX_FALL,
   JUMP_V: JUMP_V,
@@ -124,13 +132,10 @@ module.exports = {
   AIR_FRICTION: AIR_FRICTION,
   COYOTE_MS: COYOTE_MS,
   JUMP_BUFFER_MS: JUMP_BUFFER_MS,
-
   PLAYER_MAX_HP: PLAYER_MAX_HP,
-
   BLINK_MIN_MS: BLINK_MIN_MS,
   BLINK_MAX_MS: BLINK_MAX_MS,
   BLINK_DURATION_MS: BLINK_DURATION_MS,
-
   JOY_RADIUS: JOY_RADIUS,
   JOY_MARGIN: JOY_MARGIN,
   JOY_CX: JOY_CX,
@@ -139,36 +144,55 @@ module.exports = {
   JOY_KNOB_RATIO: JOY_KNOB_RATIO,
   JOY_DEAD: JOY_DEAD,
   JOY_JUMP_Y: JOY_JUMP_Y,
-
   BULLET_SPEED: BULLET_SPEED,
   BULLET_FIRE_MS: BULLET_FIRE_MS,
   BULLET_LIFE_MS: BULLET_LIFE_MS,
   BULLET_R: BULLET_R,
-
+  PLAYER_FIRE_MS_START: PLAYER_FIRE_MS_START,
+  PLAYER_FIRE_MS_MIN: PLAYER_FIRE_MS_MIN,
+  SPEED_ITEM_RATIO: SPEED_ITEM_RATIO,
+  PLAYER_MULTI_START: PLAYER_MULTI_START,
+  PLAYER_MULTI_MAX: PLAYER_MULTI_MAX,
+  MULTI_SPREAD_DEG: MULTI_SPREAD_DEG,
   ENEMY_GAP_START_M: ENEMY_GAP_START_M,
   ENEMY_GAP_MIN_M: ENEMY_GAP_MIN_M,
   ENEMY_GAP_DECAY: ENEMY_GAP_DECAY,
   ENEMY_COUNT_STEP_M: ENEMY_COUNT_STEP_M,
   ENEMY_MAX_COUNT: ENEMY_MAX_COUNT,
   ENEMY_HP_STEP_M: ENEMY_HP_STEP_M,
-
   ENEMY_FIRE_MS: ENEMY_FIRE_MS,
   ENEMY_FIRE_DECAY: ENEMY_FIRE_DECAY,
   ENEMY_FIRE_MS_MIN: ENEMY_FIRE_MS_MIN,
   ENEMY_BULLET_SPEED: ENEMY_BULLET_SPEED,
   ENEMY_DAMAGE: ENEMY_DAMAGE,
-
   ENEMY_MOVE_MS_START: ENEMY_MOVE_MS_START,
   ENEMY_MOVE_DECAY: ENEMY_MOVE_DECAY,
   ENEMY_MOVE_MS_MIN: ENEMY_MOVE_MS_MIN,
   ENEMY_MOVE_SPEED: ENEMY_MOVE_SPEED,
   ENEMY_JUMP_CHANCE: ENEMY_JUMP_CHANCE,
   ENEMY_JUMP_V: ENEMY_JUMP_V,
-
   ENEMY_CONTACT_DMG_STEP_M: ENEMY_CONTACT_DMG_STEP_M,
   ENEMY_CONTACT_DMG_MAX: ENEMY_CONTACT_DMG_MAX,
   ENEMY_CONTACT_COOLDOWN_MS: ENEMY_CONTACT_COOLDOWN_MS,
-
+  BOSS_EVERY_M: BOSS_EVERY_M,
+  BOSS_SCALE: BOSS_SCALE,
+  BOSS_HP_MULT_START: BOSS_HP_MULT_START,
+  BOSS_HP_MULT_GROWTH: BOSS_HP_MULT_GROWTH,
+  BOSS_FIRE_MULT_START: BOSS_FIRE_MULT_START,
+  BOSS_FIRE_MULT_GROWTH: BOSS_FIRE_MULT_GROWTH,
+  BOSS_FIRE_MS_MIN: BOSS_FIRE_MS_MIN,
+  BOSS_BULLET_BASE: BOSS_BULLET_BASE,
+  BOSS_BULLET_STEP: BOSS_BULLET_STEP,
+  BOSS_BULLET_MAX: BOSS_BULLET_MAX,
+  BOSS_BULLET_SPREAD_DEG: BOSS_BULLET_SPREAD_DEG,
+  BOSS_MINION_MIN_MS: BOSS_MINION_MIN_MS,
+  BOSS_MINION_MAX_MS: BOSS_MINION_MAX_MS,
+  BOSS_MINION_SHRINK_MS: BOSS_MINION_SHRINK_MS,
+  BOSS_DROP_BASE: BOSS_DROP_BASE,
+  BOSS_DROP_STEP: BOSS_DROP_STEP,
+  BOSS_DROP_MAX: BOSS_DROP_MAX,
+  XP_BASE: XP_BASE,
+  XP_STEP: XP_STEP,
   ITEM_FIRST_M: ITEM_FIRST_M,
   ITEM_SIZE: ITEM_SIZE,
   ITEM_GAP_MIN_START_M: ITEM_GAP_MIN_START_M,
@@ -176,7 +200,10 @@ module.exports = {
   ITEM_GAP_DECAY: ITEM_GAP_DECAY,
   ITEM_GAP_MIN_MIN_M: ITEM_GAP_MIN_MIN_M,
   ITEM_GAP_MAX_MIN_M: ITEM_GAP_MAX_MIN_M,
-
+  ITEM_WEIGHT_CLONE: ITEM_WEIGHT_CLONE,
+  ITEM_WEIGHT_SPEED: ITEM_WEIGHT_SPEED,
+  ITEM_WEIGHT_MULTI: ITEM_WEIGHT_MULTI,
+  ITEM_REPEAT_FACTOR: ITEM_REPEAT_FACTOR,
   CLONE_MAX: CLONE_MAX,
   CLONE_FIRE_MS: CLONE_FIRE_MS,
   CLONE_JUMP_MIN_MS: CLONE_JUMP_MIN_MS,
@@ -184,7 +211,6 @@ module.exports = {
   CLONE_HP_BASE: CLONE_HP_BASE,
   CLONE_HP_STEP_M: CLONE_HP_STEP_M,
   CLONE_HP_MAX: CLONE_HP_MAX,
-
   CAMERA_ANCHOR: CAMERA_ANCHOR,
   DISTANCE_PER_UNIT: DISTANCE_PER_UNIT,
 };
