@@ -2,7 +2,7 @@
 
 const canvasKit = require('../core/canvas.js');
 
-const BUILD = 'shop-3';
+const BUILD = 'shop-4';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -55,15 +55,15 @@ function drawHeader(ctx, width, height, state) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 22px sans-serif';
-  ctx.fillText('商店', width / 2, height * 0.085);
+  ctx.font = 'bold 21px sans-serif';
+  ctx.fillText('商店', width / 2, height * 0.075);
 
   ctx.font = '11px sans-serif';
   ctx.fillStyle = COLOR.textDim;
-  ctx.fillText('分身升级费用是主体的 2 倍 · 点击生效（滑动无效）', width / 2, height * 0.085 + 18);
+  ctx.fillText('分身升级是主体的 2 倍 · 点击生效（滑动无效）', width / 2, height * 0.075 + 17);
 
   const cx = width - 74;
-  const cy = 30;
+  const cy = 28;
 
   drawCoinDot(ctx, cx, cy, 9, COLOR.coin);
 
@@ -107,12 +107,12 @@ function drawTabs(ctx, built) {
     roundRect(ctx, t.x, t.y, t.w, t.h, t.h / 2);
     ctx.fill();
 
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.8;
     ctx.strokeStyle = on ? COLOR.accent : COLOR.cardStroke;
     ctx.stroke();
 
     ctx.fillStyle = on ? COLOR.text : COLOR.textDim;
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(t.label, t.x + t.w / 2, t.y + t.h / 2 + 1);
@@ -136,36 +136,36 @@ function drawRow(ctx, row, coins) {
   const poor = coins < row.cost;
 
   ctx.fillStyle = COLOR.card;
-  roundRect(ctx, row.x, row.y, row.w, row.h, 13);
+  roundRect(ctx, row.x, row.y, row.w, row.h, 12);
   ctx.fill();
 
   ctx.strokeStyle = poor ? 'rgba(255,255,255,0.10)' : COLOR.cardStroke;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.4;
   ctx.stroke();
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
 
   const midY = row.y + row.h / 2;
-  const twoLine = row.h > 44;
+  const twoLine = row.h >= 40;
 
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 14px sans-serif';
   ctx.fillStyle = poor ? COLOR.poor : COLOR.text;
-  ctx.fillText(row.label, row.x + 14, midY - (twoLine ? 8 : 0));
+  ctx.fillText(row.label, row.x + 13, midY - (twoLine ? 7 : 0));
 
   if (twoLine) {
-    ctx.font = '11px sans-serif';
+    ctx.font = '10px sans-serif';
     ctx.fillStyle = COLOR.textDim;
-    ctx.fillText(rowSub(row), row.x + 14, midY + 10);
+    ctx.fillText(rowSub(row), row.x + 13, midY + 9);
   }
 
-  const priceX = row.x + row.w - 58;
+  const priceX = row.x + row.w - 56;
 
-  drawCoinDot(ctx, priceX, midY, 8, poor ? 'rgba(255,211,77,0.35)' : COLOR.coin);
+  drawCoinDot(ctx, priceX, midY, 7, poor ? 'rgba(255,211,77,0.35)' : COLOR.coin);
 
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.fillStyle = poor ? COLOR.poor : COLOR.coinText;
-  ctx.fillText(String(row.cost), priceX + 13, midY + 1);
+  ctx.fillText(String(row.cost), priceX + 12, midY + 1);
 
   ctx.textBaseline = 'alphabetic';
 }

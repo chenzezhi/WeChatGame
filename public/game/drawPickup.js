@@ -10,6 +10,8 @@ const STYLE = {
   heal: { halo: 'rgba(255,120,140,0.26)', core: 'rgba(255,244,246,0.95)', ring: '#ff5a72', icon: '#e02f4a' },
   coin: { halo: 'rgba(255,211,77,0.30)', core: 'rgba(255,250,230,0.95)', ring: '#ffd34d', icon: '#ffd34d' },
   damage: { halo: 'rgba(255,140,80,0.28)', core: 'rgba(255,246,238,0.95)', ring: '#ff8a3d', icon: '#e2551a' },
+  ammo: { halo: 'rgba(140,200,255,0.28)', core: 'rgba(240,248,255,0.95)', ring: '#5aa9ff', icon: '#1f6fd0' },
+  reload: { halo: 'rgba(120,235,190,0.28)', core: 'rgba(240,255,250,0.95)', ring: '#38d6a0', icon: '#128a63' },
 };
 
 function drawCloneIcon(ctx, cx, cy, r, color) {
@@ -57,7 +59,6 @@ function drawMultiIcon(ctx, cx, cy, r, color) {
   }
 }
 
-// 血瓶图标：十字
 function drawHealIcon(ctx, cx, cy, r, color) {
   ctx.fillStyle = color;
 
@@ -67,7 +68,6 @@ function drawHealIcon(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
-// 金币图标：金色圆片 + 中间深色竖线（和 HUD 的金币一致）
 function drawCoinIcon(ctx, cx, cy, r, color) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -84,7 +84,6 @@ function drawCoinIcon(ctx, cx, cy, r, color) {
   ctx.fillRect(cx - r * 0.13, cy - r * 0.42, r * 0.26, r * 0.84);
 }
 
-// 伤害图标：冲击星
 function drawDamageIcon(ctx, cx, cy, r, color) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -101,6 +100,50 @@ function drawDamageIcon(ctx, cx, cy, r, color) {
 
   ctx.closePath();
   ctx.fill();
+}
+
+// 弹药：一颗子弹（弹头 + 弹身）
+function drawAmmoIcon(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color;
+
+  util.roundRectPath(ctx, cx - r * 0.22, cy - r * 0.12, r * 0.44, r * 0.58, r * 0.10);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.22, cy - r * 0.12);
+  ctx.lineTo(cx, cy - r * 0.62);
+  ctx.lineTo(cx + r * 0.22, cy - r * 0.12);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  util.roundRectPath(ctx, cx - r * 0.22, cy + r * 0.26, r * 0.44, r * 0.16, r * 0.07);
+  ctx.fill();
+}
+
+// 快速装填：环形箭头
+function drawReloadIcon(ctx, cx, cy, r, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.6, r * 0.22);
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.52, Math.PI * 0.35, Math.PI * 1.85);
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  const tipA = Math.PI * 1.85;
+  const tx = cx + Math.cos(tipA) * r * 0.52;
+  const ty = cy + Math.sin(tipA) * r * 0.52;
+
+  ctx.beginPath();
+  ctx.moveTo(tx + r * 0.30, ty + r * 0.02);
+  ctx.lineTo(tx - r * 0.10, ty - r * 0.26);
+  ctx.lineTo(tx - r * 0.10, ty + r * 0.28);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.lineCap = 'butt';
 }
 
 function drawOne(ctx, it, cameraX, now) {
@@ -137,6 +180,8 @@ function drawOne(ctx, it, cameraX, now) {
   else if (it.kind === 'heal') drawHealIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'coin') drawCoinIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'damage') drawDamageIcon(ctx, cx, cy, r, st.icon);
+  else if (it.kind === 'ammo') drawAmmoIcon(ctx, cx, cy, r, st.icon);
+  else if (it.kind === 'reload') drawReloadIcon(ctx, cx, cy, r, st.icon);
   else drawCloneIcon(ctx, cx, cy, r, st.icon);
   ctx.restore();
 }

@@ -1,4 +1,4 @@
-// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 经验 / 绘制。
+// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 经验 / 弹夹 / 绘制。
 
 const cfg = require('./config.js');
 const input = require('./input.js');
@@ -41,6 +41,12 @@ const state = {
   fireMs: cfg.PLAYER_FIRE_MS_START,
   multishot: cfg.PLAYER_MULTI_START,
   damage: cfg.PLAYER_DAMAGE_START,
+
+  // 弹夹
+  ammoMax: cfg.PLAYER_AMMO_START,
+  ammo: cfg.PLAYER_AMMO_START,
+  reloadM: cfg.RELOAD_M_START,
+  lastReloadDist: 0,
 
   // 分身属性（独立）
   cloneFireMs: cfg.PLAYER_FIRE_MS_START,
@@ -195,6 +201,17 @@ function clampMulti(n) {
   return v > cfg.PLAYER_MULTI_MAX ? cfg.PLAYER_MULTI_MAX : v;
 }
 
+function clampAmmoMax(n) {
+  const v = Math.max(1, n);
+  return v > cfg.PLAYER_AMMO_MAX ? cfg.PLAYER_AMMO_MAX : v;
+}
+
+function clampReloadM(m) {
+  const v = m;
+  if (v < cfg.RELOAD_M_MIN) return cfg.RELOAD_M_MIN;
+  return v;
+}
+
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
   state.bullets = bullets.create();
@@ -226,6 +243,11 @@ function resetWorld(startX) {
   state.fireMs = cfg.PLAYER_FIRE_MS_START;
   state.multishot = cfg.PLAYER_MULTI_START;
   state.damage = cfg.PLAYER_DAMAGE_START;
+
+  state.ammoMax = cfg.PLAYER_AMMO_START;
+  state.ammo = cfg.PLAYER_AMMO_START;
+  state.reloadM = cfg.RELOAD_M_START;
+  state.lastReloadDist = state.distance;
 
   state.cloneFireMs = cfg.PLAYER_FIRE_MS_START;
   state.cloneMultishot = cfg.PLAYER_MULTI_START;
@@ -263,6 +285,16 @@ function applyProfileAssets() {
 
   if (pu.damage > 0) {
     state.damage = roundDamage(state.damage + pu.damage * cfg.SHOP_DAMAGE_GAIN);
+  }
+
+  // 弹夹容量
+  if (pu.ammo > 0) {
+    state.ammoMax = clampAmmoMax(state.ammoMax + pu.ammo * cfg.SHOP_AMMO_GAIN);
+  }
+
+  // 装填速度：每级装填距离 -1 米（最快 1 米）
+  if (pu.reload > 0) {
+    state.reloadM = clampReloadM(state.reloadM - pu.reload * cfg.RELOAD_SHOP_STEP_M);
   }
 
   if (pu.cloneLife > 0) {
@@ -315,10 +347,21 @@ function applyProfileAssets() {
     used = true;
   }
 
+  if (items.reload > 0) {
+    let m = state.reloadM;
+    for (let i = 0; i < items.reload; i++) m = m * cfg.RELOAD_ITEM_RATIO;
+    state.reloadM = clampReloadM(Math.round(m * 10) / 10);
+    used = true;
+  }
+
   if (used) {
-    prof.items = { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0 };
+    prof.items = { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0 };
     profile.write(prof);
   }
+
+  // 开局弹夹满
+  state.ammo = state.ammoMax;
+  state.lastReloadDist = state.distance;
 
   // 永久分身 + 本局分身道具
   if (p) {
@@ -429,7 +472,26 @@ function damagePlayer(amount, now) {
   storage.clear();
 }
 
-// 右摇杆方向 = 子弹方向
+// 装填：只按前进距离补弹
+function reloadUpdate() {
+  const step = state.reloadM > 0 ? state.reloadM : cfg.RELOAD_M_START;
+
+  if (state.ammo >= state.ammoMax) {
+    state.lastReloadDist = state.distance;
+    return;
+  }
+
+  let guard = 0;
+
+  while (state.distance - state.lastReloadDist >= step && state.ammo < state.ammoMax && guard < 20) {
+    guard++;
+    state.lastReloadDist += step;
+    state.ammo += 1;
+  }
+
+  if (state.ammo >= state.ammoMax) state.lastReloadDist = state.distance;
+}
+
 function fireUpdate(now) {
   const p = state.player;
   const s = state.aimStick;
@@ -445,7 +507,12 @@ function fireUpdate(now) {
   else p.facing = -1;
 
   if (now < state.nextFireAt) return;
+
+  // 没子弹就打不出去
+  if (state.ammo <= 0) return;
+
   state.nextFireAt = now + state.fireMs;
+  state.ammo -= 1;
 
   audio.play('shoot');
 
@@ -658,6 +725,19 @@ function applyPickup(it, now) {
     return;
   }
 
+  if (it.kind === 'ammo') {
+    const add = it.amount > 0 ? it.amount : cfg.AMMO_ITEM_BASE;
+    state.ammo = Math.min(state.ammoMax, state.ammo + add);
+    audio.play('coin');
+    return;
+  }
+
+  if (it.kind === 'reload') {
+    state.reloadM = clampReloadM(Math.round(state.reloadM * cfg.RELOAD_ITEM_RATIO * 10) / 10);
+    audio.play('pickup');
+    return;
+  }
+
   if (it.kind === 'heal') {
     const p = state.player;
     if (p) p.hp = Math.min(p.maxHp, p.hp + (it.amount || 1));
@@ -733,7 +813,6 @@ function update(dt, now) {
   state.joy = input.getJoystick();
   state.aimStick = input.getAimStick();
 
-  // 跳跃：带方向（正上方 ±30° 内 = 竖直跳，否则斜跳）
   const jump = input.consumeJump();
   if (jump) playerKit.requestJump(state.player, now, jump.dir);
 
@@ -761,6 +840,7 @@ function update(dt, now) {
   });
   clones.cull(state.clones, state.cameraX);
 
+  reloadUpdate();
   fireUpdate(now);
 
   if (!state.firing) {
