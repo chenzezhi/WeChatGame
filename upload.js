@@ -78,6 +78,8 @@ const project = new ci.Project({
     'upload.sh',
     'upload-auto.sh',
     'upload-proot.sh',
+    'get-qr.sh',
+    'deploy-and-get.sh',
     'README.md',
     'README-Termux.md',
     'forktest.js',
@@ -86,11 +88,14 @@ const project = new ci.Project({
   ],
 });
 
+const QR_PATH = path.join(projectPath, 'qrcode.jpg');
+
 async function preview() {
   console.log('项目目录 : ' + projectPath);
   console.log('AppID    : ' + APPID);
   console.log('版本号   : ' + BUILD_VERSION);
   console.log('描述     : ' + BUILD_DESC);
+  console.log('开始时间 : ' + new Date().toISOString());
   console.log('正在生成预览二维码...');
 
   const result = await ci.preview({
@@ -99,7 +104,7 @@ async function preview() {
     desc: BUILD_DESC,
     robot: 1,
     qrcodeFormat: 'image',
-    qrcodeOutputDest: path.join(projectPath, 'qrcode.jpg'),
+    qrcodeOutputDest: QR_PATH,
     setting: {
       es6: false,
       es7: false,
@@ -110,8 +115,20 @@ async function preview() {
     },
   });
 
+  // 产物校验：确认二维码真的生成了，避免「假成功」后拿到旧图
+  if (!fs.existsSync(QR_PATH)) {
+    throw new Error('预览返回成功，但没有找到二维码文件：' + QR_PATH);
+  }
+  const stat = fs.statSync(QR_PATH);
+  if (stat.size < 1000) {
+    throw new Error('二维码文件异常（' + stat.size + ' 字节）：' + QR_PATH);
+  }
+  console.log('二维码已生成：' + QR_PATH);
+  console.log('  大小 : ' + stat.size + ' 字节');
+  console.log('  时间 : ' + stat.mtime.toISOString());
+
   console.log('预览二维码生成成功！');
-  console.log('提示：扫二维码前，先在微信里把旧的小游戏进程彻底关闭（上滑删除/清除缓存）。');
+  console.log('提示：扫码前先在微信里删除旧的小游戏（或清缓存），否则可能复用旧包。');
   return result;
 }
 
