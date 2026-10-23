@@ -3,7 +3,7 @@
 
 const cfg = require('./config.js');
 
-const BUILD = 'game-4';
+const BUILD = 'game-5';
 
 const C = {
   skyTop: '#7fd0f7',
@@ -18,9 +18,6 @@ const C = {
   grassDark: '#3fa84d',
   soilTop: '#8b6b4a',
   soilBottom: '#57422e',
-  rockBody: '#9aa3ad',
-  rockDark: '#6f7883',
-  rockLight: '#c6ced6',
   skin: '#ffd9b3',
   hair: '#5a3a22',
   shirt: '#3f7fd6',
@@ -216,49 +213,6 @@ function drawGround(ctx, cameraX) {
   }
 }
 
-// ---------------------------------------------------------------- 石头
-function drawRock(ctx, r, cameraX) {
-  const x = r.x - cameraX;
-  const y = r.y;
-  const w = r.w;
-  const h = r.h;
-
-  if (x + w < -40 || x > cfg.WIDTH + 40) return;
-
-  ctx.fillStyle = C.rockBody;
-  ctx.beginPath();
-  ctx.moveTo(x, y + h);
-  ctx.lineTo(x + w * 0.08, y + h * 0.36);
-  ctx.lineTo(x + w * 0.42, y);
-  ctx.lineTo(x + w * 0.82, y + h * 0.18);
-  ctx.lineTo(x + w, y + h);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = C.rockDark;
-  ctx.beginPath();
-  ctx.moveTo(x + w * 0.42, y);
-  ctx.lineTo(x + w * 0.82, y + h * 0.18);
-  ctx.lineTo(x + w, y + h);
-  ctx.lineTo(x + w * 0.58, y + h);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = C.rockLight;
-  ctx.beginPath();
-  ctx.moveTo(x + w * 0.08, y + h * 0.36);
-  ctx.lineTo(x + w * 0.42, y);
-  ctx.lineTo(x + w * 0.48, y + h * 0.46);
-  ctx.lineTo(x + w * 0.2, y + h * 0.64);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function drawRocks(ctx, level, cameraX) {
-  const rocks = (level && level.rocks) || [];
-  for (let i = 0; i < rocks.length; i++) drawRock(ctx, rocks[i], cameraX);
-}
-
 // ---------------------------------------------------------------- 人物
 // 眼睛：眨眼时画成两条闭合的短横线
 function drawEyes(ctx, R, headCY, blinking) {
@@ -444,34 +398,6 @@ function drawHud(ctx, state) {
   ctx.textBaseline = 'alphabetic';
 }
 
-function drawDead(ctx, state, now) {
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(0, 0, cfg.WIDTH, cfg.HEIGHT);
-
-  const pulse = 1 + Math.sin((now - state.deadAt) / 260) * 0.02;
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold ' + Math.round(30 * pulse) + 'px sans-serif';
-  ctx.fillText('撞到石头了', cfg.WIDTH / 2, cfg.HEIGHT * 0.36);
-
-  ctx.font = '18px sans-serif';
-  ctx.fillText('本局 ' + state.distance + ' m', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 44);
-
-  if (state.best > 0) {
-    ctx.font = '14px sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText('最佳 ' + state.best + ' m', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 74);
-  }
-
-  ctx.font = '16px sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText('点击屏幕返回主菜单', cfg.WIDTH / 2, cfg.HEIGHT * 0.36 + 118);
-
-  ctx.textBaseline = 'alphabetic';
-}
-
 // ---------------------------------------------------------------- 总入口
 function draw(ctx, state, now) {
   const cameraX = state.cameraX || 0;
@@ -482,13 +408,10 @@ function draw(ctx, state, now) {
   drawHills(ctx, cameraX, 0.4, C.hillMid, cfg.GROUND_Y + 14, 110, 170);
   drawTrees(ctx, cameraX);
   drawGround(ctx, cameraX);
-  drawRocks(ctx, state.level, cameraX);
 
-  if (state.player && state.phase !== 'dead') drawPlayer(ctx, state.player, cameraX);
+  if (state.player) drawPlayer(ctx, state.player, cameraX);
 
   drawHud(ctx, state);
-
-  if (state.phase === 'dead') drawDead(ctx, state, now);
 }
 
 module.exports = { draw: draw };

@@ -40,13 +40,6 @@ const BLINK_MIN_MS = 2200;     // 两次眨眼之间的最短间隔
 const BLINK_MAX_MS = 4200;     // 两次眨眼之间的最长间隔
 const BLINK_DURATION_MS = 130; // 每次眨眼持续多久
 
-// ---------------- 障碍（石头） ----------------
-const ROCK_MIN_GAP = 260;      // 石头之间的最小间距
-const ROCK_MAX_GAP = 470;      // 石头之间的最大间距
-const ROCK_W_RATIO = 1.25;     // 石头宽度 = 人物宽 × 该系数
-const ROCK_H_RATIO = 0.95;     // 石头高度基准
-const ROCK_SPAWN_AHEAD = 1.9;  // 提前生成多远（屏宽的倍数）
-
 // ---------------- 相机 / 计分 ----------------
 const CAMERA_ANCHOR = 0.34;    // 人物停在屏幕横向 34% 处
 const DISTANCE_PER_UNIT = 10;  // 每 10 像素算 1 米
@@ -75,12 +68,6 @@ module.exports = {
   BLINK_MIN_MS: BLINK_MIN_MS,
   BLINK_MAX_MS: BLINK_MAX_MS,
   BLINK_DURATION_MS: BLINK_DURATION_MS,
-
-  ROCK_MIN_GAP: ROCK_MIN_GAP,
-  ROCK_MAX_GAP: ROCK_MAX_GAP,
-  ROCK_W_RATIO: ROCK_W_RATIO,
-  ROCK_H_RATIO: ROCK_H_RATIO,
-  ROCK_SPAWN_AHEAD: ROCK_SPAWN_AHEAD,
 
   CAMERA_ANCHOR: CAMERA_ANCHOR,
   DISTANCE_PER_UNIT: DISTANCE_PER_UNIT,
