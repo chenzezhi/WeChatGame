@@ -3,6 +3,7 @@
 const scenes = require('../core/scenes.js');
 const storage = require('../core/storage.js');
 const profile = require('../core/profile.js');
+const audio = require('../core/audio.js');
 const buttons = require('./buttons.js');
 const view = require('./view.js');
 
@@ -60,6 +61,7 @@ const actions = {
 
 function enter() {
   refresh();
+  audio.playBgm();
 }
 
 function update() {
@@ -71,6 +73,9 @@ function render(ctx) {
 }
 
 function touchStart(e) {
+  // 首次触摸时补一次 BGM（部分机型不允许自动播放）
+  audio.playBgm();
+
   const p = e.touches && e.touches[0];
   if (!p) return;
 

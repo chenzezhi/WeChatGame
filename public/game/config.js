@@ -79,11 +79,11 @@ const ENEMY_BULLET_SPEED = 0.60;
 const ENEMY_DAMAGE = 1;
 
 // 随机行为：一开始很迟钝，越深入越频繁
-const ENEMY_MOVE_MS_START = 2000;   // 初始 2 秒才做一次行为决策
-const ENEMY_MOVE_DECAY = 0.45;      // 每深入 1 米，间隔缩短 0.45 毫秒
-const ENEMY_MOVE_MS_MIN = 380;      // 决策间隔下限
+const ENEMY_MOVE_MS_START = 2000;
+const ENEMY_MOVE_DECAY = 0.45;
+const ENEMY_MOVE_MS_MIN = 380;
 const ENEMY_MOVE_SPEED = 0.22;
-const ENEMY_JUMP_CHANCE = 0.42;     // 决策时起跳的概率（靠近玩家）
+const ENEMY_JUMP_CHANCE = 0.42;
 const ENEMY_JUMP_V = -0.72;
 
 // 追击概率：开局低，随距离提高
@@ -91,7 +91,7 @@ const ENEMY_CHASE_BASE = 0.35;
 const ENEMY_CHASE_GAIN = 0.08;
 const ENEMY_CHASE_STEP_M = 400;
 const ENEMY_CHASE_MAX = 0.85;
-const ENEMY_IDLE_CHANCE = 0.30;     // 不追人时原地发呆的概率
+const ENEMY_IDLE_CHANCE = 0.30;
 
 const ENEMY_CONTACT_DMG_STEP_M = 350;
 const ENEMY_CONTACT_DMG_MAX = 6;
@@ -100,8 +100,8 @@ const ENEMY_CONTACT_COOLDOWN_MS = 700;
 // ---------------- Boss ----------------
 const BOSS_EVERY_M = 1000;
 const BOSS_SCALE = 2.4;
-const BOSS_HP_MULT_START = 30;
-const BOSS_HP_MULT_GROWTH = 0.3;
+const BOSS_HP_MULT_START = 20;          // 血量 = 当前小怪血量 × 20（第 1 个 Boss）
+const BOSS_HP_MULT_GROWTH = 0.3;        // 每个 Boss 倍率再 +0.3 → 20 / 26 / 32 …
 const BOSS_FIRE_MULT_START = 1.5;
 const BOSS_FIRE_MULT_GROWTH = 0.35;
 const BOSS_FIRE_MS_MIN = 130;
