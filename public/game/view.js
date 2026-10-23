@@ -1,9 +1,9 @@
 // 绘制层：只读状态、不修改状态。
-// 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物（会眨眼）。
+// 冒险岛风格：蓝天 + 视差云/山/树 + 草地泥土 + Q 版人物（走路摆腿、会眨眼）。
 
 const cfg = require('./config.js');
 
-const BUILD = 'game-3';
+const BUILD = 'game-4';
 
 const C = {
   skyTop: '#7fd0f7',
@@ -26,6 +26,7 @@ const C = {
   shirt: '#3f7fd6',
   shirtDark: '#2f63aa',
   pants: '#33415c',
+  shoe: '#2a3346',
   eye: '#22262e',
   shadow: 'rgba(0,0,0,0.16)',
   hudBg: 'rgba(255,255,255,0.82)',
@@ -34,7 +35,7 @@ const C = {
 
 // ---------------------------------------------------------------- 小工具
 function roundRectPath(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
   ctx.lineTo(x + w - rr, y);
@@ -55,6 +56,28 @@ function fillEllipse(ctx, cx, cy, rx, ry, style) {
   ctx.beginPath();
   ctx.arc(0, 0, rx, 0, Math.PI * 2);
   ctx.fillStyle = style;
+  ctx.fill();
+  ctx.restore();
+}
+
+// 以「关节」为轴心画一段圆角肢体：肢体从轴心向下延伸 len
+function drawLimb(ctx, jointX, jointY, len, thick, angle, color) {
+  ctx.save();
+  ctx.translate(jointX, jointY);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  roundRectPath(ctx, -thick / 2, 0, thick, len, thick * 0.46);
+  ctx.fill();
+  ctx.restore();
+}
+
+// 脚掌（画在腿末端，跟随腿一起旋转）
+function drawFoot(ctx, jointX, jointY, len, thick, angle) {
+  ctx.save();
+  ctx.translate(jointX, jointY);
+  ctx.rotate(angle);
+  ctx.fillStyle = C.shoe;
+  roundRectPath(ctx, -thick * 0.55, len - thick * 0.62, thick * 1.55, thick * 0.72, thick * 0.34);
   ctx.fill();
   ctx.restore();
 }
@@ -105,7 +128,9 @@ function drawClouds(ctx, cameraX) {
 }
 
 function drawHills(ctx, cameraX, factor, color, baseY, radius, spacing) {
-  const shift = (cameraX * factor) % spacing;
+  let shift = (cameraX * factor) % spacing;
+  if (shift < 0) shift += spacing;
+
   ctx.fillStyle = color;
 
   let x = -spacing - shift;
@@ -122,7 +147,6 @@ function drawTrees(ctx, cameraX) {
   const factor = 0.5;
   const spacing = 230;
 
-  // 负相机位置也要正确取模（往回走时视差不能跳）
   let shift = (cameraX * factor) % spacing;
   if (shift < 0) shift += spacing;
 
@@ -133,11 +157,9 @@ function drawTrees(ctx, cameraX) {
     const baseY = cfg.GROUND_Y;
     const th = 46 + (i % 3) * 12;
 
-    // 树干
     ctx.fillStyle = C.treeTrunk;
     ctx.fillRect(x - 4, baseY - th * 0.55, 8, th * 0.55);
 
-    // 树冠
     ctx.fillStyle = C.treeLeaf;
     ctx.beginPath();
     ctx.arc(x, baseY - th * 0.55, th * 0.42, 0, Math.PI * 2);
@@ -158,21 +180,18 @@ function drawTrees(ctx, cameraX) {
 function drawGround(ctx, cameraX) {
   const y = cfg.GROUND_Y;
 
-  // 草皮
   ctx.fillStyle = C.grass;
   ctx.fillRect(0, y, cfg.WIDTH, 14);
 
   ctx.fillStyle = C.grassDark;
   ctx.fillRect(0, y + 14, cfg.WIDTH, 6);
 
-  // 泥土
   const g = ctx.createLinearGradient(0, y + 20, 0, cfg.HEIGHT);
   g.addColorStop(0, C.soilTop);
   g.addColorStop(1, C.soilBottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, y + 20, cfg.WIDTH, cfg.HEIGHT - y - 20);
 
-  // 草皮高光（随相机滚动）
   ctx.fillStyle = 'rgba(255,255,255,0.28)';
   const step = 46;
   let shift = cameraX % step;
@@ -184,7 +203,6 @@ function drawGround(ctx, cameraX) {
     x += step;
   }
 
-  // 泥土纹理
   ctx.fillStyle = 'rgba(0,0,0,0.10)';
   const step2 = 92;
   let shift2 = cameraX % step2;
@@ -207,7 +225,6 @@ function drawRock(ctx, r, cameraX) {
 
   if (x + w < -40 || x > cfg.WIDTH + 40) return;
 
-  // 主体
   ctx.fillStyle = C.rockBody;
   ctx.beginPath();
   ctx.moveTo(x, y + h);
@@ -218,7 +235,6 @@ function drawRock(ctx, r, cameraX) {
   ctx.closePath();
   ctx.fill();
 
-  // 暗面
   ctx.fillStyle = C.rockDark;
   ctx.beginPath();
   ctx.moveTo(x + w * 0.42, y);
@@ -228,7 +244,6 @@ function drawRock(ctx, r, cameraX) {
   ctx.closePath();
   ctx.fill();
 
-  // 亮面
   ctx.fillStyle = C.rockLight;
   ctx.beginPath();
   ctx.moveTo(x + w * 0.08, y + h * 0.36);
@@ -266,7 +281,6 @@ function drawEyes(ctx, R, headCY, blinking) {
     return;
   }
 
-  // 睁眼
   ctx.fillStyle = C.eye;
   ctx.beginPath();
   ctx.arc(R * 0.16, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
@@ -275,7 +289,6 @@ function drawEyes(ctx, R, headCY, blinking) {
   ctx.arc(R * 0.56, headCY + R * 0.12, R * 0.14, 0, Math.PI * 2);
   ctx.fill();
 
-  // 高光
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.arc(R * 0.21, headCY + R * 0.07, R * 0.05, 0, Math.PI * 2);
@@ -293,41 +306,59 @@ function drawPlayer(ctx, p, cameraX) {
   const cx = sx + w / 2;
   const feetY = sy + h;
 
-  // 影子（始终贴地）
+  // 影子（不随身体起伏）
   fillEllipse(ctx, cx, cfg.GROUND_Y + 3, w * 0.46, w * 0.15, C.shadow);
 
-  const R = w * 0.55;          // 头半径
-  const headCY = -h * 0.70;    // 头心（相对脚底）
-  const legW = w * 0.20;
-  const legH = h * 0.24;
-  const bodyW = w * 0.62;
+  const R = w * 0.55;        // 头半径
+  const headCY = -h * 0.70;  // 头心（相对脚底）
+
+  const legW = w * 0.24;
+  const legH = h * 0.26;
+  const bodyW = w * 0.64;
   const bodyH = h * 0.34;
   const bodyY = -legH - bodyH + h * 0.02;
-  const armW = w * 0.16;
-  const armH = h * 0.22;
+  const armW = w * 0.19;
+  const armH = h * 0.24;
 
   const isJump = p.anim === 'jump';
-  const swing = p.anim === 'run' ? Math.sin(p.runPhase * Math.PI * 2) : 0;
+  const isRun = p.anim === 'run';
+
+  // 摆动相位：一整套步 = 2π
+  const phase = p.runPhase * Math.PI * 2;
+  const swing = isRun ? Math.sin(phase) : 0;
+
+  // 跑步时身体轻微上下起伏（每半步一次）
+  const bob = isRun ? Math.abs(Math.sin(phase)) * h * 0.035 : 0;
+
+  // 各个关节的角度
+  let legL, legR, armL, armR;
+
+  if (isJump) {
+    legL = 0.55;
+    legR = -0.32;
+    armL = 2.35;
+    armR = -2.35;
+  } else {
+    legL = swing * 0.62;
+    legR = -swing * 0.62;
+    armL = -swing * 0.55;
+    armR = swing * 0.55;
+  }
+
+  const hipY = -legH;
+  const hipX = legW * 0.42;
+  const shoulderY = bodyY + bodyH * 0.16;
+  const shoulderX = bodyW * 0.5 - armW * 0.1;
 
   ctx.save();
-  ctx.translate(cx, feetY);
+  ctx.translate(cx, feetY - bob);
   ctx.scale(p.facing >= 0 ? 1 : -1, 1);
 
-  // ---- 腿 ----
-  ctx.fillStyle = C.pants;
-  if (isJump) {
-    roundRectPath(ctx, -legW * 1.55, -legH * 0.92, legW, legH * 0.9, legW * 0.42);
-    ctx.fill();
-    roundRectPath(ctx, legW * 0.55, -legH * 0.92, legW, legH * 0.9, legW * 0.42);
-    ctx.fill();
-  } else {
-    const o1 = swing * h * 0.045;
-    const o2 = -swing * h * 0.045;
-    roundRectPath(ctx, -legW * 1.55, -legH + o1, legW, legH - o1, legW * 0.42);
-    ctx.fill();
-    roundRectPath(ctx, legW * 0.55, -legH + o2, legW, legH - o2, legW * 0.42);
-    ctx.fill();
-  }
+  // ---- 后腿 / 后臂（先画，形成遮挡层次） ----
+  drawLimb(ctx, -hipX, hipY, legH, legW, legL, C.pants);
+  drawFoot(ctx, -hipX, hipY, legH, legW, legL);
+
+  drawLimb(ctx, -shoulderX, shoulderY, armH, armW, armL, C.skin);
 
   // ---- 身体（衣服） ----
   ctx.fillStyle = C.shirt;
@@ -338,21 +369,11 @@ function drawPlayer(ctx, p, cameraX) {
   roundRectPath(ctx, -bodyW / 2, bodyY + bodyH * 0.66, bodyW, bodyH * 0.34, bodyW * 0.3);
   ctx.fill();
 
-  // ---- 手臂 ----
-  ctx.fillStyle = C.skin;
-  if (isJump) {
-    roundRectPath(ctx, -bodyW / 2 - armW * 0.65, bodyY - armH * 0.55, armW, armH, armW * 0.45);
-    ctx.fill();
-    roundRectPath(ctx, bodyW / 2 - armW * 0.35, bodyY - armH * 0.55, armW, armH, armW * 0.45);
-    ctx.fill();
-  } else {
-    const o1 = swing * h * 0.03;
-    const o2 = -swing * h * 0.03;
-    roundRectPath(ctx, -bodyW / 2 - armW * 0.6, bodyY + armH * 0.12 + o1, armW, armH, armW * 0.45);
-    ctx.fill();
-    roundRectPath(ctx, bodyW / 2 - armW * 0.4, bodyY + armH * 0.12 + o2, armW, armH, armW * 0.45);
-    ctx.fill();
-  }
+  // ---- 前腿 / 前臂 ----
+  drawLimb(ctx, hipX, hipY, legH, legW, legR, C.pants);
+  drawFoot(ctx, hipX, hipY, legH, legW, legR);
+
+  drawLimb(ctx, shoulderX, shoulderY, armH, armW, armR, C.skin);
 
   // ---- 头 ----
   ctx.fillStyle = C.skin;
@@ -410,13 +431,11 @@ function drawHud(ctx, state) {
     ctx.fillText('最佳 ' + state.best + ' m', cfg.WIDTH - 14, 40);
   }
 
-  // 操作提示
   ctx.textAlign = 'center';
   ctx.font = '12px sans-serif';
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
   ctx.fillText('按住左/右移动 · 任意手指上滑跳跃', cfg.WIDTH / 2, cfg.HEIGHT - 16);
 
-  // 版本标记
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.font = '11px sans-serif';
