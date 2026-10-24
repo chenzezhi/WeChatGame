@@ -9,11 +9,14 @@ const BULLET_FIRE_MS = PLAYER_FIRE_MS_START; // 兼容旧名
 // ---------------- 一次打几发（散射） ----------------
 const PLAYER_MULTI_START = 1;  // 初始一次 1 发
 const PLAYER_MULTI_MAX = 10;   // 子弹数量上限
-const MULTI_SPREAD_DEG = 8;    // 相邻两发之间的基础夹角（度），围绕枪口对称展开
 
-// ---------------- 弹道夹角 ----------------
-// 主体与分身共用同一个夹角值：谁升级都作用在同一个数上
-const SPREAD_MIN_DEG = 1;      // 夹角下限（度）
+// ---------------- 弹道夹角（相邻两发的度数） ----------------
+// 定义：n 发子弹时，相邻两发相差 MULTI_SPREAD_DEG 度，围绕瞄准方向对称展开。
+//       总张角 = (发数 - 1) × 夹角。
+//       例：夹角 15°、5 发 → 最外两发相差 60°。
+// 每级减多少度见 config/shop/upgrade.js（SPREAD_SHOP_STEP_DEG / SHOP_ITEM_SPREAD_STEP_DEG）。
+const MULTI_SPREAD_DEG = 8; // 初始相邻夹角（度）
+const SPREAD_MIN_DEG = 0;   // 夹角下限：0 = 允许完全重合（所有子弹打成一条线）
 
 module.exports = {
   PLAYER_FIRE_MS_START: PLAYER_FIRE_MS_START,

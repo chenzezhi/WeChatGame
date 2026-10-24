@@ -16,7 +16,7 @@ const PLAYER_UPGRADES = [
   { id: 'hp', label: '生命上限', desc: '每级 +' + cfg.SHOP_HP_GAIN + ' 生命' },
   { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
   { id: 'multi', label: '子弹数量', desc: '每级 +' + cfg.SHOP_MULTI_GAIN + ' 发子弹' },
-  { id: 'spread', label: '弹道夹角', desc: '每级 -0.5% 夹角（越集中）' },
+  { id: 'spread', label: '弹道夹角', desc: '每级 -' + cfg.SPREAD_SHOP_STEP_DEG + '° 相邻夹角（越集中）' },
   { id: 'damage', label: '子弹伤害', desc: '每级 +' + cfg.SHOP_DAMAGE_GAIN + ' 伤害' },
   { id: 'ammo', label: '弹夹容量', desc: '每级 +' + cfg.SHOP_AMMO_GAIN + ' 发（上限 ' + cfg.PLAYER_AMMO_MAX + '）' },
   { id: 'reload', label: '装填速度', desc: '每级 -' + cfg.RELOAD_SHOP_STEP_M + ' 米（最快 ' + cfg.RELOAD_M_MIN + ' 米）' },
@@ -28,7 +28,7 @@ const CLONE_UPGRADES = [
   { id: 'hp', label: '生命上限', desc: '每级 +' + cfg.SHOP_HP_GAIN + ' 生命' },
   { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
   { id: 'multi', label: '子弹数量', desc: '每级 +' + cfg.SHOP_MULTI_GAIN + ' 发子弹' },
-  { id: 'spread', label: '弹道夹角', desc: '每级 -0.5% 夹角（与主体共通）' },
+  { id: 'spread', label: '弹道夹角', desc: '每级 -' + cfg.SPREAD_SHOP_STEP_DEG + '° 相邻夹角（与主体共通）' },
   { id: 'damage', label: '子弹伤害', desc: '每级 +' + cfg.SHOP_DAMAGE_GAIN + ' 伤害' },
 ];
 
@@ -37,7 +37,7 @@ const ITEMS = [
   { id: 'heal', label: '生命药水', desc: '本局开局 +' + cfg.SHOP_ITEM_HEAL_HP + ' 最大生命', price: itemPrice('heal') },
   { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: itemPrice('speed') },
   { id: 'multi', label: '多发道具', desc: '本局开局 +' + cfg.SHOP_ITEM_MULTI_GAIN + ' 发子弹', price: itemPrice('multi') },
-  { id: 'spread', label: '夹角道具', desc: '本局开局弹道夹角 -0.5%', price: itemPrice('spread') },
+  { id: 'spread', label: '夹角道具', desc: '本局开局相邻夹角 -' + cfg.SHOP_ITEM_SPREAD_STEP_DEG + '°', price: itemPrice('spread') },
   { id: 'damage', label: '伤害道具', desc: '本局开局 +' + cfg.SHOP_ITEM_DAMAGE_GAIN + ' 伤害', price: itemPrice('damage') },
   { id: 'ammo', label: '弹药包', desc: '本局开局补满弹夹', price: itemPrice('ammo') },
   { id: 'reload', label: '快速装填', desc: '本局装填距离 ×' + cfg.SHOP_ITEM_RELOAD_RATIO, price: itemPrice('reload') },

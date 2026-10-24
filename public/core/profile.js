@@ -16,7 +16,7 @@ try { fs = wx.getFileSystemManager(); } catch (e) { fs = null; }
 // ============ 开发期测试资产（上线前把这里改回 null） ============
 // 仅在 profile.json 不存在时作为初始值使用；一旦写过存档就失效。
 const DEV_PROFILE = {
-  coins: 99999,
+  coins: 9999999,
   bossKills: 0,
   upgrades: { hp: 5, fire: 10, multi: 5, spread: 0, damage: 50, cloneLife: 5, ammo: 10, reload: 5 },
   cloneUpgrades: { hp: 0, fire: 5, multi: 2, spread: 0, damage: 20 },

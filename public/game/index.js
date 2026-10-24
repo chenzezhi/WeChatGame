@@ -214,15 +214,28 @@ function clampReloadM(m) {
   return m < cfg.RELOAD_M_MIN ? cfg.RELOAD_M_MIN : m;
 }
 
-// 弹道夹角：越小越集中，主体与分身共用同一个值
+// 弹道夹角下限保护（0 是合法值 = 所有子弹打成一条线）
 function clampSpread(deg) {
-  return deg < cfg.SPREAD_MIN_DEG ? cfg.SPREAD_MIN_DEG : deg;
+  const v = (typeof deg === 'number' && isFinite(deg)) ? deg : cfg.MULTI_SPREAD_DEG;
+  if (v < cfg.SPREAD_MIN_DEG) return cfg.SPREAD_MIN_DEG;
+  if (v > cfg.MULTI_SPREAD_DEG) return cfg.MULTI_SPREAD_DEG;
+  return v;
 }
 
-function spreadScale(base, levels, ratio) {
+// 弹道夹角：每级「直接减 stepDeg 度」（加法，能真正收敛到下限）
+function spreadReduce(base, levels, stepDeg) {
   const lv = levels > 0 ? levels : 0;
-  if (lv <= 0) return base;
-  return clampSpread(base * Math.pow(ratio, lv));
+  if (lv <= 0) return clampSpread(base);
+
+  const step = (typeof stepDeg === 'number' && stepDeg > 0) ? stepDeg : 0;
+  return clampSpread(base - step * lv);
+}
+
+// 计算本次齐射每发子弹的角度偏移（弧度）。
+// 夹角定义：相邻两发之间相差 spreadDeg 度，围绕中心对称展开。
+//   n 发 → 总张角 (n - 1) * spreadDeg。
+function spreadStepRad(spreadDeg) {
+  return (clampSpread(spreadDeg) * Math.PI) / 180;
 }
 
 function resetWorld(startX) {
@@ -334,10 +347,10 @@ function applyProfileAssets() {
     state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
   }
 
-  // 弹道夹角：主体 / 分身两个页签的升级都作用在同一个共享值上
+  // 弹道夹角：主体 / 分身两个页签的升级都作用在同一个共享值上（每级减固定度数）
   const spreadLv = (pu.spread || 0) + (cu.spread || 0);
   if (spreadLv > 0) {
-    state.spreadDeg = spreadScale(state.spreadDeg, spreadLv, cfg.SPREAD_SHOP_RATIO);
+    state.spreadDeg = spreadReduce(state.spreadDeg, spreadLv, cfg.SPREAD_SHOP_STEP_DEG);
   }
 
   const items = prof.items || {};
@@ -367,7 +380,7 @@ function applyProfileAssets() {
   }
 
   if (items.spread > 0) {
-    state.spreadDeg = spreadScale(state.spreadDeg, items.spread, cfg.SPREAD_ITEM_RATIO);
+    state.spreadDeg = spreadReduce(state.spreadDeg, items.spread, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
     used = true;
   }
 
@@ -552,7 +565,7 @@ function fireUpdate(now) {
   const cy = p.y + p.h * 0.45;
 
   const n = Math.max(1, state.multishot);
-  const step = (clampSpread(state.spreadDeg) * Math.PI) / 180;
+  const step = spreadStepRad(state.spreadDeg);
 
   for (let i = 0; i < n; i++) {
     const a = angle + (i - (n - 1) / 2) * step;
@@ -757,9 +770,9 @@ function applyPickup(it, now) {
     return;
   }
 
-  // 弹道夹角道具：夹角再收窄 0.5%（主体 / 分身共用）
+  // 弹道夹角道具：相邻夹角再减固定度数（主体 / 分身共用）
   if (it.kind === 'spread') {
-    state.spreadDeg = spreadScale(state.spreadDeg, 1, cfg.SPREAD_ITEM_RATIO);
+    state.spreadDeg = spreadReduce(state.spreadDeg, 1, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
     audio.play('pickup');
     return;
   }

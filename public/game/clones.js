@@ -69,7 +69,8 @@ function update(level, dt, now, owner, enemies, playerBullets, stats) {
   const multi = (stats && stats.multishot > 0) ? stats.multishot : 1;
   const dmg = (stats && stats.damage > 0) ? stats.damage : cfg.PLAYER_DAMAGE_START;
 
-  let spreadDeg = (stats && stats.spreadDeg > 0) ? stats.spreadDeg : cfg.MULTI_SPREAD_DEG;
+  // 注意：夹角可以是 0（完全重合），所以不能用 > 0 判断，必须判类型
+  let spreadDeg = (stats && typeof stats.spreadDeg === 'number') ? stats.spreadDeg : cfg.MULTI_SPREAD_DEG;
   if (spreadDeg < cfg.SPREAD_MIN_DEG) spreadDeg = cfg.SPREAD_MIN_DEG;
 
   const step = (spreadDeg * Math.PI) / 180;
