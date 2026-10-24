@@ -4,16 +4,16 @@
 // ------------- 主体属性升级：每级加多少 -------------
 const SHOP_HP_GAIN = 4;         // 每级「生命上限」+4
 const SHOP_FIRE_RATIO = 0.92;   // 每级「攻击速度」间隔 ×0.92（约快 8%）
-const SHOP_MULTI_GAIN = 2;      // 每级「子弹数量」+2
+const SHOP_MULTI_GAIN = 1;      // 每级「子弹数量」+1（1 发 → 上限 10 发，共 9 级）
 const SHOP_DAMAGE_GAIN = 0.1;   // 每级「子弹伤害」+0.1
 const SHOP_AMMO_GAIN = 2;       // 每级「弹夹容量」+2
 const RELOAD_SHOP_STEP_M = 1;   // 每级「装填速度」-1 米
 const CLONE_LIFE_STEP_MS = 2000; // 每级「分身时长」+2 秒存活
 
 // ------------- 弹道夹角：每级直接减「度数」（加法） -------------
-// 相邻两发之间的夹角，每级减 SPREAD_SHOP_STEP_DEG 度，主体与分身共用同一个值。
+// 相邻两发之间的夹角，每级减 SPREAD_SHOP_STEP_DEG 度。
+// 主体与分身各自独立：主体吃 upgrades.spread，分身吃 cloneUpgrades.spread。
 // 初始 8°，减到 SPREAD_MIN_DEG(0) 需要 8 / 0.4 = 20 级。
-// 0.4° ≈ 初始 8° 的 5%。想严格按「每级 -1%」就改成 0.08（100 级归零）。
 const SPREAD_SHOP_STEP_DEG = 0.4;
 
 // ------------- 道具（花钱买的）：本局开局的加成 -------------

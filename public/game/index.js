@@ -41,7 +41,7 @@ const state = {
   fireMs: cfg.PLAYER_FIRE_MS_START,
   multishot: cfg.PLAYER_MULTI_START,
   damage: cfg.PLAYER_DAMAGE_START,
-  spreadDeg: cfg.MULTI_SPREAD_DEG,
+  spreadDeg: cfg.MULTI_SPREAD_DEG,        // 主体弹道夹角（度，相邻两发）
 
   ammoMax: cfg.PLAYER_AMMO_START,
   ammo: cfg.PLAYER_AMMO_START,
@@ -51,6 +51,7 @@ const state = {
   cloneFireMs: cfg.PLAYER_FIRE_MS_START,
   cloneMultishot: cfg.PLAYER_MULTI_START,
   cloneDamage: cfg.PLAYER_DAMAGE_START,
+  cloneSpreadDeg: cfg.MULTI_SPREAD_DEG,   // 分身弹道夹角（与主体完全独立）
   cloneHpBonus: 0,
   cloneLifeMs: cfg.CLONE_LIFE_BASE_MS,
 
@@ -214,15 +215,16 @@ function clampReloadM(m) {
   return m < cfg.RELOAD_M_MIN ? cfg.RELOAD_M_MIN : m;
 }
 
-// 弹道夹角下限保护（0 是合法值 = 所有子弹打成一条线）
+// ---------------- 弹道夹角 ----------------
+// 下限保护：0 是合法值（所有子弹完全平行）
 function clampSpread(deg) {
-  const v = (typeof deg === 'number' && isFinite(deg)) ? deg : cfg.MULTI_SPREAD_DEG;
-  if (v < cfg.SPREAD_MIN_DEG) return cfg.SPREAD_MIN_DEG;
-  if (v > cfg.MULTI_SPREAD_DEG) return cfg.MULTI_SPREAD_DEG;
+  let v = (typeof deg === 'number' && isFinite(deg)) ? deg : cfg.MULTI_SPREAD_DEG;
+  if (v < cfg.SPREAD_MIN_DEG) v = cfg.SPREAD_MIN_DEG;
+  if (v > cfg.MULTI_SPREAD_DEG) v = cfg.MULTI_SPREAD_DEG;
   return v;
 }
 
-// 弹道夹角：每级「直接减 stepDeg 度」（加法，能真正收敛到下限）
+// 每级「直接减 stepDeg 度」（加法，能真正收敛到下限）
 function spreadReduce(base, levels, stepDeg) {
   const lv = levels > 0 ? levels : 0;
   if (lv <= 0) return clampSpread(base);
@@ -231,9 +233,23 @@ function spreadReduce(base, levels, stepDeg) {
   return clampSpread(base - step * lv);
 }
 
-// 计算本次齐射每发子弹的角度偏移（弧度）。
-// 夹角定义：相邻两发之间相差 spreadDeg 度，围绕中心对称展开。
-//   n 发 → 总张角 (n - 1) * spreadDeg。
+// 已购买等级算出的「最小夹角」
+function spreadBaseOf(level) {
+  return spreadReduce(cfg.MULTI_SPREAD_DEG, level, cfg.SPREAD_SHOP_STEP_DEG);
+}
+
+// 最终生效夹角 = 已购买的最小夹角 + 滑块偏移（0 ~ 初始夹角之间的可调范围）
+function spreadOf(level, adj) {
+  const base = spreadBaseOf(level);
+  const range = cfg.MULTI_SPREAD_DEG - base;
+
+  let a = (typeof adj === 'number' && isFinite(adj) && adj > 0) ? adj : 0;
+  if (a > range) a = range;
+
+  return clampSpread(base + a);
+}
+
+// 相邻两发的角度差（弧度）
 function spreadStepRad(spreadDeg) {
   return (clampSpread(spreadDeg) * Math.PI) / 180;
 }
@@ -280,6 +296,7 @@ function resetWorld(startX) {
   state.cloneFireMs = cfg.PLAYER_FIRE_MS_START;
   state.cloneMultishot = cfg.PLAYER_MULTI_START;
   state.cloneDamage = cfg.PLAYER_DAMAGE_START;
+  state.cloneSpreadDeg = cfg.MULTI_SPREAD_DEG;
   state.cloneHpBonus = 0;
   state.cloneLifeMs = cfg.CLONE_LIFE_BASE_MS;
 
@@ -347,11 +364,9 @@ function applyProfileAssets() {
     state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
   }
 
-  // 弹道夹角：主体 / 分身两个页签的升级都作用在同一个共享值上（每级减固定度数）
-  const spreadLv = (pu.spread || 0) + (cu.spread || 0);
-  if (spreadLv > 0) {
-    state.spreadDeg = spreadReduce(state.spreadDeg, spreadLv, cfg.SPREAD_SHOP_STEP_DEG);
-  }
+  // 弹道夹角：主体 / 分身各自独立，各自带自己的滑块偏移（spreadAdj）
+  state.spreadDeg = spreadOf(pu.spread || 0, pu.spreadAdj || 0);
+  state.cloneSpreadDeg = spreadOf(cu.spread || 0, cu.spreadAdj || 0);
 
   const items = prof.items || {};
   let used = false;
@@ -381,6 +396,7 @@ function applyProfileAssets() {
 
   if (items.spread > 0) {
     state.spreadDeg = spreadReduce(state.spreadDeg, items.spread, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
+    state.cloneSpreadDeg = spreadReduce(state.cloneSpreadDeg, items.spread, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
     used = true;
   }
 
@@ -539,6 +555,9 @@ function reloadUpdate() {
   if (state.ammo >= state.ammoMax) state.lastReloadDist = state.distance;
 }
 
+// 一次齐射：
+//   角度：相邻两发相差 step（弧度），围绕瞄准方向对称展开
+//   位置：沿「垂直弹道方向」错开，相邻两发刚好挨着（一颗子弹直径 + 1px）
 function fireUpdate(now) {
   const p = state.player;
   const s = state.aimStick;
@@ -566,17 +585,24 @@ function fireUpdate(now) {
 
   const n = Math.max(1, state.multishot);
   const step = spreadStepRad(state.spreadDeg);
+  const muzzleGap = cfg.BULLET_R * 2 + 1;
+
+  const perpX = -Math.sin(angle);
+  const perpY = Math.cos(angle);
 
   for (let i = 0; i < n; i++) {
-    const a = angle + (i - (n - 1) / 2) * step;
-    const mx = cx + Math.cos(a) * p.w * 0.75;
-    const my = cy + Math.sin(a) * p.w * 0.75;
+    const mid = i - (n - 1) / 2;
+    const a = angle + mid * step;
+    const off = mid * muzzleGap;
+
+    const mx = cx + Math.cos(a) * p.w * 0.75 + perpX * off;
+    const my = cy + Math.sin(a) * p.w * 0.75 + perpY * off;
 
     bullets.spawn(
       state.bullets,
       mx, my,
-      cx + Math.cos(a) * 900,
-      cy + Math.sin(a) * 900,
+      mx + Math.cos(a) * 900,
+      my + Math.sin(a) * 900,
       undefined, undefined,
       state.damage
     );
@@ -770,9 +796,10 @@ function applyPickup(it, now) {
     return;
   }
 
-  // 弹道夹角道具：相邻夹角再减固定度数（主体 / 分身共用）
+  // 弹道夹角道具：主体 / 分身各减一次（各自独立）
   if (it.kind === 'spread') {
     state.spreadDeg = spreadReduce(state.spreadDeg, 1, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
+    state.cloneSpreadDeg = spreadReduce(state.cloneSpreadDeg, 1, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
     audio.play('pickup');
     return;
   }
@@ -891,7 +918,7 @@ function update(dt, now) {
     fireMs: state.cloneFireMs,
     multishot: state.cloneMultishot,
     damage: state.cloneDamage,
-    spreadDeg: state.spreadDeg,
+    spreadDeg: state.cloneSpreadDeg,
   });
   clones.cull(state.clones, state.cameraX);
 
