@@ -10,7 +10,7 @@ const drawPickup = require('./drawPickup.js');
 const drawClone = require('./drawClone.js');
 
 const C = pal.C;
-const BUILD = 'game-17';
+const BUILD = 'game-18';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';

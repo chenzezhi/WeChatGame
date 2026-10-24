@@ -13,6 +13,18 @@ const USER_DATA = (wx.env && wx.env.USER_DATA_PATH) || '';
 let fs = null;
 try { fs = wx.getFileSystemManager(); } catch (e) { fs = null; }
 
+// ============ 开发期测试资产（上线前把这里改回 null） ============
+// 仅在 profile.json 不存在时作为初始值使用；一旦写过存档就失效。
+const DEV_PROFILE = {
+  coins: 99999,
+  bossKills: 0,
+  upgrades: { hp: 5, fire: 10, multi: 5, spread: 0, damage: 50, cloneLife: 5, ammo: 10, reload: 5 },
+  cloneUpgrades: { hp: 0, fire: 5, multi: 2, spread: 0, damage: 20 },
+  items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0, spread: 0 },
+  permClones: 2,
+};
+// ================================================================
+
 function ready() {
   return !!fs && !!USER_DATA;
 }
@@ -22,6 +34,11 @@ function filePath() {
 }
 
 function defaults() {
+  if (DEV_PROFILE) {
+    // 返回深拷贝，避免被调用方改坏测试常量
+    return normalize(JSON.parse(JSON.stringify(DEV_PROFILE)));
+  }
+
   return {
     coins: 0,
     bossKills: 0,
@@ -52,7 +69,15 @@ function readUpgrades(src) {
 }
 
 function normalize(src) {
-  const out = defaults();
+  const out = {
+    coins: 0,
+    bossKills: 0,
+    upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
+    cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0 },
+    items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0, spread: 0 },
+    permClones: 0,
+  };
+
   if (!src || typeof src !== 'object') return out;
 
   out.coins = int(src.coins);
