@@ -1,9 +1,10 @@
-// 商店参数聚合：升级加成 / 价格规则
+// 商店参数聚合：升级加成 / 价格规则 / 等级上限
 
 const upgrade = require('./upgrade.js');
 const price = require('./price.js');
+const limit = require('./limit.js');
 
-const MODULES = [upgrade, price];
+const MODULES = [upgrade, price, limit];
 
 function merge() {
   const out = {};

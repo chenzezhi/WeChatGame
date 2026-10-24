@@ -1,5 +1,6 @@
-// 商店控制器：升级（主体 / 分身） + 购买道具 + 永久分身。
-// 只认「点击」：按下不动、在同一行松手才生效；按住或滑动都不触发。
+// 商店控制器：升级（主体 / 分身） + 购买道具 + 永久分身 + 弹道夹角滑块。
+// 点击：按下不动、在同一行松手才生效。
+// 滑块：按住夹角行左侧的滑块上下拖动，实时生效（松手才落盘）。
 
 const scenes = require('../core/scenes.js');
 const profile = require('../core/profile.js');
@@ -19,22 +20,30 @@ const state = {
   downY: 0,
   downBtn: null,
   moved: false,
+
+  drag: null,      // 正在拖动的夹角滑块
 };
 
 function toast(title) {
   try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
+// 只重建视图，不重新读盘（拖动时用）
+function applyView() {
+  state.coins = (state.data && state.data.coins) || 0;
+  state.built = buttons.build(state.data, state.tab);
+}
+
 function refresh() {
   state.data = profile.read();
-  state.coins = state.data.coins;
-  state.built = buttons.build(state.data, state.tab);
+  applyView();
 }
 
 function resetDown() {
   state.downId = -1;
   state.downBtn = null;
   state.moved = false;
+  state.drag = null;
 }
 
 function spend(cost) {
@@ -49,7 +58,7 @@ function spend(cost) {
 
 function upgradeStore(isClone) {
   if (!state.data.cloneUpgrades) {
-    state.data.cloneUpgrades = { hp: 0, fire: 0, multi: 0, damage: 0 };
+    state.data.cloneUpgrades = { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0 };
   }
 
   return isClone ? state.data.cloneUpgrades : state.data.upgrades;
@@ -58,8 +67,13 @@ function upgradeStore(isClone) {
 function doUpgrade(id, isClone) {
   const store = upgradeStore(isClone);
   const lv = store[id] || 0;
-  const cost = buttons.costOf(id, lv, isClone);
 
+  if (buttons.isMaxLevel(id, lv)) {
+    toast('已经满级了');
+    return;
+  }
+
+  const cost = buttons.costOf(id, lv, isClone);
   if (!spend(cost)) return;
 
   store[id] = lv + 1;
@@ -101,6 +115,24 @@ function doBuyPermClone() {
   refresh();
 
   toast('获得 1 个永久分身');
+}
+
+// ---------------- 夹角滑块 ----------------
+function applyDrag(y) {
+  const d = state.drag;
+  if (!d || !(d.range > 0)) return;
+
+  const h = d.rect.h > 1 ? d.rect.h : 1;
+  let t = (y - d.rect.y) / h;
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+
+  const adj = Math.round((1 - t) * d.range * 10) / 10;
+  const store = d.isClone ? state.data.cloneUpgrades : state.data.upgrades;
+  if (!store) return;
+
+  store.spreadAdj = adj;
+  applyView();
 }
 
 function act(b) {
@@ -146,6 +178,25 @@ function touchStart(e) {
   const p = e.touches && e.touches[0];
   if (!p) return;
 
+  const sliderRow = buttons.hitSlider(state.built, p.x, p.y);
+
+  if (sliderRow) {
+    state.downId = p.id;
+    state.downX = p.x;
+    state.downY = p.y;
+    state.moved = false;
+    state.downBtn = null;
+    state.drag = {
+      id: p.id,
+      rect: { x: sliderRow.slider.x, y: sliderRow.slider.y, w: sliderRow.slider.w, h: sliderRow.slider.h },
+      range: sliderRow.sliderRange || 0,
+      isClone: sliderRow.kind === 'clone-upgrade',
+    };
+    applyDrag(p.y);
+    return;
+  }
+
+  state.drag = null;
   state.downId = p.id;
   state.downX = p.x;
   state.downY = p.y;
@@ -165,6 +216,11 @@ function touchMove(e) {
 
   if (!p) return;
 
+  if (state.drag) {
+    applyDrag(p.y);
+    return;
+  }
+
   const dx = p.x - state.downX;
   const dy = p.y - state.downY;
 
@@ -179,6 +235,15 @@ function touchEnd(e) {
 
   for (let i = 0; i < changed.length; i++) {
     if (changed[i].id === state.downId) { p = changed[i]; break; }
+  }
+
+  // 拖动滑块结束：落盘并重建
+  if (state.drag) {
+    if (p) applyDrag(p.y);
+    resetDown();
+    profile.write(state.data);
+    refresh();
+    return;
   }
 
   const x = p ? p.x : state.downX;

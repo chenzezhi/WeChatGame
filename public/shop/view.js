@@ -2,7 +2,7 @@
 
 const canvasKit = require('../core/canvas.js');
 
-const BUILD = 'shop-4';
+const BUILD = 'shop-5';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -16,6 +16,7 @@ const COLOR = {
   coin: '#ffd34d',
   coinText: '#ffd34d',
   poor: 'rgba(255,255,255,0.35)',
+  maxed: 'rgba(255,255,255,0.28)',
 };
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -120,43 +121,80 @@ function drawTabs(ctx, built) {
   }
 }
 
-function rowSub(row) {
-  if (row.kind === 'item') {
-    return row.desc + (row.own > 0 ? ' · 已有 ' + row.own : '');
-  }
+// 夹角滑块：竖向，顶部 = 最大夹角，底部 = 已购买的最小夹角
+function drawSlider(ctx, row) {
+  const s = row.slider;
+  if (!s) return;
 
-  if (row.kind === 'perm-clone') {
-    return row.desc + (row.own > 0 ? ' · 已有 ' + row.own : '');
-  }
+  const cx = s.x + s.w / 2;
 
-  return row.desc + ' · Lv.' + row.level;
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx, s.y + 5);
+  ctx.lineTo(cx, s.y + s.h - 5);
+  ctx.stroke();
+
+  let t = typeof row.sliderRatio === 'number' ? row.sliderRatio : 1;
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+
+  const ky = s.y + 5 + (s.h - 10) * t;
+
+  ctx.fillStyle = COLOR.accent;
+  ctx.beginPath();
+  ctx.arc(cx, ky, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.lineCap = 'butt';
 }
 
 function drawRow(ctx, row, coins) {
-  const poor = coins < row.cost;
+  const maxed = !!row.maxed;
+  const poor = !maxed && coins < row.cost;
+  const dim = maxed || poor;
 
-  ctx.fillStyle = COLOR.card;
+  ctx.fillStyle = maxed ? 'rgba(255,255,255,0.03)' : COLOR.card;
   roundRect(ctx, row.x, row.y, row.w, row.h, 12);
   ctx.fill();
 
-  ctx.strokeStyle = poor ? 'rgba(255,255,255,0.10)' : COLOR.cardStroke;
+  ctx.strokeStyle = dim ? 'rgba(255,255,255,0.10)' : COLOR.cardStroke;
   ctx.lineWidth = 1.4;
   ctx.stroke();
+
+  if (row.slider) drawSlider(ctx, row);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
 
   const midY = row.y + row.h / 2;
   const twoLine = row.h >= 40;
+  const tx = typeof row.textX === 'number' ? row.textX : row.x + 13;
 
   ctx.font = 'bold 14px sans-serif';
-  ctx.fillStyle = poor ? COLOR.poor : COLOR.text;
-  ctx.fillText(row.label, row.x + 13, midY - (twoLine ? 7 : 0));
+  ctx.fillStyle = maxed ? COLOR.maxed : (poor ? COLOR.poor : COLOR.text);
+  ctx.fillText(row.label, tx, midY - (twoLine ? 7 : 0));
 
   if (twoLine) {
     ctx.font = '10px sans-serif';
-    ctx.fillStyle = COLOR.textDim;
-    ctx.fillText(rowSub(row), row.x + 13, midY + 9);
+    ctx.fillStyle = maxed ? 'rgba(255,255,255,0.30)' : COLOR.textDim;
+    ctx.fillText(row.desc || '', tx, midY + 9);
+  }
+
+  // 满级：右侧显示「满级」，不显示价格
+  if (maxed) {
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = 'rgba(94,224,192,0.55)';
+    ctx.fillText('满级', row.x + row.w - 13, midY + 1);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    return;
   }
 
   const priceX = row.x + row.w - 56;

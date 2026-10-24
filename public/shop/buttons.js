@@ -1,38 +1,135 @@
 // 商店布局与命中检测。三个页签：主体 / 分身 / 道具。
 // 价格与数值全部来自 config/shop/，这里不硬编码。
+//
+// 行数据（row）字段：
+//   kind        upgrade | clone-upgrade | item | perm-clone | back | tab
+//   level       当前等级
+//   maxLevel    满级等级
+//   maxed       是否已满级（满级后变灰、显示「满级」）
+//   desc        小字提示：未满级 = 「当前值 · 每级 +X」，满级 = 只有当前值
+//   slider      弹道夹角行专属：滑块矩形
+//   sliderRange 滑块可调范围（度）
+//   sliderRatio 滑块位置 0(顶=最大夹角) ~ 1(底=已购买的最小夹角)
 
 const canvasKit = require('../core/canvas.js');
 const cfg = require('../game/config.js');
 
 const PRICES = cfg.SHOP_ITEM_PRICES || {};
+const MAXLV = cfg.SHOP_MAX_LEVEL || {};
 
 function itemPrice(id) {
   const v = PRICES[id];
   return typeof v === 'number' ? v : 1;
 }
 
-// 主体属性升级
+// ---------------- 数值换算（与 game/index.js 的算法保持一致） ----------------
+function fireMsAt(startMs, level, ratio, minMs) {
+  let ms = startMs;
+  const lv = level > 0 ? level : 0;
+
+  for (let i = 0; i < lv; i++) {
+    ms = Math.round(ms * ratio);
+    if (ms < minMs) ms = minMs;
+  }
+
+  return ms;
+}
+
+function spreadBaseAt(level) {
+  const lv = level > 0 ? level : 0;
+  let v = cfg.MULTI_SPREAD_DEG - cfg.SPREAD_SHOP_STEP_DEG * lv;
+  if (v < cfg.SPREAD_MIN_DEG) v = cfg.SPREAD_MIN_DEG;
+  if (v > cfg.MULTI_SPREAD_DEG) v = cfg.MULTI_SPREAD_DEG;
+  return Math.round(v * 100) / 100;
+}
+
+function fixed1(v) {
+  return (Math.round(v * 10) / 10).toFixed(1);
+}
+
+// 返回 { v: 当前值文本, step: 每级变化文本 }
+function statOf(id, level, isClone, adj) {
+  const lv = level > 0 ? level : 0;
+
+  if (id === 'hp') {
+    const base = isClone ? cfg.CLONE_HP_BASE : cfg.PLAYER_MAX_HP;
+    const v = Math.min(cfg.LEVEL_HP_MAX, base + cfg.SHOP_HP_GAIN * lv);
+    return { v: String(v), step: '每级 +' + cfg.SHOP_HP_GAIN };
+  }
+
+  if (id === 'fire') {
+    const ms = fireMsAt(cfg.PLAYER_FIRE_MS_START, lv, cfg.SHOP_FIRE_RATIO, cfg.PLAYER_FIRE_MS_MIN);
+    return { v: ms + 'ms', step: '每级 ×' + cfg.SHOP_FIRE_RATIO };
+  }
+
+  if (id === 'multi') {
+    const v = Math.min(cfg.PLAYER_MULTI_MAX, cfg.PLAYER_MULTI_START + cfg.SHOP_MULTI_GAIN * lv);
+    return { v: v + ' 发', step: '每级 +' + cfg.SHOP_MULTI_GAIN };
+  }
+
+  if (id === 'spread') {
+    const base = spreadBaseAt(lv);
+    const range = cfg.MULTI_SPREAD_DEG - base;
+    let a = adj > 0 ? adj : 0;
+    if (a > range) a = range;
+    const eff = base + a;
+    return { v: fixed1(eff) + '°', step: '每级 -' + cfg.SPREAD_SHOP_STEP_DEG + '°' };
+  }
+
+  if (id === 'damage') {
+    const v = Math.min(cfg.PLAYER_DAMAGE_MAX, cfg.PLAYER_DAMAGE_START + cfg.SHOP_DAMAGE_GAIN * lv);
+    return { v: fixed1(v), step: '每级 +' + cfg.SHOP_DAMAGE_GAIN };
+  }
+
+  if (id === 'ammo') {
+    const v = Math.min(cfg.PLAYER_AMMO_MAX, cfg.PLAYER_AMMO_START + cfg.SHOP_AMMO_GAIN * lv);
+    return { v: v + ' 发', step: '每级 +' + cfg.SHOP_AMMO_GAIN };
+  }
+
+  if (id === 'reload') {
+    const v = Math.max(cfg.RELOAD_M_MIN, cfg.RELOAD_M_START - cfg.RELOAD_SHOP_STEP_M * lv);
+    return { v: v + 'm', step: '每级 -' + cfg.RELOAD_SHOP_STEP_M + 'm' };
+  }
+
+  if (id === 'cloneLife') {
+    const ms = Math.min(cfg.CLONE_LIFE_MAX_MS, cfg.CLONE_LIFE_BASE_MS + cfg.CLONE_LIFE_STEP_MS * lv);
+    return { v: fixed1(ms / 1000) + 's', step: '每级 +' + fixed1(cfg.CLONE_LIFE_STEP_MS / 1000) + 's' };
+  }
+
+  return { v: '', step: '' };
+}
+
+function maxLevelOf(id) {
+  const v = MAXLV[id];
+  return typeof v === 'number' ? v : 0;
+}
+
+function isMaxLevel(id, level) {
+  const max = maxLevelOf(id);
+  if (max <= 0) return false;
+  return (level > 0 ? level : 0) >= max;
+}
+
+// ---------------- 商品列表 ----------------
 const PLAYER_UPGRADES = [
-  { id: 'hp', label: '生命上限', desc: '每级 +' + cfg.SHOP_HP_GAIN + ' 生命' },
-  { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
-  { id: 'multi', label: '子弹数量', desc: '每级 +' + cfg.SHOP_MULTI_GAIN + ' 发子弹' },
-  { id: 'spread', label: '弹道夹角', desc: '每级 -' + cfg.SPREAD_SHOP_STEP_DEG + '° 相邻夹角（越集中）' },
-  { id: 'damage', label: '子弹伤害', desc: '每级 +' + cfg.SHOP_DAMAGE_GAIN + ' 伤害' },
-  { id: 'ammo', label: '弹夹容量', desc: '每级 +' + cfg.SHOP_AMMO_GAIN + ' 发（上限 ' + cfg.PLAYER_AMMO_MAX + '）' },
-  { id: 'reload', label: '装填速度', desc: '每级 -' + cfg.RELOAD_SHOP_STEP_M + ' 米（最快 ' + cfg.RELOAD_M_MIN + ' 米）' },
-  { id: 'cloneLife', label: '分身时长', desc: '每级 +' + Math.round(cfg.CLONE_LIFE_STEP_MS / 1000) + ' 秒存活' },
+  { id: 'hp', label: '生命上限' },
+  { id: 'fire', label: '攻击速度' },
+  { id: 'multi', label: '子弹数量' },
+  { id: 'spread', label: '弹道夹角' },
+  { id: 'damage', label: '子弹伤害' },
+  { id: 'ammo', label: '弹夹容量' },
+  { id: 'reload', label: '装填速度' },
+  { id: 'cloneLife', label: '分身时长' },
 ];
 
-// 分身属性升级（夹角与主体共用同一个值）
 const CLONE_UPGRADES = [
-  { id: 'hp', label: '生命上限', desc: '每级 +' + cfg.SHOP_HP_GAIN + ' 生命' },
-  { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
-  { id: 'multi', label: '子弹数量', desc: '每级 +' + cfg.SHOP_MULTI_GAIN + ' 发子弹' },
-  { id: 'spread', label: '弹道夹角', desc: '每级 -' + cfg.SPREAD_SHOP_STEP_DEG + '° 相邻夹角（与主体共通）' },
-  { id: 'damage', label: '子弹伤害', desc: '每级 +' + cfg.SHOP_DAMAGE_GAIN + ' 伤害' },
+  { id: 'hp', label: '生命上限' },
+  { id: 'fire', label: '攻击速度' },
+  { id: 'multi', label: '子弹数量' },
+  { id: 'spread', label: '弹道夹角' },
+  { id: 'damage', label: '子弹伤害' },
 ];
 
-// 道具购买项（价格来自 config/shop/price.js）
 const ITEMS = [
   { id: 'heal', label: '生命药水', desc: '本局开局 +' + cfg.SHOP_ITEM_HEAL_HP + ' 最大生命', price: itemPrice('heal') },
   { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: itemPrice('speed') },
@@ -129,9 +226,11 @@ function build(data, tab) {
         id: it.id,
         kind: 'item',
         label: it.label,
-        desc: it.desc,
+        desc: it.desc + (own > 0 ? ' · 已有 ' + own : ''),
         own: own,
         cost: it.price,
+        maxed: false,
+        textX: x + 13,
         x: x,
         y: y,
         w: w,
@@ -140,19 +239,44 @@ function build(data, tab) {
     } else {
       const store = isClone ? (data && data.cloneUpgrades) : (data && data.upgrades);
       const lv = (store && store[it.id]) || 0;
+      const adj = (store && store.spreadAdj) || 0;
 
-      rows.push({
+      const maxed = isMaxLevel(it.id, lv);
+      const stat = statOf(it.id, lv, isClone, adj);
+
+      const row = {
         id: it.id,
         kind: isClone ? 'clone-upgrade' : 'upgrade',
         label: it.label,
-        desc: it.desc,
+        desc: maxed ? stat.v : (stat.v + ' · ' + stat.step),
         level: lv,
-        cost: costOf(it.id, lv, isClone),
+        maxLevel: maxLevelOf(it.id),
+        maxed: maxed,
+        cost: maxed ? 0 : costOf(it.id, lv, isClone),
+        textX: x + 13,
         x: x,
         y: y,
         w: w,
         h: rh,
-      });
+      };
+
+      // 弹道夹角行：左侧加一条可拖动滑块（范围 = 已购买的最小夹角 ~ 初始夹角）
+      if (it.id === 'spread') {
+        const base = spreadBaseAt(lv);
+        const range = cfg.MULTI_SPREAD_DEG - base;
+
+        if (range > 0.01) {
+          let a = adj > 0 ? adj : 0;
+          if (a > range) a = range;
+
+          row.slider = { x: x + 6, y: y + 6, w: 30, h: Math.max(16, rh - 12) };
+          row.sliderRange = range;
+          row.sliderRatio = 1 - a / range;
+          row.textX = x + 44;
+        }
+      }
+
+      rows.push(row);
     }
 
     y += rh + gap;
@@ -165,9 +289,11 @@ function build(data, tab) {
       id: 'permClone',
       kind: 'perm-clone',
       label: '永久分身',
-      desc: '每局开局 +1 个永久分身',
+      desc: '每局开局 +1 个永久分身' + (owned > 0 ? ' · 已有 ' + owned : ''),
       own: owned,
       cost: permCloneCost(owned),
+      maxed: false,
+      textX: x + 13,
       x: x,
       y: y,
       w: w,
@@ -203,12 +329,31 @@ function hit(built, x, y) {
   return null;
 }
 
+// 命中哪一行的夹角滑块（留一点外扩，方便手指按住）
+function hitSlider(built, x, y) {
+  const rows = (built && built.rows) || [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r.slider) continue;
+
+    const s = r.slider;
+    if (x >= s.x - 8 && x <= s.x + s.w + 8 && y >= s.y - 6 && y <= s.y + s.h + 6) return r;
+  }
+
+  return null;
+}
+
 module.exports = {
   build: build,
   hit: hit,
+  hitSlider: hitSlider,
   costOf: costOf,
   baseCostOf: baseCostOf,
   spreadCost: spreadCost,
   permCloneCost: permCloneCost,
   upgradeCost: upgradeCost,
+  isMaxLevel: isMaxLevel,
+  maxLevelOf: maxLevelOf,
+  spreadBaseAt: spreadBaseAt,
 };

@@ -1,7 +1,6 @@
 // 分身（复制体）：玩家吃到「分身」道具 / 商店购买后生成一个客体。
 //
-// 物理与动画复用 player.js；射速 / 发数 / 伤害用的是「分身自己的属性」，与主体独立。
-// 弹道夹角与主体共用同一个值（spreadDeg），保证分身和玩家永远一致。
+// 物理与动画复用 player.js；射速 / 发数 / 伤害 / 弹道夹角 都用「分身自己的属性」，与主体独立。
 // 生存时间：
 //   spawn(..., lifeMs)  lifeMs > 0 → 存活这么多毫秒后消失
 //                       lifeMs = 0 → 永久（直到血量归零）
@@ -61,7 +60,7 @@ function spawn(level, owner, hp, now, lifeMs) {
   return c;
 }
 
-// stats: { fireMs, multishot, damage, spreadDeg } —— 分身的独立属性（夹角与主体共用）
+// stats: { fireMs, multishot, damage, spreadDeg } —— 分身的独立属性（夹角也是分身自己的）
 function update(level, dt, now, owner, enemies, playerBullets, stats) {
   const list = level.list;
 
@@ -74,6 +73,9 @@ function update(level, dt, now, owner, enemies, playerBullets, stats) {
   if (spreadDeg < cfg.SPREAD_MIN_DEG) spreadDeg = cfg.SPREAD_MIN_DEG;
 
   const step = (spreadDeg * Math.PI) / 180;
+
+  // 出发点错开：相邻两发刚好挨着（一颗子弹直径 + 1px 缝隙）
+  const muzzleGap = cfg.BULLET_R * 2 + 1;
 
   let i = 0;
   while (i < list.length) {
@@ -110,16 +112,22 @@ function update(level, dt, now, owner, enemies, playerBullets, stats) {
       if (now >= c.nextFireAt) {
         c.nextFireAt = now + fireMs;
 
+        const perpX = -Math.sin(angle);
+        const perpY = Math.cos(angle);
+
         for (let k = 0; k < multi; k++) {
-          const a = angle + (k - (multi - 1) / 2) * step;
-          const mx = cx + Math.cos(a) * c.w * 0.75;
-          const my = cy + Math.sin(a) * c.w * 0.75;
+          const mid = k - (multi - 1) / 2;
+          const a = angle + mid * step;
+          const off = mid * muzzleGap;
+
+          const mx = cx + Math.cos(a) * c.w * 0.75 + perpX * off;
+          const my = cy + Math.sin(a) * c.w * 0.75 + perpY * off;
 
           bullets.spawn(
             playerBullets,
             mx, my,
-            cx + Math.cos(a) * 900,
-            cy + Math.sin(a) * 900,
+            mx + Math.cos(a) * 900,
+            my + Math.sin(a) * 900,
             undefined, undefined,
             dmg
           );

@@ -5,7 +5,8 @@
 // cloneUpgrades 分身属性升级（独立计算，价格是主体的两倍）
 // permClones    已拥有的永久分身数量（每局开局都会生成）
 //
-// spread（弹道夹角）在主体与分身两个 store 里都存在，但作用的是同一个共享属性。
+// spread     弹道夹角的等级（主体 / 分身各自独立）
+// spreadAdj  弹道夹角的手动偏移（度）：在「已购买的夹角」到「初始夹角」之间自由调整
 
 const FILE_NAME = 'profile.json';
 const USER_DATA = (wx.env && wx.env.USER_DATA_PATH) || '';
@@ -14,14 +15,14 @@ let fs = null;
 try { fs = wx.getFileSystemManager(); } catch (e) { fs = null; }
 
 // ============ 开发期测试资产（上线前把这里改回 null） ============
-// 仅在 profile.json 不存在时作为初始值使用；一旦写过存档就失效。
+// 仅在 profile.json 不存在时作为初始值使用；也可以在设置页点「重置游戏数据」重新写入。
 const DEV_PROFILE = {
-  coins: 9999999,
+  coins: 99999,
   bossKills: 0,
-  upgrades: { hp: 5, fire: 10, multi: 5, spread: 0, damage: 50, cloneLife: 5, ammo: 10, reload: 5 },
-  cloneUpgrades: { hp: 0, fire: 5, multi: 2, spread: 0, damage: 20 },
+  upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
+  cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0 },
   items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0, spread: 0 },
-  permClones: 2,
+  permClones: 0,
 };
 // ================================================================
 
@@ -42,8 +43,8 @@ function defaults() {
   return {
     coins: 0,
     bossKills: 0,
-    upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
-    cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0 },
+    upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
+    cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0 },
     items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0, spread: 0 },
     permClones: 0,
   };
@@ -61,6 +62,7 @@ function readUpgrades(src) {
     fire: int(u.fire),
     multi: int(u.multi),
     spread: int(u.spread),
+    spreadAdj: num(u.spreadAdj),
     damage: int(u.damage),
     cloneLife: int(u.cloneLife),
     ammo: int(u.ammo),
@@ -68,12 +70,17 @@ function readUpgrades(src) {
   };
 }
 
+function num(v) {
+  const n = (typeof v === 'number' && isFinite(v)) ? v : 0;
+  return n > 0 ? n : 0;
+}
+
 function normalize(src) {
   const out = {
     coins: 0,
     bossKills: 0,
-    upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
-    cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0 },
+    upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
+    cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0 },
     items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0, spread: 0 },
     permClones: 0,
   };
