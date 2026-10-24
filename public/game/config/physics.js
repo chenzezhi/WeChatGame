@@ -1,5 +1,6 @@
-// 物理手感 / 跳跃 / 初始血量 / 眨眼
+// 物理手感 / 跳跃
 // 单位：速度 = 像素/毫秒，加速度 = 像素/毫秒²，时间 = 毫秒
+// 注意：血量在 player/hp.js，眨眼动画在 player/animate.js，不放在这里。
 
 // ---------------- 物理手感 ----------------
 const GRAVITY = 0.0016;      // 重力：越大下落越快
@@ -13,14 +14,6 @@ const AIR_FRICTION = 0.0006;    // 空中摩擦：空中松手减速很慢
 const COYOTE_MS = 90;        // 土狼时间：刚离地多少毫秒内还能起跳
 const JUMP_BUFFER_MS = 130;  // 跳跃缓冲：提前多少毫秒按跳，落地自动起跳
 
-// ---------------- 初始血量 ----------------
-const PLAYER_MAX_HP = 20;    // 初始最大生命（升级 / 商店可提升）
-
-// ---------------- 眨眼动画 ----------------
-const BLINK_MIN_MS = 2200;     // 两次眨眼最短间隔
-const BLINK_MAX_MS = 4200;     // 两次眨眼最长间隔（中间随机）
-const BLINK_DURATION_MS = 130; // 每次闭眼持续多久
-
 module.exports = {
   GRAVITY: GRAVITY,
   MAX_FALL: MAX_FALL,
@@ -32,8 +25,4 @@ module.exports = {
   AIR_FRICTION: AIR_FRICTION,
   COYOTE_MS: COYOTE_MS,
   JUMP_BUFFER_MS: JUMP_BUFFER_MS,
-  PLAYER_MAX_HP: PLAYER_MAX_HP,
-  BLINK_MIN_MS: BLINK_MIN_MS,
-  BLINK_MAX_MS: BLINK_MAX_MS,
-  BLINK_DURATION_MS: BLINK_DURATION_MS,
 };

@@ -1,7 +1,15 @@
 // 商店布局与命中检测。三个页签：主体 / 分身 / 道具。
+// 价格与数值全部来自 config/shop/，这里不硬编码。
 
 const canvasKit = require('../core/canvas.js');
 const cfg = require('../game/config.js');
+
+const PRICES = cfg.SHOP_ITEM_PRICES || {};
+
+function itemPrice(id) {
+  const v = PRICES[id];
+  return typeof v === 'number' ? v : 1;
+}
 
 // 主体属性升级
 const PLAYER_UPGRADES = [
@@ -24,16 +32,16 @@ const CLONE_UPGRADES = [
   { id: 'damage', label: '子弹伤害', desc: '每级 +' + cfg.SHOP_DAMAGE_GAIN + ' 伤害' },
 ];
 
-// 道具购买项（价格固定，仅本局有效）
+// 道具购买项（价格来自 config/shop/price.js）
 const ITEMS = [
-  { id: 'heal', label: '生命药水', desc: '本局开局 +3 最大生命', price: 3 },
-  { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: 3 },
-  { id: 'multi', label: '多发道具', desc: '本局开局 +1 发子弹', price: 4 },
-  { id: 'spread', label: '夹角道具', desc: '本局开局弹道夹角 -0.5%', price: 6 },
-  { id: 'damage', label: '伤害道具', desc: '本局开局 +0.1 伤害', price: 5 },
-  { id: 'ammo', label: '弹药包', desc: '本局开局补满弹夹', price: 3 },
-  { id: 'reload', label: '快速装填', desc: '本局装填距离 ×0.8', price: 4 },
-  { id: 'clone', label: '分身道具（本局）', desc: '本局开局召唤 1 个永久分身', price: 8 },
+  { id: 'heal', label: '生命药水', desc: '本局开局 +' + cfg.SHOP_ITEM_HEAL_HP + ' 最大生命', price: itemPrice('heal') },
+  { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: itemPrice('speed') },
+  { id: 'multi', label: '多发道具', desc: '本局开局 +' + cfg.SHOP_ITEM_MULTI_GAIN + ' 发子弹', price: itemPrice('multi') },
+  { id: 'spread', label: '夹角道具', desc: '本局开局弹道夹角 -0.5%', price: itemPrice('spread') },
+  { id: 'damage', label: '伤害道具', desc: '本局开局 +' + cfg.SHOP_ITEM_DAMAGE_GAIN + ' 伤害', price: itemPrice('damage') },
+  { id: 'ammo', label: '弹药包', desc: '本局开局补满弹夹', price: itemPrice('ammo') },
+  { id: 'reload', label: '快速装填', desc: '本局装填距离 ×' + cfg.SHOP_ITEM_RELOAD_RATIO, price: itemPrice('reload') },
+  { id: 'clone', label: '分身道具（本局）', desc: '本局开局召唤 1 个永久分身', price: itemPrice('clone') },
 ];
 
 // 通用升级费用：0 级 1 枚，之后 2 / 4 / 7 / 11 …
@@ -48,7 +56,7 @@ function multiCost(level) {
   return 3 + lv * (lv + 1) * 2;
 }
 
-// 弹道夹角：10 / 14 / 22 / 34 / 50 …（套用子弹数量的成长倍率，只是起点 10）
+// 弹道夹角：10 / 14 / 22 / 34 / 50 …（套用子弹数量的成长倍率，起点 10）
 function spreadCost(level) {
   const lv = level > 0 ? level : 0;
   return cfg.SPREAD_COST_BASE + cfg.SPREAD_COST_GROWTH * lv * (lv + 1);
