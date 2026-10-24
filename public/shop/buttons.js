@@ -8,17 +8,19 @@ const PLAYER_UPGRADES = [
   { id: 'hp', label: '生命上限', desc: '每级 +' + cfg.SHOP_HP_GAIN + ' 生命' },
   { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
   { id: 'multi', label: '子弹数量', desc: '每级 +' + cfg.SHOP_MULTI_GAIN + ' 发子弹' },
+  { id: 'spread', label: '弹道夹角', desc: '每级 -0.5% 夹角（越集中）' },
   { id: 'damage', label: '子弹伤害', desc: '每级 +' + cfg.SHOP_DAMAGE_GAIN + ' 伤害' },
   { id: 'ammo', label: '弹夹容量', desc: '每级 +' + cfg.SHOP_AMMO_GAIN + ' 发（上限 ' + cfg.PLAYER_AMMO_MAX + '）' },
   { id: 'reload', label: '装填速度', desc: '每级 -' + cfg.RELOAD_SHOP_STEP_M + ' 米（最快 ' + cfg.RELOAD_M_MIN + ' 米）' },
   { id: 'cloneLife', label: '分身时长', desc: '每级 +' + Math.round(cfg.CLONE_LIFE_STEP_MS / 1000) + ' 秒存活' },
 ];
 
-// 分身属性升级
+// 分身属性升级（夹角与主体共用同一个值）
 const CLONE_UPGRADES = [
   { id: 'hp', label: '生命上限', desc: '每级 +' + cfg.SHOP_HP_GAIN + ' 生命' },
   { id: 'fire', label: '攻击速度', desc: '每级 射击间隔 -8%' },
   { id: 'multi', label: '子弹数量', desc: '每级 +' + cfg.SHOP_MULTI_GAIN + ' 发子弹' },
+  { id: 'spread', label: '弹道夹角', desc: '每级 -0.5% 夹角（与主体共通）' },
   { id: 'damage', label: '子弹伤害', desc: '每级 +' + cfg.SHOP_DAMAGE_GAIN + ' 伤害' },
 ];
 
@@ -27,6 +29,7 @@ const ITEMS = [
   { id: 'heal', label: '生命药水', desc: '本局开局 +3 最大生命', price: 3 },
   { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: 3 },
   { id: 'multi', label: '多发道具', desc: '本局开局 +1 发子弹', price: 4 },
+  { id: 'spread', label: '夹角道具', desc: '本局开局弹道夹角 -0.5%', price: 6 },
   { id: 'damage', label: '伤害道具', desc: '本局开局 +0.1 伤害', price: 5 },
   { id: 'ammo', label: '弹药包', desc: '本局开局补满弹夹', price: 3 },
   { id: 'reload', label: '快速装填', desc: '本局装填距离 ×0.8', price: 4 },
@@ -45,8 +48,15 @@ function multiCost(level) {
   return 3 + lv * (lv + 1) * 2;
 }
 
+// 弹道夹角：10 / 14 / 22 / 34 / 50 …（套用子弹数量的成长倍率，只是起点 10）
+function spreadCost(level) {
+  const lv = level > 0 ? level : 0;
+  return cfg.SPREAD_COST_BASE + cfg.SPREAD_COST_GROWTH * lv * (lv + 1);
+}
+
 function baseCostOf(id, level) {
   if (id === 'multi') return multiCost(level);
+  if (id === 'spread') return spreadCost(level);
   return baseCost(level);
 }
 
@@ -190,6 +200,7 @@ module.exports = {
   hit: hit,
   costOf: costOf,
   baseCostOf: baseCostOf,
+  spreadCost: spreadCost,
   permCloneCost: permCloneCost,
   upgradeCost: upgradeCost,
 };

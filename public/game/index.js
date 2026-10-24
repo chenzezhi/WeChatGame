@@ -41,6 +41,7 @@ const state = {
   fireMs: cfg.PLAYER_FIRE_MS_START,
   multishot: cfg.PLAYER_MULTI_START,
   damage: cfg.PLAYER_DAMAGE_START,
+  spreadDeg: cfg.MULTI_SPREAD_DEG,
 
   ammoMax: cfg.PLAYER_AMMO_START,
   ammo: cfg.PLAYER_AMMO_START,
@@ -213,6 +214,17 @@ function clampReloadM(m) {
   return m < cfg.RELOAD_M_MIN ? cfg.RELOAD_M_MIN : m;
 }
 
+// 弹道夹角：越小越集中，主体与分身共用同一个值
+function clampSpread(deg) {
+  return deg < cfg.SPREAD_MIN_DEG ? cfg.SPREAD_MIN_DEG : deg;
+}
+
+function spreadScale(base, levels, ratio) {
+  const lv = levels > 0 ? levels : 0;
+  if (lv <= 0) return base;
+  return clampSpread(base * Math.pow(ratio, lv));
+}
+
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
   state.bullets = bullets.create();
@@ -245,6 +257,7 @@ function resetWorld(startX) {
   state.fireMs = cfg.PLAYER_FIRE_MS_START;
   state.multishot = cfg.PLAYER_MULTI_START;
   state.damage = cfg.PLAYER_DAMAGE_START;
+  state.spreadDeg = cfg.MULTI_SPREAD_DEG;
 
   state.ammoMax = cfg.PLAYER_AMMO_START;
   state.ammo = cfg.PLAYER_AMMO_START;
@@ -321,6 +334,12 @@ function applyProfileAssets() {
     state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
   }
 
+  // 弹道夹角：主体 / 分身两个页签的升级都作用在同一个共享值上
+  const spreadLv = (pu.spread || 0) + (cu.spread || 0);
+  if (spreadLv > 0) {
+    state.spreadDeg = spreadScale(state.spreadDeg, spreadLv, cfg.SPREAD_SHOP_RATIO);
+  }
+
   const items = prof.items || {};
   let used = false;
 
@@ -347,6 +366,11 @@ function applyProfileAssets() {
     used = true;
   }
 
+  if (items.spread > 0) {
+    state.spreadDeg = spreadScale(state.spreadDeg, items.spread, cfg.SPREAD_ITEM_RATIO);
+    used = true;
+  }
+
   if (items.reload > 0) {
     let m = state.reloadM;
     for (let i = 0; i < items.reload; i++) m = m * cfg.RELOAD_ITEM_RATIO;
@@ -355,7 +379,7 @@ function applyProfileAssets() {
   }
 
   if (used) {
-    prof.items = { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0 };
+    prof.items = { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0, spread: 0 };
     profile.write(prof);
   }
 
@@ -528,7 +552,7 @@ function fireUpdate(now) {
   const cy = p.y + p.h * 0.45;
 
   const n = Math.max(1, state.multishot);
-  const step = (cfg.MULTI_SPREAD_DEG * Math.PI) / 180;
+  const step = (clampSpread(state.spreadDeg) * Math.PI) / 180;
 
   for (let i = 0; i < n; i++) {
     const a = angle + (i - (n - 1) / 2) * step;
@@ -733,6 +757,13 @@ function applyPickup(it, now) {
     return;
   }
 
+  // 弹道夹角道具：夹角再收窄 0.5%（主体 / 分身共用）
+  if (it.kind === 'spread') {
+    state.spreadDeg = spreadScale(state.spreadDeg, 1, cfg.SPREAD_ITEM_RATIO);
+    audio.play('pickup');
+    return;
+  }
+
   if (it.kind === 'ammo') {
     const add = it.amount > 0 ? it.amount : cfg.AMMO_ITEM_BASE;
     state.ammo = Math.min(state.ammoMax, state.ammo + add);
@@ -847,6 +878,7 @@ function update(dt, now) {
     fireMs: state.cloneFireMs,
     multishot: state.cloneMultishot,
     damage: state.cloneDamage,
+    spreadDeg: state.spreadDeg,
   });
   clones.cull(state.clones, state.cameraX);
 

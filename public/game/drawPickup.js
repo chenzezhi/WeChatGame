@@ -7,6 +7,7 @@ const STYLE = {
   clone: { halo: 'rgba(120,220,255,0.26)', core: 'rgba(232,250,255,0.95)', ring: '#59c8ff', icon: '#2f8fd6' },
   speed: { halo: 'rgba(255,205,90,0.26)', core: 'rgba(255,252,236,0.95)', ring: '#ffb02e', icon: '#e08a00' },
   multi: { halo: 'rgba(170,140,255,0.26)', core: 'rgba(246,240,255,0.95)', ring: '#a78bff', icon: '#6f4fd0' },
+  spread: { halo: 'rgba(120,255,220,0.26)', core: 'rgba(240,255,250,0.95)', ring: '#33e0b8', icon: '#0f9e7e' },
   heal: { halo: 'rgba(255,120,140,0.26)', core: 'rgba(255,244,246,0.95)', ring: '#ff5a72', icon: '#e02f4a' },
   coin: { halo: 'rgba(255,211,77,0.30)', core: 'rgba(255,250,230,0.95)', ring: '#ffd34d', icon: '#ffd34d' },
   damage: { halo: 'rgba(255,140,80,0.28)', core: 'rgba(255,246,238,0.95)', ring: '#ff8a3d', icon: '#e2551a' },
@@ -57,6 +58,24 @@ function drawMultiIcon(ctx, cx, cy, r, color) {
     ctx.arc(bx, cy - r * 0.28, r * 0.12, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+// 弹道夹角：三条线向一点收拢
+function drawSpreadIcon(ctx, cx, cy, r, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.6, r * 0.18);
+  ctx.lineCap = 'round';
+
+  const ys = [-r * 0.44, 0, r * 0.44];
+
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx + r * 0.48, cy + ys[i]);
+    ctx.lineTo(cx - r * 0.34, cy);
+    ctx.stroke();
+  }
+
+  ctx.lineCap = 'butt';
 }
 
 function drawHealIcon(ctx, cx, cy, r, color) {
@@ -177,6 +196,7 @@ function drawOne(ctx, it, cameraX, now) {
   ctx.save();
   if (it.kind === 'speed') drawSpeedIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'multi') drawMultiIcon(ctx, cx, cy, r, st.icon);
+  else if (it.kind === 'spread') drawSpreadIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'heal') drawHealIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'coin') drawCoinIcon(ctx, cx, cy, r, st.icon);
   else if (it.kind === 'damage') drawDamageIcon(ctx, cx, cy, r, st.icon);

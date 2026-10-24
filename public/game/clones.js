@@ -1,6 +1,7 @@
 // 分身（复制体）：玩家吃到「分身」道具 / 商店购买后生成一个客体。
 //
 // 物理与动画复用 player.js；射速 / 发数 / 伤害用的是「分身自己的属性」，与主体独立。
+// 弹道夹角与主体共用同一个值（spreadDeg），保证分身和玩家永远一致。
 // 生存时间：
 //   spawn(..., lifeMs)  lifeMs > 0 → 存活这么多毫秒后消失
 //                       lifeMs = 0 → 永久（直到血量归零）
@@ -60,14 +61,18 @@ function spawn(level, owner, hp, now, lifeMs) {
   return c;
 }
 
-// stats: { fireMs, multishot, damage } —— 分身的独立属性
+// stats: { fireMs, multishot, damage, spreadDeg } —— 分身的独立属性（夹角与主体共用）
 function update(level, dt, now, owner, enemies, playerBullets, stats) {
   const list = level.list;
 
   const fireMs = (stats && stats.fireMs > 0) ? stats.fireMs : cfg.PLAYER_FIRE_MS_START;
   const multi = (stats && stats.multishot > 0) ? stats.multishot : 1;
   const dmg = (stats && stats.damage > 0) ? stats.damage : cfg.PLAYER_DAMAGE_START;
-  const step = (cfg.MULTI_SPREAD_DEG * Math.PI) / 180;
+
+  let spreadDeg = (stats && stats.spreadDeg > 0) ? stats.spreadDeg : cfg.MULTI_SPREAD_DEG;
+  if (spreadDeg < cfg.SPREAD_MIN_DEG) spreadDeg = cfg.SPREAD_MIN_DEG;
+
+  const step = (spreadDeg * Math.PI) / 180;
 
   let i = 0;
   while (i < list.length) {

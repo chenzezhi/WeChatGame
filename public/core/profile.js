@@ -4,6 +4,8 @@
 // upgrades      主体属性升级
 // cloneUpgrades 分身属性升级（独立计算，价格是主体的两倍）
 // permClones    已拥有的永久分身数量（每局开局都会生成）
+//
+// spread（弹道夹角）在主体与分身两个 store 里都存在，但作用的是同一个共享属性。
 
 const FILE_NAME = 'profile.json';
 const USER_DATA = (wx.env && wx.env.USER_DATA_PATH) || '';
@@ -23,9 +25,9 @@ function defaults() {
   return {
     coins: 0,
     bossKills: 0,
-    upgrades: { hp: 0, fire: 0, multi: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
-    cloneUpgrades: { hp: 0, fire: 0, multi: 0, damage: 0 },
-    items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0 },
+    upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
+    cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, damage: 0 },
+    items: { heal: 0, speed: 0, multi: 0, clone: 0, damage: 0, ammo: 0, reload: 0, spread: 0 },
     permClones: 0,
   };
 }
@@ -41,6 +43,7 @@ function readUpgrades(src) {
     hp: int(u.hp),
     fire: int(u.fire),
     multi: int(u.multi),
+    spread: int(u.spread),
     damage: int(u.damage),
     cloneLife: int(u.cloneLife),
     ammo: int(u.ammo),
@@ -67,6 +70,7 @@ function normalize(src) {
   out.items.damage = int(it.damage);
   out.items.ammo = int(it.ammo);
   out.items.reload = int(it.reload);
+  out.items.spread = int(it.spread);
 
   return out;
 }

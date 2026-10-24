@@ -2,6 +2,7 @@
 //   clone  分身
 //   speed  攻速
 //   multi  散射
+//   spread 弹道夹角（变窄）
 //   heal   血瓶
 //   coin   金币
 //   damage 伤害
@@ -60,7 +61,7 @@ function nextDistFrom(dist) {
 }
 
 function pickKind(level) {
-  const kinds = ['clone', 'speed', 'multi', 'heal', 'coin', 'damage', 'ammo', 'reload'];
+  const kinds = ['clone', 'speed', 'multi', 'heal', 'coin', 'damage', 'ammo', 'reload', 'spread'];
   const base = [
     cfg.ITEM_WEIGHT_CLONE,
     cfg.ITEM_WEIGHT_SPEED,
@@ -70,6 +71,7 @@ function pickKind(level) {
     cfg.ITEM_WEIGHT_DAMAGE,
     cfg.ITEM_WEIGHT_AMMO,
     cfg.ITEM_WEIGHT_RELOAD,
+    cfg.ITEM_WEIGHT_SPREAD,
   ];
 
   let total = 0;
