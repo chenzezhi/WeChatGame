@@ -15,7 +15,7 @@ const RELOAD_ITEM_RATIO = 0.80; // 「快速装填」道具：装填距离 ×0.8
 // 「弹药」道具：立即补若干发（随距离变多）
 const AMMO_ITEM_BASE = 10;         // 基础补 10 发
 const AMMO_ITEM_STEP_M = 400;      // 每前进 400 米，补给量增加一次
-const AMMO_ITEM_GAIN_PER_STEP = 1; // 每次增加 2 发
+const AMMO_ITEM_GAIN_PER_STEP = 5; // 每次增加 5 发
 const AMMO_ITEM_MAX = 50;          // 单个弹药道具最多补 50 发
 
 module.exports = {
