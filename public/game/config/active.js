@@ -2,6 +2,7 @@
 // 价格在 config/shop/price.js，升级时长等级上限在 config/shop/limit.js。
 
 const screen = require('./screen.js');
+const controls = require('./controls.js');
 
 // ---------------- 护盾：免疫伤害 ----------------
 const SHIELD_DURATION_MS = 5000;  // 初始持续 5 秒
@@ -15,10 +16,14 @@ const GROW_SCALE = 1.5;           // 体积倍率（宽/高同时乘）
 // ---------------- 通用 ----------------
 const ACTIVE_DURATION_MAX_MS = 40000; // 时长上限 40 秒
 
-// ---------------- HUD 按钮（右上角，菜单按钮下方） ----------------
-const ACTIVE_BTN_SIZE = 46;
+// ---------------- HUD 按钮（瞄准摇杆右上角，避免和摇杆重叠） ----------------
+const ACTIVE_BTN_SIZE = 44;
 const ACTIVE_BTN_GAP = 8;
-const ACTIVE_BTN_Y = 110;
+
+// 右边缘贴着屏幕右边，底边在瞄准摇杆上方 14px
+const ACTIVE_BTN_Y = Math.round(
+  controls.AIM_CY - controls.AIM_RADIUS - 14 - ACTIVE_BTN_SIZE
+);
 const ACTIVE_BTN_X_RIGHT = screen.WIDTH - 12 - ACTIVE_BTN_SIZE;
 const ACTIVE_BTN_X_LEFT = ACTIVE_BTN_X_RIGHT - ACTIVE_BTN_SIZE - ACTIVE_BTN_GAP;
 

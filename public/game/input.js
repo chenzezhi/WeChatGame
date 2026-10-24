@@ -4,6 +4,8 @@
 //                   跳跃方向按角度分流：正上方 ±JOY_JUMP_STRAIGHT_DEG 内算竖直跳，
 //                   再偏就变成左上 / 右上斜跳（方向取自触发那一刻）。
 //   右摇杆（右下）：推动方向 = 子弹发射方向；推过死区即持续开火，回中停火。
+//
+// 自动开火开启时，可以用 setAimEnabled(false) 关掉右摇杆的抓取。
 
 const cfg = require('./config.js');
 
@@ -18,6 +20,7 @@ const state = {
   jumpRequested: false,
   jumpDir: 0,          // -1 左上 / 0 竖直 / 1 右上
 
+  aimEnabled: true,    // 自动开火时会被关掉
   aimId: -1,
   aimDX: 0,
   aimDY: 0,
@@ -34,6 +37,25 @@ function reset() {
   state.aimId = -1;
   state.aimDX = 0;
   state.aimDY = 0;
+}
+
+// 自动开火：关掉 / 打开右摇杆抓取
+function setAimEnabled(on) {
+  state.aimEnabled = !!on;
+
+  if (!state.aimEnabled) {
+    // 立刻松开正在按住的右摇杆
+    for (let i = 0; i < state.pointers.length; i++) {
+      if (state.pointers[i].id === state.aimId) {
+        state.pointers[i].role = 'none';
+        break;
+      }
+    }
+
+    state.aimId = -1;
+    state.aimDX = 0;
+    state.aimDY = 0;
+  }
 }
 
 function findPointer(id) {
@@ -119,7 +141,7 @@ function addPointer(t) {
   const dAim = distTo(t.x, t.y, cfg.AIM_CX, cfg.AIM_CY);
 
   const canJoy = state.joystickId < 0 && dJoy <= cfg.JOY_GRAB_R;
-  const canAim = state.aimId < 0 && dAim <= cfg.AIM_GRAB_R;
+  const canAim = state.aimEnabled && state.aimId < 0 && dAim <= cfg.AIM_GRAB_R;
 
   if (canJoy && canAim) {
     // 两个范围重叠时，取更近的那个
@@ -218,7 +240,7 @@ function getDir() {
 // 瞄准摇杆状态：held = 是否被按住；active = 推过死区（此时开火）
 function getAimStick() {
   const len = Math.sqrt(state.aimDX * state.aimDX + state.aimDY * state.aimDY);
-  const held = state.aimId >= 0;
+  const held = state.aimEnabled && state.aimId >= 0;
 
   return {
     held: held,
@@ -254,6 +276,7 @@ function consumeJump() {
 
 module.exports = {
   reset: reset,
+  setAimEnabled: setAimEnabled,
   touchStart: touchStart,
   touchMove: touchMove,
   touchEnd: touchEnd,

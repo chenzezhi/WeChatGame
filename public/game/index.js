@@ -1,4 +1,4 @@
-// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 主动道具 / 经验 / 弹夹 / 里程奖励 / 绘制。
+// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 主动道具 / 自动开火 / 绘制。
 
 const cfg = require('./config.js');
 const input = require('./input.js');
@@ -8,6 +8,7 @@ const enemies = require('./enemies.js');
 const pickups = require('./pickups.js');
 const clones = require('./clones.js');
 const activeKit = require('./active.js');
+const autoKit = require('./autofire.js');
 const view = require('./view.js');
 const audio = require('../core/audio.js');
 
@@ -61,6 +62,8 @@ const state = {
   activeUpgrades: { shield: 0, grow: 0 }, // 时长等级
   shieldUntil: 0,                         // 护盾到期时间（0 = 未开）
   growUntil: 0,                           // 变大到期时间（0 = 未开）
+
+  autoFire: false,                        // 自动开火（锁定朝正前方射击）
 
   joy: null,
   aimStick: null,
@@ -162,6 +165,7 @@ function closePause() {
   state.joy = null;
 
   input.reset();
+  input.setAimEnabled(!state.autoFire);
 }
 
 function hitPauseButton(x, y) {
@@ -377,6 +381,24 @@ function updateActive(now) {
   }
 }
 
+// ---------------- 自动开火 ----------------
+function setAutoFire(on) {
+  const next = !!on;
+  if (state.autoFire === next) return;
+
+  state.autoFire = next;
+
+  // 开：右摇杆隐藏，输入层也不再抓右摇杆
+  // 关：恢复自由瞄准
+  input.reset();
+  input.setAimEnabled(!next);
+
+  state.aimStick = input.getAimStick();
+  state.firing = false;
+
+  toast(next ? '自动开火已锁定' : '已解除锁定');
+}
+
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
   state.bullets = bullets.create();
@@ -427,6 +449,9 @@ function resetWorld(startX) {
   state.activeUpgrades = { shield: 0, grow: 0 };
   state.shieldUntil = 0;
   state.growUntil = 0;
+
+  state.autoFire = false;
+  input.setAimEnabled(true);
 
   // 读档续跑不补发已走过的里程
   state.coinMilestone = milestoneOf(state.distance);
@@ -572,6 +597,7 @@ function enter(payload) {
   payload = payload || {};
 
   input.reset();
+  input.setAimEnabled(true);
 
   state.phase = 'playing';
   state.paused = false;
@@ -596,6 +622,8 @@ function exit() {
   if (state.phase === 'playing') saveProgress();
   stopActive();
   input.reset();
+  input.setAimEnabled(true);
+  state.autoFire = false;
   state.paused = false;
   state.menuOpen = false;
 }
@@ -658,7 +686,7 @@ function damagePlayer(amount, now) {
   if (!p || !p.alive) return;
 
   // 护盾生效中：完全免疫
-  if (state.shieldUntil && now < state.shieldUntil) return;
+  if (state.shieldUntil && isFinite(state.shieldUntil) && now < state.shieldUntil) return;
 
   const dead = playerKit.damage(p, amount, now);
   if (!dead) {
@@ -704,17 +732,31 @@ function reloadUpdate() {
 //   位置：沿「垂直弹道方向」错开，相邻两发刚好挨着（一颗子弹直径 + 1px）
 function fireUpdate(now) {
   const p = state.player;
-  const s = state.aimStick;
+  if (!p || !p.alive) {
+    state.firing = false;
+    return;
+  }
 
-  state.firing = !!(s && s.active);
+  let angle;
 
-  if (!p || !p.alive || !state.firing) return;
+  if (state.autoFire) {
+    // 自动开火：锁定朝「正前方」（当前朝向）持续射击
+    angle = p.facing >= 0 ? 0 : Math.PI;
+    state.firing = true;
+    state.aimAngle = angle;
+  } else {
+    const s = state.aimStick;
+    const want = !!(s && s.active);
 
-  const angle = Math.atan2(s.dy, s.dx);
-  state.aimAngle = angle;
+    state.firing = want;
+    if (!want) return;
 
-  if (Math.cos(angle) >= 0) p.facing = 1;
-  else p.facing = -1;
+    angle = Math.atan2(s.dy, s.dx);
+    state.aimAngle = angle;
+
+    if (Math.cos(angle) >= 0) p.facing = 1;
+    else p.facing = -1;
+  }
 
   if (now < state.nextFireAt) return;
   if (state.ammo <= 0) return;
@@ -1084,7 +1126,7 @@ function update(dt, now) {
   reloadUpdate();
   fireUpdate(now);
 
-  if (!state.firing) {
+  if (!state.firing && !state.autoFire) {
     state.aimAngle = state.player.facing >= 0 ? 0 : Math.PI;
   }
 
@@ -1139,8 +1181,14 @@ function touchStart(e, now) {
     return;
   }
 
-  // 主动道具按钮（右上角）
   if (p) {
+    // 自动开火按钮：优先判定（关闭态是小钮，开启态铺满摇杆区域）
+    if (autoKit.hit(p.x, p.y, state.autoFire)) {
+      setAutoFire(!state.autoFire);
+      return;
+    }
+
+    // 主动道具按钮
     const id = activeKit.hit(p.x, p.y);
     if (id) {
       useActive(id, t);
@@ -1181,6 +1229,7 @@ if (typeof wx.onShow === 'function') {
   wx.onShow(function () {
     state.paused = false;
     input.reset();
+    input.setAimEnabled(!state.autoFire);
     audio.playBgm();
   });
 }
