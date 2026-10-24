@@ -1,4 +1,4 @@
-// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + HUD + 暂停弹窗。
+// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + 护盾光环 + HUD + 暂停弹窗。
 
 const cfg = require('./config.js');
 const pal = require('./palette.js');
@@ -8,15 +8,18 @@ const drawEnemy = require('./drawEnemy.js');
 const drawFx = require('./drawFx.js');
 const drawPickup = require('./drawPickup.js');
 const drawClone = require('./drawClone.js');
+const activeKit = require('./active.js');
 
 const C = pal.C;
-const BUILD = 'game-18';
+const BUILD = 'game-19';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';
 const ICON_DAMAGE = '#e2551a';
 const ICON_AMMO = '#1f6fd0';
 const ICON_AMMO_EMPTY = '#c0392b';
+const ICON_SHIELD = '#1f9ecf';
+const ICON_GROW = '#b45ad6';
 
 // ---------------- 背景 ----------------
 const CLOUD_SPAN = 1500;
@@ -247,6 +250,39 @@ function iconAmmo(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
+// 盾牌
+function iconShield(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color || ICON_SHIELD;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r * 0.86, cy - r * 0.56);
+  ctx.lineTo(cx + r * 0.86, cy + r * 0.14);
+  ctx.quadraticCurveTo(cx + r * 0.80, cy + r * 0.86, cx, cy + r * 1.06);
+  ctx.quadraticCurveTo(cx - r * 0.80, cy + r * 0.86, cx - r * 0.86, cy + r * 0.14);
+  ctx.lineTo(cx - r * 0.86, cy - r * 0.56);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// 变大：圈 + 向上箭头
+function iconGrow(ctx, cx, cy, r, color) {
+  const c = color || ICON_GROW;
+
+  ctx.strokeStyle = c;
+  ctx.lineWidth = Math.max(1.8, r * 0.24);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.74, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = c;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r * 0.44);
+  ctx.lineTo(cx + r * 0.36, cy + r * 0.20);
+  ctx.lineTo(cx - r * 0.36, cy + r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+}
+
 // ---------------- HUD ----------------
 function drawHp(ctx, player) {
   if (!player) return;
@@ -343,6 +379,86 @@ function drawMenuButton(ctx) {
   ctx.textBaseline = 'alphabetic';
 }
 
+// 主动道具按钮：右上角，菜单按钮下方
+function drawActiveBar(ctx, state, now) {
+  const items = activeKit.ITEMS;
+
+  for (let i = 0; i < items.length; i++) {
+    const id = items[i];
+    const r = activeKit.rectOf(id);
+    const count = (state.activeItems && state.activeItems[id]) || 0;
+    const until = (id === 'shield') ? state.shieldUntil : state.growUntil;
+    const on = !!until && now < until;
+
+    let bg = 'rgba(255,255,255,0.35)';
+    if (on) bg = 'rgba(94,224,192,0.90)';
+    else if (count > 0) bg = 'rgba(255,255,255,0.82)';
+
+    ctx.fillStyle = bg;
+    util.roundRectPath(ctx, r.x, r.y, r.w, r.h, 12);
+    ctx.fill();
+
+    ctx.strokeStyle = on ? '#5ee0c0' : 'rgba(29,58,82,0.25)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    const icx = r.x + r.w / 2;
+    const icy = r.y + r.h / 2 - 3;
+    const dim = (!on && count <= 0);
+
+    if (id === 'shield') iconShield(ctx, icx, icy, 11, dim ? 'rgba(29,58,82,0.35)' : ICON_SHIELD);
+    else iconGrow(ctx, icx, icy, 11, dim ? 'rgba(29,58,82,0.35)' : ICON_GROW);
+
+    // 右下角数量 / 剩余秒数
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = on ? '#0b3a34' : (count > 0 ? '#1d3a52' : 'rgba(29,58,82,0.45)');
+
+    let tag;
+    if (on) tag = Math.ceil((until - now) / 1000) + 's';
+    else tag = '×' + count;
+
+    ctx.fillText(tag, r.x + r.w - 5, r.y + r.h - 5);
+  }
+}
+
+// 护盾光环：包住玩家的青色光圈
+function drawShieldAura(ctx, state, now) {
+  const until = state.shieldUntil;
+  const p = state.player;
+
+  if (!until || now >= until || !p) return;
+
+  const cameraX = state.cameraX || 0;
+  const cx = p.x + p.w / 2 - cameraX;
+  const cy = p.y + p.h / 2;
+  const r = Math.max(p.w, p.h) * 0.78;
+
+  const pulse = 1 + Math.sin(now / 160) * 0.03;
+
+  ctx.save();
+
+  ctx.fillStyle = 'rgba(110,220,255,0.16)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(120,235,255,0.95)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * pulse, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.86, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function drawXp(ctx, state) {
   const x0 = 15;
   const y0 = 74;
@@ -423,10 +539,11 @@ function drawStats(ctx, state) {
   x += drawStatPill(ctx, x, y, iconAmmo, ammo + '/' + ammoMax, ammoColor) + gap;
 }
 
-function drawHud(ctx, state) {
+function drawHud(ctx, state, now) {
   drawHp(ctx, state.player);
   drawCoins(ctx, state);
   drawMenuButton(ctx);
+  drawActiveBar(ctx, state, now);
   drawXp(ctx, state);
   drawStats(ctx, state);
 
@@ -574,13 +691,14 @@ function draw(ctx, state, now) {
   drawClone.draw(ctx, state.clones, cameraX, now);
 
   if (state.player) {
+    drawShieldAura(ctx, state, now);
     drawPlayer.draw(ctx, state.player, cameraX, state.firing ? state.aimAngle : null, now);
   }
 
   drawFx.drawJoystick(ctx, state.joy);
   drawFx.drawAimStick(ctx, state.aimStick);
 
-  drawHud(ctx, state);
+  drawHud(ctx, state, now);
   drawHurtFlash(ctx, state.player, now);
 
   if (state.phase === 'dead') drawDead(ctx, state, now);

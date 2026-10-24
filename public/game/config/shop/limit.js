@@ -3,6 +3,7 @@
 
 const player = require('../player/index.js');
 const clone = require('../clone.js');
+const active = require('../active.js');
 const upgrade = require('./upgrade.js');
 
 // 按比例收敛（攻速）：一直乘 ratio 直到低于 minMs
@@ -19,7 +20,7 @@ function levelsByRatio(startMs, minMs, ratio) {
   return n;
 }
 
-// 按固定步长收敛（血量 / 弹夹 / 装填 / 夹角 / 分身时长）
+// 按固定步长收敛（血量 / 弹夹 / 装填 / 夹角 / 分身时长 / 主动道具时长）
 function levelsByStep(start, end, step) {
   if (!step) return 0;
   const diff = Math.abs((end - start) / step);
@@ -36,6 +37,10 @@ const SHOP_MAX_LEVEL = {
   ammo: levelsByStep(player.PLAYER_AMMO_START, player.PLAYER_AMMO_MAX, upgrade.SHOP_AMMO_GAIN),
   reload: levelsByStep(player.RELOAD_M_START, player.RELOAD_M_MIN, -upgrade.RELOAD_SHOP_STEP_M),
   cloneLife: levelsByStep(clone.CLONE_LIFE_BASE_MS, clone.CLONE_LIFE_MAX_MS, upgrade.CLONE_LIFE_STEP_MS),
+
+  // 主动道具：只能升级「持续时长」
+  shield: levelsByStep(active.SHIELD_DURATION_MS, active.ACTIVE_DURATION_MAX_MS, active.SHIELD_STEP_MS),
+  grow: levelsByStep(active.GROW_DURATION_MS, active.ACTIVE_DURATION_MAX_MS, active.GROW_STEP_MS),
 };
 
 module.exports = { SHOP_MAX_LEVEL: SHOP_MAX_LEVEL };

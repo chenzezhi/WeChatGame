@@ -2,7 +2,7 @@
 
 const canvasKit = require('../core/canvas.js');
 
-const BUILD = 'shop-5';
+const BUILD = 'shop-6';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -154,7 +154,21 @@ function drawSlider(ctx, row) {
   ctx.lineCap = 'butt';
 }
 
+function drawSection(ctx, row) {
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText(row.label, row.x + 2, row.y + row.h / 2 + 1);
+  ctx.textBaseline = 'alphabetic';
+}
+
 function drawRow(ctx, row, coins) {
+  if (row.kind === 'section') {
+    drawSection(ctx, row);
+    return;
+  }
+
   const maxed = !!row.maxed;
   const poor = !maxed && coins < row.cost;
   const dim = maxed || poor;

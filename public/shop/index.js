@@ -1,4 +1,4 @@
-// 商店控制器：升级（主体 / 分身） + 购买道具 + 永久分身 + 弹道夹角滑块。
+// 商店控制器：升级（主体 / 分身） + 被动道具 + 主动道具（买 / 升时长） + 永久分身 + 夹角滑块。
 // 点击：按下不动、在同一行松手才生效。
 // 滑块：按住夹角行左侧的滑块上下拖动，实时生效（松手才落盘）。
 
@@ -117,6 +117,41 @@ function doBuyPermClone() {
   toast('获得 1 个永久分身');
 }
 
+// ---------------- 主动道具 ----------------
+function doActiveBuy(id) {
+  const row = findRow('active-buy', id);
+  if (!row) return;
+  if (!spend(row.cost)) return;
+
+  if (!state.data.activeItems) state.data.activeItems = { shield: 0, grow: 0 };
+  state.data.activeItems[id] = (state.data.activeItems[id] || 0) + 1;
+
+  profile.write(state.data);
+  refresh();
+
+  toast('购买成功 · 已有 ' + state.data.activeItems[id]);
+}
+
+function doActiveUpgrade(id) {
+  const row = findRow('active-upgrade', id);
+  if (!row) return;
+
+  if (row.maxed) {
+    toast('时长已经满级');
+    return;
+  }
+
+  if (!spend(row.cost)) return;
+
+  if (!state.data.activeUpgrades) state.data.activeUpgrades = { shield: 0, grow: 0 };
+  state.data.activeUpgrades[id] = (state.data.activeUpgrades[id] || 0) + 1;
+
+  profile.write(state.data);
+  refresh();
+
+  toast('时长提升 · Lv.' + state.data.activeUpgrades[id]);
+}
+
 // ---------------- 夹角滑块 ----------------
 function applyDrag(y) {
   const d = state.drag;
@@ -153,6 +188,8 @@ function act(b) {
   if (b.kind === 'upgrade') { doUpgrade(b.id, false); return; }
   if (b.kind === 'clone-upgrade') { doUpgrade(b.id, true); return; }
   if (b.kind === 'perm-clone') { doBuyPermClone(); return; }
+  if (b.kind === 'active-buy') { doActiveBuy(b.id); return; }
+  if (b.kind === 'active-upgrade') { doActiveUpgrade(b.id); return; }
   if (b.kind === 'item') { doBuy(b.id); }
 }
 

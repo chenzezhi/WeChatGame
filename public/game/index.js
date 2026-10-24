@@ -1,4 +1,4 @@
-// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 经验 / 弹夹 / 里程奖励 / 绘制。
+// 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 主动道具 / 经验 / 弹夹 / 里程奖励 / 绘制。
 
 const cfg = require('./config.js');
 const input = require('./input.js');
@@ -7,6 +7,7 @@ const bullets = require('./bullets.js');
 const enemies = require('./enemies.js');
 const pickups = require('./pickups.js');
 const clones = require('./clones.js');
+const activeKit = require('./active.js');
 const view = require('./view.js');
 const audio = require('../core/audio.js');
 
@@ -55,6 +56,12 @@ const state = {
   cloneHpBonus: 0,
   cloneLifeMs: cfg.CLONE_LIFE_BASE_MS,
 
+  // 主动道具
+  activeItems: { shield: 0, grow: 0 },    // 剩余个数
+  activeUpgrades: { shield: 0, grow: 0 }, // 时长等级
+  shieldUntil: 0,                         // 护盾到期时间（0 = 未开）
+  growUntil: 0,                           // 变大到期时间（0 = 未开）
+
   joy: null,
   aimStick: null,
   firing: false,
@@ -67,6 +74,10 @@ const state = {
   pausePanel: null,
   pauseButtons: [],
 };
+
+function toast(title) {
+  try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
+}
 
 function distanceOf(x) {
   const d = Math.floor((x - cfg.START_X) / cfg.DISTANCE_PER_UNIT);
@@ -254,6 +265,112 @@ function spreadStepRad(spreadDeg) {
   return (clampSpread(spreadDeg) * Math.PI) / 180;
 }
 
+// ---------------- 主动道具 ----------------
+function activeDurationOf(id) {
+  const lv = (state.activeUpgrades && state.activeUpgrades[id]) || 0;
+
+  if (id === 'shield') {
+    const ms = cfg.SHIELD_DURATION_MS + lv * cfg.SHIELD_STEP_MS;
+    return ms > cfg.ACTIVE_DURATION_MAX_MS ? cfg.ACTIVE_DURATION_MAX_MS : ms;
+  }
+
+  const ms = cfg.GROW_DURATION_MS + lv * cfg.GROW_STEP_MS;
+  return ms > cfg.ACTIVE_DURATION_MAX_MS ? cfg.ACTIVE_DURATION_MAX_MS : ms;
+}
+
+function isActiveNow(id, now) {
+  const until = (id === 'shield') ? state.shieldUntil : state.growUntil;
+  return !!until && now < until;
+}
+
+// 变大：开时按比例翻倍，结束时按同样比例还原（乘除而不是快照，升级途中也不丢属性）
+function applyGrow(on) {
+  const p = state.player;
+
+  if (on) {
+    state.fireMs = Math.max(cfg.PLAYER_FIRE_MS_MIN, Math.round(state.fireMs / 2));
+    state.damage = Math.round(state.damage * 2 * 10) / 10;
+    state.multishot = Math.max(1, state.multishot * 2);
+    state.ammoMax = Math.max(1, Math.round(state.ammoMax * 2));
+    state.reloadM = clampReloadM(Math.round(state.reloadM / 2 * 10) / 10);
+    state.ammo = state.ammoMax;
+
+    if (p) {
+      const oldH = p.h;
+      p.w = Math.round(p.w * cfg.GROW_SCALE);
+      p.h = Math.round(p.h * cfg.GROW_SCALE);
+      p.y = p.y + oldH - p.h;
+    }
+
+    return;
+  }
+
+  state.fireMs = Math.max(cfg.PLAYER_FIRE_MS_MIN, Math.round(state.fireMs * 2));
+  state.damage = roundDamage(state.damage / 2);
+  state.multishot = Math.max(1, Math.round(state.multishot / 2));
+  state.ammoMax = Math.max(1, Math.round(state.ammoMax / 2));
+  state.reloadM = clampReloadM(Math.round(state.reloadM * 2 * 10) / 10);
+  if (state.ammo > state.ammoMax) state.ammo = state.ammoMax;
+
+  if (p) {
+    const oldH = p.h;
+    p.w = cfg.PLAYER_W;
+    p.h = cfg.PLAYER_H;
+    p.y = p.y + oldH - p.h;
+  }
+}
+
+function useActive(id, now) {
+  const p = state.player;
+  if (!p || !p.alive) return;
+
+  const label = activeKit.LABEL[id] || '道具';
+
+  if (isActiveNow(id, now)) {
+    toast(label + ' 还在生效中');
+    return;
+  }
+
+  const count = (state.activeItems && state.activeItems[id]) || 0;
+  if (count <= 0) {
+    toast('没有 ' + label + ' 了');
+    return;
+  }
+
+  state.activeItems[id] = count - 1;
+
+  if (id === 'shield') {
+    state.shieldUntil = now + activeDurationOf('shield');
+  } else {
+    state.growUntil = now + activeDurationOf('grow');
+    applyGrow(true);
+  }
+
+  // 立刻落盘，避免退出丢数量
+  const prof = profile.read();
+  prof.activeItems = state.activeItems;
+  profile.write(prof);
+
+  audio.play('pickup');
+}
+
+function stopActive() {
+  if (state.growUntil) {
+    state.growUntil = 0;
+    applyGrow(false);
+  }
+  state.shieldUntil = 0;
+}
+
+function updateActive(now) {
+  if (state.shieldUntil && now >= state.shieldUntil) state.shieldUntil = 0;
+
+  if (state.growUntil && now >= state.growUntil) {
+    state.growUntil = 0;
+    applyGrow(false);
+  }
+}
+
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
   state.bullets = bullets.create();
@@ -299,6 +416,11 @@ function resetWorld(startX) {
   state.cloneSpreadDeg = cfg.MULTI_SPREAD_DEG;
   state.cloneHpBonus = 0;
   state.cloneLifeMs = cfg.CLONE_LIFE_BASE_MS;
+
+  state.activeItems = { shield: 0, grow: 0 };
+  state.activeUpgrades = { shield: 0, grow: 0 };
+  state.shieldUntil = 0;
+  state.growUntil = 0;
 
   // 读档续跑不补发已走过的里程
   state.coinMilestone = milestoneOf(state.distance);
@@ -367,6 +489,16 @@ function applyProfileAssets() {
   // 弹道夹角：主体 / 分身各自独立，各自带自己的滑块偏移（spreadAdj）
   state.spreadDeg = spreadOf(pu.spread || 0, pu.spreadAdj || 0);
   state.cloneSpreadDeg = spreadOf(cu.spread || 0, cu.spreadAdj || 0);
+
+  // 主动道具数量与时长等级
+  state.activeItems = {
+    shield: (prof.activeItems && prof.activeItems.shield) || 0,
+    grow: (prof.activeItems && prof.activeItems.grow) || 0,
+  };
+  state.activeUpgrades = {
+    shield: (prof.activeUpgrades && prof.activeUpgrades.shield) || 0,
+    grow: (prof.activeUpgrades && prof.activeUpgrades.grow) || 0,
+  };
 
   const items = prof.items || {};
   let used = false;
@@ -456,6 +588,7 @@ function enter(payload) {
 
 function exit() {
   if (state.phase === 'playing') saveProgress();
+  stopActive();
   input.reset();
   state.paused = false;
   state.menuOpen = false;
@@ -518,6 +651,9 @@ function damagePlayer(amount, now) {
   const p = state.player;
   if (!p || !p.alive) return;
 
+  // 护盾生效中：完全免疫
+  if (state.shieldUntil && now < state.shieldUntil) return;
+
   const dead = playerKit.damage(p, amount, now);
   if (!dead) {
     audio.play('hurt');
@@ -530,6 +666,8 @@ function damagePlayer(amount, now) {
   state.aimStick = null;
   state.bossAlive = false;
   state.menuOpen = false;
+
+  stopActive();
 
   audio.play('hurt');
   storage.clear();
@@ -583,7 +721,7 @@ function fireUpdate(now) {
   const cx = p.x + p.w / 2;
   const cy = p.y + p.h * 0.45;
 
-  const n = Math.max(1, state.multishot);
+  const n = Math.min(cfg.PLAYER_MULTI_MAX, Math.max(1, state.multishot));
   const step = spreadStepRad(state.spreadDeg);
   const muzzleGap = cfg.BULLET_R * 2 + 1;
 
@@ -651,7 +789,7 @@ function resolvePlayerBullets(now) {
 
     if (e) {
       const wasBoss = !!e.isBoss;
-      const bossX = e.x + e.w / 2;
+      const ex = e.x + e.w / 2;
       const xp = e.xp || 1;
       const stage = e.stage || 1;
       const dmg = (b.dmg > 0) ? b.dmg : Math.max(0.1, state.damage || 1);
@@ -679,9 +817,16 @@ function resolvePlayerBullets(now) {
 
           const count = cfg.BOSS_DROP_BASE + cfg.BOSS_DROP_STEP * (stage - 1) + Math.floor(state.distance / 1000);
           const n = count > cfg.BOSS_DROP_MAX ? cfg.BOSS_DROP_MAX : count;
-          pickups.spawnBurst(state.pickups, bossX, state.distance, now, n, state.coinValue);
+          pickups.spawnBurst(state.pickups, ex, state.distance, now, n, state.coinValue);
 
           audio.play('pickup');
+        } else {
+          // 小怪：按当前距离的掉率掷一次，命中就原地按权重掉一个道具
+          const chance = pickups.dropChanceForDistance(state.distance);
+          if (Math.random() < chance) {
+            pickups.dropAt(state.pickups, ex, state.distance, now, state.coinValue);
+            audio.play('pickup');
+          }
         }
       }
 
@@ -875,6 +1020,12 @@ function trackBoss() {
 }
 
 function update(dt, now) {
+  // 暂停 / 菜单打开时，主动道具的剩余时间跟着顺延，不会被“暂停偷走”
+  if (state.phase === 'playing' && (state.paused || state.menuOpen)) {
+    if (state.shieldUntil) state.shieldUntil += dt;
+    if (state.growUntil) state.growUntil += dt;
+  }
+
   if (state.phase !== 'playing' || state.paused || !state.player) {
     state.aimStick = null;
     state.firing = false;
@@ -888,6 +1039,8 @@ function update(dt, now) {
     state.joy = null;
     return;
   }
+
+  updateActive(now);
 
   state.joy = input.getJoystick();
   state.aimStick = input.getAimStick();
@@ -975,6 +1128,15 @@ function touchStart(e, now) {
 
     if (b.id === 'exit') exitApp();
     return;
+  }
+
+  // 主动道具按钮（右上角）
+  if (p) {
+    const id = activeKit.hit(p.x, p.y);
+    if (id) {
+      useActive(id, now);
+      return;
+    }
   }
 
   if (p && hitMenuButton(p.x, p.y)) {

@@ -1,8 +1,11 @@
 // 商店布局与命中检测。三个页签：主体 / 分身 / 道具。
 // 价格与数值全部来自 config/shop/，这里不硬编码。
 //
+// 「道具」页从上到下：主动道具卡片（左护盾 / 右变大）→ 被动道具列表 → 永久分身。
+// 每张主动卡片分上下两块：上半 = 购买，下半 = 升级时长。
+//
 // 行数据（row）字段：
-//   kind        upgrade | clone-upgrade | item | perm-clone | back | tab
+//   kind        upgrade | clone-upgrade | item | perm-clone | active-buy | active-upgrade | section | back | tab
 //   level       当前等级
 //   maxLevel    满级等级
 //   maxed       是否已满级（满级后变灰、显示「满级」）
@@ -45,6 +48,31 @@ function spreadBaseAt(level) {
 
 function fixed1(v) {
   return (Math.round(v * 10) / 10).toFixed(1);
+}
+
+// 主动道具的持续时长（秒，文本）
+function activeDurationOf(id, level) {
+  const lv = level > 0 ? level : 0;
+
+  if (id === 'shield') {
+    const ms = Math.min(cfg.ACTIVE_DURATION_MAX_MS, cfg.SHIELD_DURATION_MS + cfg.SHIELD_STEP_MS * lv);
+    return fixed1(ms / 1000);
+  }
+
+  const ms = Math.min(cfg.ACTIVE_DURATION_MAX_MS, cfg.GROW_DURATION_MS + cfg.GROW_STEP_MS * lv);
+  return fixed1(ms / 1000);
+}
+
+function activePrice(id) {
+  const v = (cfg.ACTIVE_ITEM_PRICES || {})[id];
+  return typeof v === 'number' ? v : 1;
+}
+
+function activeUpCost(id, level) {
+  const base = (cfg.ACTIVE_UPGRADE_BASE_COST || {})[id];
+  const b = typeof base === 'number' ? base : 1;
+  const lv = level > 0 ? level : 0;
+  return b * (1 + lv);
 }
 
 // 返回 { v: 当前值文本, step: 每级变化文本 }
@@ -96,6 +124,14 @@ function statOf(id, level, isClone, adj) {
     return { v: fixed1(ms / 1000) + 's', step: '每级 +' + fixed1(cfg.CLONE_LIFE_STEP_MS / 1000) + 's' };
   }
 
+  if (id === 'shield') {
+    return { v: activeDurationOf('shield', lv) + 's', step: '每级 +' + fixed1(cfg.SHIELD_STEP_MS / 1000) + 's' };
+  }
+
+  if (id === 'grow') {
+    return { v: activeDurationOf('grow', lv) + 's', step: '每级 +' + fixed1(cfg.GROW_STEP_MS / 1000) + 's' };
+  }
+
   return { v: '', step: '' };
 }
 
@@ -130,6 +166,12 @@ const CLONE_UPGRADES = [
   { id: 'damage', label: '子弹伤害' },
 ];
 
+// 主动道具（购买 + 升级时长）
+const ACTIVE_ITEMS = [
+  { id: 'shield', label: '护盾', stepMs: cfg.SHIELD_STEP_MS },
+  { id: 'grow', label: '变大', stepMs: cfg.GROW_STEP_MS },
+];
+
 const ITEMS = [
   { id: 'heal', label: '生命药水', desc: '本局开局 +' + cfg.SHOP_ITEM_HEAL_HP + ' 最大生命', price: itemPrice('heal') },
   { id: 'speed', label: '攻速道具', desc: '本局开局射击更快', price: itemPrice('speed') },
@@ -138,7 +180,7 @@ const ITEMS = [
   { id: 'damage', label: '伤害道具', desc: '本局开局 +' + cfg.SHOP_ITEM_DAMAGE_GAIN + ' 伤害', price: itemPrice('damage') },
   { id: 'ammo', label: '弹药包', desc: '本局开局补满弹夹', price: itemPrice('ammo') },
   { id: 'reload', label: '快速装填', desc: '本局装填距离 ×' + cfg.SHOP_ITEM_RELOAD_RATIO, price: itemPrice('reload') },
-  { id: 'clone', label: '分身道具（本局）', desc: '本局开局召唤 1 个永久分身', price: itemPrice('clone') },
+  { id: 'clone', label: '分身道具', desc: '本局开局召唤 1 个永久分身', price: itemPrice('clone') },
 ];
 
 // 通用升级费用：0 级 1 枚，之后 2 / 4 / 7 / 11 …
@@ -179,12 +221,64 @@ function upgradeCost(level) {
   return baseCost(level);
 }
 
+// ---------------- 主动道具卡片（左护盾 / 右变大） ----------------
+function buildActiveCards(rows, data, x, w, y, rh, gap) {
+  const cardH = rh * 2 + gap;
+  const cardGap = 6;
+  const cardW = (w - cardGap) / 2;
+  const half = cardH / 2;
+
+  for (let i = 0; i < ACTIVE_ITEMS.length; i++) {
+    const it = ACTIVE_ITEMS[i];
+    const cx = x + i * (cardW + cardGap);
+
+    const own = (data && data.activeItems && data.activeItems[it.id]) || 0;
+    const lv = (data && data.activeUpgrades && data.activeUpgrades[it.id]) || 0;
+    const maxed = isMaxLevel(it.id, lv);
+    const dur = activeDurationOf(it.id, lv);
+
+    rows.push({
+      kind: 'active-buy',
+      id: it.id,
+      label: it.label + ' ×' + own,
+      desc: '持续 ' + dur + 's',
+      own: own,
+      cost: activePrice(it.id),
+      maxed: false,
+      x: cx,
+      y: y,
+      w: cardW,
+      h: half - 2,
+      textX: cx + 10,
+    });
+
+    rows.push({
+      kind: 'active-upgrade',
+      id: it.id,
+      label: '时长 ' + dur + 's',
+      desc: maxed ? '已满级' : '每级 +' + fixed1(it.stepMs / 1000) + 's',
+      level: lv,
+      maxLevel: maxLevelOf(it.id),
+      maxed: maxed,
+      cost: maxed ? 0 : activeUpCost(it.id, lv),
+      x: cx,
+      y: y + half + 2,
+      w: cardW,
+      h: half - 2,
+      textX: cx + 10,
+    });
+  }
+
+  return y + cardH;
+}
+
 function build(data, tab) {
   const width = canvasKit.width;
   const height = canvasKit.height;
 
   const mode = (tab === 'clone' || tab === 'items') ? tab : 'player';
   const isClone = mode === 'clone';
+  const isItems = mode === 'items';
 
   const w = Math.min(width * 0.88, 460);
   const x = (width - w) / 2;
@@ -204,22 +298,40 @@ function build(data, tab) {
 
   let list;
   if (isClone) list = CLONE_UPGRADES;
-  else if (mode === 'items') list = ITEMS;
+  else if (isItems) list = ITEMS;
   else list = PLAYER_UPGRADES;
-
-  const total = list.length + (mode === 'items' ? 1 : 0);
 
   const top = tabY + tabH + 10;
   const bottom = height * 0.95;
   const gap = 5;
-  const rh = Math.max(30, (bottom - top - gap * (total - 1)) / total);
+
+  // 道具页：主动卡片占 2 行的高度，另有 2 个分级小标题
+  const sectionH = 14;
+  const sections = isItems ? 2 : 0;
+  const rowCount = list.length + (isItems ? 3 : 0); // 被动 + 永久分身 + 主动卡片(折 2 行)
+
+  const usable = (bottom - top) - sections * sectionH - Math.max(0, rowCount + sections - 1) * gap;
+  let rh = usable / (rowCount || 1);
+  if (rh < 28) rh = 28;
+  if (rh > 64) rh = 64;
 
   let y = top;
+
+  if (isItems) {
+    rows.push({ kind: 'section', id: 'sec-active', label: '主动道具（点上面买 · 点下面升时长）', x: x, y: y, w: w, h: sectionH });
+    y += sectionH + gap;
+
+    y = buildActiveCards(rows, data, x, w, y, rh, gap);
+    y += gap;
+
+    rows.push({ kind: 'section', id: 'sec-passive', label: '被动道具', x: x, y: y, w: w, h: sectionH });
+    y += sectionH + gap;
+  }
 
   for (let i = 0; i < list.length; i++) {
     const it = list[i];
 
-    if (mode === 'items') {
+    if (isItems) {
       const own = (data && data.items && data.items[it.id]) || 0;
 
       rows.push({
@@ -282,7 +394,7 @@ function build(data, tab) {
     y += rh + gap;
   }
 
-  if (mode === 'items') {
+  if (isItems) {
     const owned = (data && data.permClones) || 0;
 
     rows.push({
@@ -323,6 +435,7 @@ function hit(built, x, y) {
   const rows = built.rows || [];
   for (let i = 0; i < rows.length; i++) {
     const b = rows[i];
+    if (b.kind === 'section') continue;
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
   }
 
@@ -356,4 +469,7 @@ module.exports = {
   isMaxLevel: isMaxLevel,
   maxLevelOf: maxLevelOf,
   spreadBaseAt: spreadBaseAt,
+  activeDurationOf: activeDurationOf,
+  activePrice: activePrice,
+  activeUpCost: activeUpCost,
 };

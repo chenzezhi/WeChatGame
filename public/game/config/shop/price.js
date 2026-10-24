@@ -26,6 +26,19 @@ const SHOP_ITEM_PRICES = {
   clone: 8,
 };
 
+// ---------------- 主动道具（护盾 / 变大） ----------------
+// 一次性道具，想买多少买多少：护盾 10 金币一个，变大 50 金币一个
+const ACTIVE_ITEM_PRICES = {
+  shield: 10,
+  grow: 50,
+};
+
+// 升级「持续时长」的价格：第 lv 级 = 基础价 × (1 + lv)
+const ACTIVE_UPGRADE_BASE_COST = {
+  shield: 20,
+  grow: 60,
+};
+
 module.exports = {
   CLONE_COST_MULT: CLONE_COST_MULT,
   PERM_CLONE_BASE_COST: PERM_CLONE_BASE_COST,
@@ -33,4 +46,6 @@ module.exports = {
   SPREAD_COST_BASE: SPREAD_COST_BASE,
   SPREAD_COST_GROWTH: SPREAD_COST_GROWTH,
   SHOP_ITEM_PRICES: SHOP_ITEM_PRICES,
+  ACTIVE_ITEM_PRICES: ACTIVE_ITEM_PRICES,
+  ACTIVE_UPGRADE_BASE_COST: ACTIVE_UPGRADE_BASE_COST,
 };

@@ -1,4 +1,4 @@
-// 道具：随路程生成的补给品。
+// 道具：随路程生成的补给品 + 小怪掉落。
 //   clone  分身
 //   speed  攻速
 //   multi  散射
@@ -58,6 +58,13 @@ function ammoGainForDistance(dist) {
 function nextDistFrom(dist) {
   const g = gapRangeForDistance(dist);
   return dist + randRange(g.min, g.max);
+}
+
+// 小怪掉率：10% 起，每 1km +2%，封顶 80%
+function dropChanceForDistance(dist) {
+  const steps = Math.floor(dist / cfg.DROP_CHANCE_STEP_M);
+  const v = cfg.DROP_CHANCE_BASE + steps * cfg.DROP_CHANCE_STEP;
+  return v > cfg.DROP_CHANCE_MAX ? cfg.DROP_CHANCE_MAX : v;
 }
 
 function pickKind(level) {
@@ -139,6 +146,7 @@ function spawnAhead(level, playerX, dist, now, coinValue) {
   }
 }
 
+// Boss 大爆：一次散出 count 个道具
 function spawnBurst(level, centerX, dist, now, count, coinValue) {
   const n = Math.max(1, count | 0);
 
@@ -150,6 +158,17 @@ function spawnBurst(level, centerX, dist, now, count, coinValue) {
     createOne(level, kind, x, y, dist, now, coinValue);
     level.spawned += 1;
   }
+}
+
+// 小怪掉落：在死亡位置按权重掉 1 个道具
+function dropAt(level, centerX, dist, now, coinValue) {
+  const kind = pickKind(level);
+  const y = cfg.GROUND_Y - cfg.ITEM_SIZE * (1.5 + Math.random() * 1.2);
+
+  createOne(level, kind, centerX, y, dist, now, coinValue);
+  level.spawned += 1;
+
+  return kind;
 }
 
 function update() {}
@@ -191,6 +210,7 @@ module.exports = {
   reset: reset,
   spawnAhead: spawnAhead,
   spawnBurst: spawnBurst,
+  dropAt: dropAt,
   update: update,
   cull: cull,
   hitTest: hitTest,
@@ -199,5 +219,6 @@ module.exports = {
   powerForDistance: powerForDistance,
   healForDistance: healForDistance,
   ammoGainForDistance: ammoGainForDistance,
+  dropChanceForDistance: dropChanceForDistance,
   pickKind: pickKind,
 };
