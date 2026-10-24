@@ -43,7 +43,7 @@ const state = {
   fireMs: cfg.PLAYER_FIRE_MS_START,
   multishot: cfg.PLAYER_MULTI_START,
   damage: cfg.PLAYER_DAMAGE_START,
-  spreadDeg: cfg.MULTI_SPREAD_DEG,        // 主体弹道夹角（度，相邻两发）
+  spreadDeg: cfg.MULTI_SPREAD_DEG,
 
   ammoMax: cfg.PLAYER_AMMO_START,
   ammo: cfg.PLAYER_AMMO_START,
@@ -53,17 +53,17 @@ const state = {
   cloneFireMs: cfg.PLAYER_FIRE_MS_START,
   cloneMultishot: cfg.PLAYER_MULTI_START,
   cloneDamage: cfg.PLAYER_DAMAGE_START,
-  cloneSpreadDeg: cfg.MULTI_SPREAD_DEG,   // 分身弹道夹角（与主体完全独立）
+  cloneSpreadDeg: cfg.MULTI_SPREAD_DEG,
   cloneHpBonus: 0,
   cloneLifeMs: cfg.CLONE_LIFE_BASE_MS,
 
   // 主动道具
-  activeItems: { shield: 0, grow: 0 },    // 剩余个数
-  activeUpgrades: { shield: 0, grow: 0 }, // 时长等级
-  shieldUntil: 0,                         // 护盾到期时间（0 = 未开）
-  growUntil: 0,                           // 变大到期时间（0 = 未开）
+  activeItems: { shield: 0, grow: 0 },
+  activeUpgrades: { shield: 0, grow: 0 },
+  shieldUntil: 0,
+  growUntil: 0,
 
-  autoFire: false,                        // 自动开火（锁定朝正前方射击）
+  autoFire: false,
 
   joy: null,
   aimStick: null,
@@ -236,7 +236,6 @@ function clampReloadM(m) {
 }
 
 // ---------------- 弹道夹角 ----------------
-// 下限保护：0 是合法值（所有子弹完全平行）
 function clampSpread(deg) {
   let v = (typeof deg === 'number' && isFinite(deg)) ? deg : cfg.MULTI_SPREAD_DEG;
   if (v < cfg.SPREAD_MIN_DEG) v = cfg.SPREAD_MIN_DEG;
@@ -244,7 +243,6 @@ function clampSpread(deg) {
   return v;
 }
 
-// 每级「直接减 stepDeg 度」（加法，能真正收敛到下限）
 function spreadReduce(base, levels, stepDeg) {
   const lv = levels > 0 ? levels : 0;
   if (lv <= 0) return clampSpread(base);
@@ -253,12 +251,10 @@ function spreadReduce(base, levels, stepDeg) {
   return clampSpread(base - step * lv);
 }
 
-// 已购买等级算出的「最小夹角」
 function spreadBaseOf(level) {
   return spreadReduce(cfg.MULTI_SPREAD_DEG, level, cfg.SPREAD_SHOP_STEP_DEG);
 }
 
-// 最终生效夹角 = 已购买的最小夹角 + 滑块偏移（0 ~ 初始夹角之间的可调范围）
 function spreadOf(level, adj) {
   const base = spreadBaseOf(level);
   const range = cfg.MULTI_SPREAD_DEG - base;
@@ -269,7 +265,6 @@ function spreadOf(level, adj) {
   return clampSpread(base + a);
 }
 
-// 相邻两发的角度差（弧度）
 function spreadStepRad(spreadDeg) {
   return (clampSpread(spreadDeg) * Math.PI) / 180;
 }
@@ -292,7 +287,6 @@ function isActiveNow(id, now) {
   return !!until && isFinite(until) && now < until;
 }
 
-// 变大：开时按比例翻倍，结束时按同样比例还原（乘除而不是快照，升级途中也不丢属性）
 function applyGrow(on) {
   const p = state.player;
 
@@ -356,7 +350,6 @@ function useActive(id, now) {
     applyGrow(true);
   }
 
-  // 立刻落盘，避免退出丢数量
   const prof = profile.read();
   prof.activeItems = state.activeItems;
   profile.write(prof);
@@ -388,9 +381,7 @@ function setAutoFire(on) {
 
   state.autoFire = next;
 
-  // 开：右摇杆隐藏，输入层也不再抓右摇杆
-  // 关：恢复自由瞄准
-  input.reset();
+  // 只切换「右摇杆是否可抓」，不动正在按着的左摇杆
   input.setAimEnabled(!next);
 
   state.aimStick = input.getAimStick();
@@ -453,7 +444,6 @@ function resetWorld(startX) {
   state.autoFire = false;
   input.setAimEnabled(true);
 
-  // 读档续跑不补发已走过的里程
   state.coinMilestone = milestoneOf(state.distance);
 }
 
@@ -517,11 +507,10 @@ function applyProfileAssets() {
     state.cloneHpBonus = cu.hp * cfg.SHOP_HP_GAIN;
   }
 
-  // 弹道夹角：主体 / 分身各自独立，各自带自己的滑块偏移（spreadAdj）
+  // 弹道夹角：主体 / 分身各自独立
   state.spreadDeg = spreadOf(pu.spread || 0, pu.spreadAdj || 0);
   state.cloneSpreadDeg = spreadOf(cu.spread || 0, cu.spreadAdj || 0);
 
-  // 主动道具数量与时长等级
   state.activeItems = {
     shield: (prof.activeItems && prof.activeItems.shield) || 0,
     grow: (prof.activeItems && prof.activeItems.grow) || 0,
@@ -638,7 +627,6 @@ function addCoins(n) {
   profile.write(prof);
 }
 
-// 里程奖励：每前进 COIN_REWARD_M 米固定给金币
 function rewardUpdate() {
   const now = milestoneOf(state.distance);
   if (now <= state.coinMilestone) return;
@@ -685,7 +673,6 @@ function damagePlayer(amount, now) {
   const p = state.player;
   if (!p || !p.alive) return;
 
-  // 护盾生效中：完全免疫
   if (state.shieldUntil && isFinite(state.shieldUntil) && now < state.shieldUntil) return;
 
   const dead = playerKit.damage(p, amount, now);
@@ -707,7 +694,6 @@ function damagePlayer(amount, now) {
   storage.clear();
 }
 
-// 装填：只按前进距离补弹
 function reloadUpdate() {
   const step = state.reloadM > 0 ? state.reloadM : cfg.RELOAD_M_START;
 
@@ -727,9 +713,6 @@ function reloadUpdate() {
   if (state.ammo >= state.ammoMax) state.lastReloadDist = state.distance;
 }
 
-// 一次齐射：
-//   角度：相邻两发相差 step（弧度），围绕瞄准方向对称展开
-//   位置：沿「垂直弹道方向」错开，相邻两发刚好挨着（一颗子弹直径 + 1px）
 function fireUpdate(now) {
   const p = state.player;
   if (!p || !p.alive) {
@@ -740,7 +723,6 @@ function fireUpdate(now) {
   let angle;
 
   if (state.autoFire) {
-    // 自动开火：锁定朝「正前方」（当前朝向）持续射击
     angle = p.facing >= 0 ? 0 : Math.PI;
     state.firing = true;
     state.aimAngle = angle;
@@ -869,7 +851,6 @@ function resolvePlayerBullets(now) {
 
           audio.play('pickup');
         } else {
-          // 小怪：按当前距离的掉率掷一次，命中就原地按权重掉一个道具
           const chance = pickups.dropChanceForDistance(state.distance);
           if (Math.random() < chance) {
             pickups.dropAt(state.pickups, ex, state.distance, now, state.coinValue);
@@ -989,7 +970,6 @@ function applyPickup(it, now) {
     return;
   }
 
-  // 弹道夹角道具：主体 / 分身各减一次（各自独立）
   if (it.kind === 'spread') {
     state.spreadDeg = spreadReduce(state.spreadDeg, 1, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
     state.cloneSpreadDeg = spreadReduce(state.cloneSpreadDeg, 1, cfg.SHOP_ITEM_SPREAD_STEP_DEG);
@@ -1068,7 +1048,6 @@ function trackBoss() {
 }
 
 function update(dt, now) {
-  // 暂停 / 菜单打开时，主动道具的剩余时间跟着顺延，不会被“暂停偷走”
   if (state.phase === 'playing' && (state.paused || state.menuOpen)) {
     if (state.shieldUntil) state.shieldUntil += dt;
     if (state.growUntil) state.growUntil += dt;
@@ -1147,8 +1126,9 @@ function render(ctx, now) {
   view.draw(ctx, state, (typeof now === 'number' && isFinite(now)) ? now : Date.now());
 }
 
+// 触摸按下：按「新按下的手指」逐根判定 UI 按钮，命中就消费掉，
+// 剩下的才交给摇杆层。这样左手按住移动摇杆时，右手仍能点道具 / 锁定开火。
 function touchStart(e, now) {
-  // 场景分发只传了事件对象，这里自己兜底时间
   const t = timeOf(now);
 
   if (state.phase === 'dead') {
@@ -1157,9 +1137,10 @@ function touchStart(e, now) {
     return;
   }
 
-  const p = e.touches && e.touches[0];
+  const changed = (e.changed && e.changed.length) ? e.changed : (e.touches || []);
 
   if (state.menuOpen) {
+    const p = changed[0];
     if (!p) return;
 
     const b = hitPauseButton(p.x, p.y);
@@ -1181,27 +1162,37 @@ function touchStart(e, now) {
     return;
   }
 
-  if (p) {
-    // 自动开火按钮：优先判定（关闭态是小钮，开启态铺满摇杆区域）
+  const pass = [];
+
+  for (let i = 0; i < changed.length; i++) {
+    const p = changed[i];
+    if (!p) continue;
+
+    // 自动开火按钮（关闭态是小钮，开启态铺满摇杆区域）
     if (autoKit.hit(p.x, p.y, state.autoFire)) {
       setAutoFire(!state.autoFire);
-      return;
+      continue;
     }
 
     // 主动道具按钮
     const id = activeKit.hit(p.x, p.y);
     if (id) {
       useActive(id, t);
-      return;
+      continue;
     }
+
+    // 右上角菜单
+    if (hitMenuButton(p.x, p.y)) {
+      openPause();
+      continue;
+    }
+
+    pass.push(p);
   }
 
-  if (p && hitMenuButton(p.x, p.y)) {
-    openPause();
-    return;
-  }
+  if (!pass.length) return;
 
-  input.touchStart(e);
+  input.touchStart({ touches: e.touches || [], changed: pass });
 }
 
 function touchMove(e) {

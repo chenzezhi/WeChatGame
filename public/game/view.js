@@ -1,4 +1,4 @@
-// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + 护盾/变大光环 + HUD + 暂停弹窗。
+// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + 护盾/变大光环 + 摇杆 + 自动开火 + HUD。
 
 const cfg = require('./config.js');
 const pal = require('./palette.js');
@@ -9,9 +9,10 @@ const drawFx = require('./drawFx.js');
 const drawPickup = require('./drawPickup.js');
 const drawClone = require('./drawClone.js');
 const activeKit = require('./active.js');
+const autoKit = require('./autofire.js');
 
 const C = pal.C;
-const BUILD = 'game-20';
+const BUILD = 'game-22';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';
@@ -283,6 +284,51 @@ function iconGrow(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
+// 准星（自动开火图标）
+function iconCrosshair(ctx, cx, cy, r, color) {
+  const c = color || '#1f9ecf';
+
+  ctx.strokeStyle = c;
+  ctx.lineWidth = Math.max(1.6, r * 0.17);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.70, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const out = r * 1.02;
+  const inn = r * 0.30;
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - out);
+  ctx.lineTo(cx, cy - inn);
+  ctx.moveTo(cx, cy + inn);
+  ctx.lineTo(cx, cy + out);
+  ctx.moveTo(cx - out, cy);
+  ctx.lineTo(cx - inn, cy);
+  ctx.moveTo(cx + inn, cy);
+  ctx.lineTo(cx + out, cy);
+  ctx.stroke();
+
+  ctx.fillStyle = c;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(1.4, r * 0.16), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 小锁（提示「锁定」）
+function iconLock(ctx, cx, cy, r, color) {
+  const c = color || '#1f9ecf';
+
+  ctx.strokeStyle = c;
+  ctx.lineWidth = Math.max(1.2, r * 0.34);
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.22, r * 0.44, Math.PI, 0);
+  ctx.stroke();
+
+  ctx.fillStyle = c;
+  util.roundRectPath(ctx, cx - r * 0.70, cy - r * 0.08, r * 1.40, r * 1.02, r * 0.24);
+  ctx.fill();
+}
+
 // ---------------- HUD ----------------
 function drawHp(ctx, player) {
   if (!player) return;
@@ -379,7 +425,7 @@ function drawMenuButton(ctx) {
   ctx.textBaseline = 'alphabetic';
 }
 
-// 主动道具按钮：右上角，菜单按钮下方
+// 主动道具按钮：瞄准摇杆右上角
 function drawActiveBar(ctx, state, now) {
   const items = activeKit.ITEMS;
 
@@ -423,6 +469,74 @@ function drawActiveBar(ctx, state, now) {
   }
 }
 
+// 自动开火按钮：关闭时是摇杆右下角的小钮，开启时占据摇杆位置并放大
+function drawAutoButton(ctx, state, now) {
+  const on = !!state.autoFire;
+  const r = autoKit.rectOf(on);
+
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  const rad = r.w / 2;
+
+  ctx.save();
+
+  if (on) {
+    const pulse = 1 + Math.sin(now / 220) * 0.03;
+
+    // 外发光
+    const g = ctx.createRadialGradient(cx, cy, rad * 0.5, cx, cy, rad * 1.35);
+    g.addColorStop(0, 'rgba(94,224,192,0.30)');
+    g.addColorStop(1, 'rgba(94,224,192,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad * 1.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 主圆
+    ctx.fillStyle = 'rgba(94,224,192,0.94)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad * pulse * 0.92, 0, Math.PI * 2);
+    ctx.stroke();
+
+    iconCrosshair(ctx, cx, cy - rad * 0.20, rad * 0.46, 'rgba(11,58,52,0.95)');
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#0b3a34';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('锁定开火', cx, cy + rad * 0.46);
+
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = 'rgba(11,58,52,0.72)';
+    ctx.fillText('点击解除', cx, cy + rad * 0.46 + 13);
+  } else {
+    // 小圆钮
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = ICON_SHIELD;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad - 1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    iconCrosshair(ctx, cx - rad * 0.10, cy - rad * 0.10, rad * 0.56, ICON_SHIELD);
+
+    // 右下角的小锁，提示这是「锁定开火」
+    iconLock(ctx, cx + rad * 0.66, cy + rad * 0.66, rad * 0.34, '#2f7fd0');
+  }
+
+  ctx.restore();
+}
+
 // 护盾光环：包住玩家的青色光圈 + 两颗绕着他转的小盾牌
 function drawShieldAura(ctx, state, now) {
   const until = state.shieldUntil;
@@ -440,7 +554,6 @@ function drawShieldAura(ctx, state, now) {
 
   ctx.save();
 
-  // 光晕
   const g = ctx.createRadialGradient(cx, cy, rr * 0.55, cx, cy, rr * 1.12);
   g.addColorStop(0, 'rgba(120,225,255,0.05)');
   g.addColorStop(0.75, 'rgba(120,225,255,0.26)');
@@ -450,21 +563,18 @@ function drawShieldAura(ctx, state, now) {
   ctx.arc(cx, cy, rr * 1.12, 0, Math.PI * 2);
   ctx.fill();
 
-  // 主圈
   ctx.strokeStyle = 'rgba(150,245,255,0.95)';
   ctx.lineWidth = 3.5;
   ctx.beginPath();
   ctx.arc(cx, cy, rr, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 内圈
   ctx.strokeStyle = 'rgba(255,255,255,0.55)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(cx, cy, rr * 0.82, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 绕圈的小盾牌（两颗，180° 相对）
   const orbR = rr * 1.04;
   for (let i = 0; i < 2; i++) {
     const a = now / 420 + i * Math.PI;
@@ -580,7 +690,6 @@ function drawStats(ctx, state) {
   x += drawStatPill(ctx, x, y, iconBullet, String(multi)) + gap;
   x += drawStatPill(ctx, x, y, iconDamage, dmg.toFixed(1)) + gap;
 
-  // 弹夹：空了变红
   const ammoColor = ammo > 0 ? ICON_AMMO : ICON_AMMO_EMPTY;
   x += drawStatPill(ctx, x, y, iconAmmo, ammo + '/' + ammoMax, ammoColor) + gap;
 }
@@ -618,7 +727,13 @@ function drawHud(ctx, state, now) {
   ctx.textBaseline = 'alphabetic';
   ctx.font = '12px sans-serif';
   ctx.fillStyle = 'rgba(29,58,82,0.55)';
-  ctx.fillText('左下摇杆移动（上推跳跃） · 右下摇杆瞄准射击', cfg.WIDTH / 2, cfg.HEIGHT - 16);
+  ctx.fillText(
+    state.autoFire
+      ? '自动开火中 · 点击右侧大按钮解除'
+      : '左下摇杆移动（上推跳跃） · 右下摇杆瞄准射击',
+    cfg.WIDTH / 2,
+    cfg.HEIGHT - 16
+  );
 
   ctx.textAlign = 'left';
   ctx.font = '10px sans-serif';
@@ -743,7 +858,11 @@ function draw(ctx, state, now) {
   }
 
   drawFx.drawJoystick(ctx, state.joy);
-  drawFx.drawAimStick(ctx, state.aimStick);
+
+  // 自动开火开启时，右摇杆隐藏，原位换成放大的锁定按钮
+  if (!state.autoFire) drawFx.drawAimStick(ctx, state.aimStick);
+
+  drawAutoButton(ctx, state, now);
 
   drawHud(ctx, state, now);
   drawHurtFlash(ctx, state.player, now);
