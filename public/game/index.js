@@ -79,6 +79,11 @@ function toast(title) {
   try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
+// 统一的「当前时间」取法：触摸回调可能拿不到 now，这里兜底
+function timeOf(now) {
+  return (typeof now === 'number' && isFinite(now)) ? now : Date.now();
+}
+
 function distanceOf(x) {
   const d = Math.floor((x - cfg.START_X) / cfg.DISTANCE_PER_UNIT);
   return d > 0 ? d : 0;
@@ -280,7 +285,7 @@ function activeDurationOf(id) {
 
 function isActiveNow(id, now) {
   const until = (id === 'shield') ? state.shieldUntil : state.growUntil;
-  return !!until && now < until;
+  return !!until && isFinite(until) && now < until;
 }
 
 // 变大：开时按比例翻倍，结束时按同样比例还原（乘除而不是快照，升级途中也不丢属性）
@@ -289,7 +294,7 @@ function applyGrow(on) {
 
   if (on) {
     state.fireMs = Math.max(cfg.PLAYER_FIRE_MS_MIN, Math.round(state.fireMs / 2));
-    state.damage = Math.round(state.damage * 2 * 10) / 10;
+    state.damage = roundDamage(state.damage * 2);
     state.multishot = Math.max(1, state.multishot * 2);
     state.ammoMax = Math.max(1, Math.round(state.ammoMax * 2));
     state.reloadM = clampReloadM(Math.round(state.reloadM / 2 * 10) / 10);
@@ -297,8 +302,8 @@ function applyGrow(on) {
 
     if (p) {
       const oldH = p.h;
-      p.w = Math.round(p.w * cfg.GROW_SCALE);
-      p.h = Math.round(p.h * cfg.GROW_SCALE);
+      p.w = Math.round(cfg.PLAYER_W * cfg.GROW_SCALE);
+      p.h = Math.round(cfg.PLAYER_H * cfg.GROW_SCALE);
       p.y = p.y + oldH - p.h;
     }
 
@@ -324,9 +329,10 @@ function useActive(id, now) {
   const p = state.player;
   if (!p || !p.alive) return;
 
+  const t = timeOf(now);
   const label = activeKit.LABEL[id] || '道具';
 
-  if (isActiveNow(id, now)) {
+  if (isActiveNow(id, t)) {
     toast(label + ' 还在生效中');
     return;
   }
@@ -340,9 +346,9 @@ function useActive(id, now) {
   state.activeItems[id] = count - 1;
 
   if (id === 'shield') {
-    state.shieldUntil = now + activeDurationOf('shield');
+    state.shieldUntil = t + activeDurationOf('shield');
   } else {
-    state.growUntil = now + activeDurationOf('grow');
+    state.growUntil = t + activeDurationOf('grow');
     applyGrow(true);
   }
 
@@ -734,7 +740,7 @@ function fireUpdate(now) {
     const off = mid * muzzleGap;
 
     const mx = cx + Math.cos(a) * p.w * 0.75 + perpX * off;
-    const my = cy + Math.sin(a) * p.w * 0.75 + perpY * off;
+    const my = cy + Math.sin(a) * p.h * 0.45 + perpY * off;
 
     bullets.spawn(
       state.bullets,
@@ -1096,12 +1102,15 @@ function update(dt, now) {
 }
 
 function render(ctx, now) {
-  view.draw(ctx, state, now);
+  view.draw(ctx, state, (typeof now === 'number' && isFinite(now)) ? now : Date.now());
 }
 
 function touchStart(e, now) {
+  // 场景分发只传了事件对象，这里自己兜底时间
+  const t = timeOf(now);
+
   if (state.phase === 'dead') {
-    if (now - state.deadAt < DEAD_TAP_DELAY) return;
+    if (t - state.deadAt < DEAD_TAP_DELAY) return;
     scenes.switchTo('menu');
     return;
   }
@@ -1134,7 +1143,7 @@ function touchStart(e, now) {
   if (p) {
     const id = activeKit.hit(p.x, p.y);
     if (id) {
-      useActive(id, now);
+      useActive(id, t);
       return;
     }
   }

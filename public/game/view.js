@@ -1,4 +1,4 @@
-// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + 护盾光环 + HUD + 暂停弹窗。
+// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + 护盾/变大光环 + HUD + 暂停弹窗。
 
 const cfg = require('./config.js');
 const pal = require('./palette.js');
@@ -11,7 +11,7 @@ const drawClone = require('./drawClone.js');
 const activeKit = require('./active.js');
 
 const C = pal.C;
-const BUILD = 'game-19';
+const BUILD = 'game-20';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';
@@ -423,39 +423,85 @@ function drawActiveBar(ctx, state, now) {
   }
 }
 
-// 护盾光环：包住玩家的青色光圈
+// 护盾光环：包住玩家的青色光圈 + 两颗绕着他转的小盾牌
 function drawShieldAura(ctx, state, now) {
   const until = state.shieldUntil;
   const p = state.player;
 
-  if (!until || now >= until || !p) return;
+  if (!until || !isFinite(until) || now >= until || !p) return;
 
   const cameraX = state.cameraX || 0;
   const cx = p.x + p.w / 2 - cameraX;
   const cy = p.y + p.h / 2;
-  const r = Math.max(p.w, p.h) * 0.78;
+  const r = Math.max(p.w, p.h) * 0.95 + 8;
 
-  const pulse = 1 + Math.sin(now / 160) * 0.03;
+  const pulse = 1 + Math.sin(now / 150) * 0.04;
+  const rr = r * pulse;
 
   ctx.save();
 
-  ctx.fillStyle = 'rgba(110,220,255,0.16)';
+  // 光晕
+  const g = ctx.createRadialGradient(cx, cy, rr * 0.55, cx, cy, rr * 1.12);
+  g.addColorStop(0, 'rgba(120,225,255,0.05)');
+  g.addColorStop(0.75, 'rgba(120,225,255,0.26)');
+  g.addColorStop(1, 'rgba(120,225,255,0.02)');
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.arc(cx, cy, r * pulse, 0, Math.PI * 2);
+  ctx.arc(cx, cy, rr * 1.12, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(120,235,255,0.95)';
-  ctx.lineWidth = 3;
+  // 主圈
+  ctx.strokeStyle = 'rgba(150,245,255,0.95)';
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 内圈
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, rr * 0.82, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 绕圈的小盾牌（两颗，180° 相对）
+  const orbR = rr * 1.04;
+  for (let i = 0; i < 2; i++) {
+    const a = now / 420 + i * Math.PI;
+    const sx = cx + Math.cos(a) * orbR;
+    const sy = cy + Math.sin(a) * orbR;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    iconShield(ctx, sx, sy, 5.2, ICON_SHIELD);
+  }
+
+  ctx.restore();
+}
+
+// 变大光环：紫色脉冲圈，表示属性翻倍生效中
+function drawGrowAura(ctx, state, now) {
+  const until = state.growUntil;
+  const p = state.player;
+
+  if (!until || !isFinite(until) || now >= until || !p) return;
+
+  const cameraX = state.cameraX || 0;
+  const cx = p.x + p.w / 2 - cameraX;
+  const cy = p.y + p.h / 2;
+  const r = Math.max(p.w, p.h) * 0.72;
+
+  const pulse = 1 + Math.sin(now / 200) * 0.06;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(200,120,255,0.75)';
+  ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.arc(cx, cy, r * pulse, 0, Math.PI * 2);
   ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(255,255,255,0.65)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.86, 0, Math.PI * 2);
-  ctx.stroke();
-
   ctx.restore();
 }
 
@@ -691,6 +737,7 @@ function draw(ctx, state, now) {
   drawClone.draw(ctx, state.clones, cameraX, now);
 
   if (state.player) {
+    drawGrowAura(ctx, state, now);
     drawShieldAura(ctx, state, now);
     drawPlayer.draw(ctx, state.player, cameraX, state.firing ? state.aimAngle : null, now);
   }
