@@ -90,9 +90,9 @@ const DAMAGE_SHOP_GAIN = 0.1;   // 商店每级「子弹伤害」+0.1
 
 // ---------------- 弹夹与装填 ----------------
 // 每次开火（无论一次几发）消耗 1 发；弹夹空了打不出子弹
-const PLAYER_AMMO_START = 10;   // 初始弹夹容量
+const PLAYER_AMMO_START = 15;   // 初始弹夹容量
 const PLAYER_AMMO_MAX = 200;    // 弹夹容量上限（需要升很多级才满）
-const SHOP_AMMO_GAIN = 1;       // 商店每级「弹夹容量」+1
+const SHOP_AMMO_GAIN = 2;       // 商店每级「弹夹容量」+1
 
 // 装填只跟「前进距离」有关：走够多少米补 1 发（站着不动不回弹）
 const RELOAD_M_START = 50;      // 初始每 50 米 +1 发
@@ -104,7 +104,7 @@ const RELOAD_ITEM_RATIO = 0.80; // 「快速装填」道具：装填距离 ×0.8
 const AMMO_ITEM_BASE = 10;             // 基础补 10 发
 const AMMO_ITEM_STEP_M = 400;          // 每前进 400 米，补给量增加一次
 const AMMO_ITEM_GAIN_PER_STEP = 2;     // 每次增加 2 发
-const AMMO_ITEM_MAX = 40;              // 单个弹药道具最多补 40 发
+const AMMO_ITEM_MAX = 50;              // 单个弹药道具最多补 40 发
 
 // ---------------- 升级（吃经验升级）成长 ----------------
 const LEVEL_HP_GAIN = 1;         // 每级最大生命 +1（升级瞬间回满）
@@ -113,9 +113,9 @@ const LEVEL_MULTI_EVERY = 3;     // 每 3 级子弹数量 +1
 const LEVEL_HP_MAX = 60;         // 最大生命上限
 
 // ---------------- 商店「主体」每级加成 ----------------
-const SHOP_HP_GAIN = 2;         // 每级「生命上限」+2
+const SHOP_HP_GAIN = 4;         // 每级「生命上限」+2
 const SHOP_FIRE_RATIO = 0.92;   // 每级「攻击速度」间隔 ×0.92（约快 8%）
-const SHOP_MULTI_GAIN = 1;      // 每级「子弹数量」+1
+const SHOP_MULTI_GAIN = 2;      // 每级「子弹数量」+1
 const SHOP_DAMAGE_GAIN = 0.1;   // 每级「子弹伤害」+0.1
 
 // ---------------- 商店价格规则 ----------------
@@ -153,7 +153,7 @@ const ENEMY_IDLE_CHANCE = 0.30;   // 不追人时，原地发呆的概率
 
 // ---------------- 小怪：碰撞伤害 ----------------
 const ENEMY_CONTACT_DMG_STEP_M = 350; // 每 350 米，碰撞伤害 +1
-const ENEMY_CONTACT_DMG_MAX = 6;      // 碰撞伤害上限
+const ENEMY_CONTACT_DMG_MAX = 10;      // 碰撞伤害上限
 const ENEMY_CONTACT_COOLDOWN_MS = 2000; // 同一个人被撞后多少毫秒内不再掉血
 
 // ---------------- Boss ----------------
@@ -207,10 +207,10 @@ const ITEM_WEIGHT_RELOAD = 2.2; // 快速装填
 const ITEM_REPEAT_FACTOR = 0.35; // 连续出现同类时权重打折（避免重复）
 
 // ---------------- 血瓶道具 ----------------
-const HEAL_BASE = 2;            // 基础回 2 点血
+const HEAL_BASE = 4;            // 基础回 2 点血
 const HEAL_STEP_M = 350;        // 每 350 米提升一次
 const HEAL_GAIN_PER_STEP = 1;   // 每次 +1 点
-const HEAL_MAX = 12;            // 单个血瓶最多回 12 点
+const HEAL_MAX = 20;            // 单个血瓶最多回 12 点
 
 // ---------------- 金币 ----------------
 // 里程奖励：每前进 N 米，固定奖励 1 枚金币（与路上的金币道具分开算）
