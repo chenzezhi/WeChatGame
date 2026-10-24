@@ -1,0 +1,11 @@
+// 小怪：碰撞伤害（贴身掉血）
+
+const ENEMY_CONTACT_DMG_STEP_M = 350;   // 每 350 米，碰撞伤害 +1
+const ENEMY_CONTACT_DMG_MAX = 10;       // 碰撞伤害上限
+const ENEMY_CONTACT_COOLDOWN_MS = 2000; // 同一个人被撞后多少毫秒内不再掉血
+
+module.exports = {
+  ENEMY_CONTACT_DMG_STEP_M: ENEMY_CONTACT_DMG_STEP_M,
+  ENEMY_CONTACT_DMG_MAX: ENEMY_CONTACT_DMG_MAX,
+  ENEMY_CONTACT_COOLDOWN_MS: ENEMY_CONTACT_COOLDOWN_MS,
+};
