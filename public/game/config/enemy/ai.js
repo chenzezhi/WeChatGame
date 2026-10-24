@@ -1,10 +1,10 @@
 // 小怪：开火 / 移动决策 / 追击概率
 
 // ---------------- 开火 ----------------
-const ENEMY_FIRE_MS = 1400;      // 初始开火间隔
+const ENEMY_FIRE_MS = 3000;      // 初始开火间隔
 const ENEMY_FIRE_DECAY = 1.8;    // 每深入 1 米，间隔缩短 1.8 毫秒
 const ENEMY_FIRE_MS_MIN = 380;   // 开火间隔下限（最快）
-const ENEMY_BULLET_SPEED = 0.60; // 敌人子弹速度
+const ENEMY_BULLET_SPEED = 1.60; // 敌人子弹速度
 const ENEMY_DAMAGE = 1;          // 敌人子弹基础伤害
 
 // ---------------- 随机行为 ----------------
