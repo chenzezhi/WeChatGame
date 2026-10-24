@@ -1,11 +1,12 @@
-// 敌人参数聚合：小怪（生成 / AI / 接触伤害） + Boss
+// 敌人参数聚合：小怪（生成 / AI / 接触伤害） + Boss + Boss 技能
 
 const minion = require('./minion.js');
 const ai = require('./ai.js');
 const contact = require('./contact.js');
 const boss = require('./boss.js');
+const dash = require('./dash.js');
 
-const MODULES = [minion, ai, contact, boss];
+const MODULES = [minion, ai, contact, boss, dash];
 
 function merge() {
   const out = {};

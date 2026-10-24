@@ -390,6 +390,20 @@ function setAutoFire(on) {
   toast(next ? '自动开火已锁定' : '已解除锁定');
 }
 
+// ---------------- Boss 冲刺伤害 ----------------
+// 冲刺伤害 = 玩家最大生命 × 比例（10% 起，每关 +2%，上限 60%）
+function dashDamageOf(e) {
+  const p = state.player;
+  if (!p) return cfg.ENEMY_DAMAGE;
+
+  const stage = e.stage || 1;
+  let ratio = cfg.BOSS_DASH_HP_RATIO_BASE + cfg.BOSS_DASH_HP_RATIO_STEP * (stage - 1);
+  if (ratio > cfg.BOSS_DASH_HP_RATIO_MAX) ratio = cfg.BOSS_DASH_HP_RATIO_MAX;
+
+  const n = Math.round(p.maxHp * ratio);
+  return n > 0 ? n : 1;
+}
+
 function resetWorld(startX) {
   state.player = playerKit.create(startX);
   state.bullets = bullets.create();
@@ -922,6 +936,7 @@ function resolveContacts(now) {
   for (let i = 0; i < list.length; i++) {
     const e = list[i];
     const dmg = e.dmg || cfg.ENEMY_DAMAGE;
+    const dashing = (e.dashState === 'dash');
 
     if (p && p.alive) {
       const px = p.x + p.w * 0.22;
@@ -930,7 +945,14 @@ function resolveContacts(now) {
       const ph = p.h * 0.76;
 
       if (overlap(px, py, pw, ph, e.x, e.y, e.w, e.h)) {
-        if (now - state.playerHitAt >= cfg.ENEMY_CONTACT_COOLDOWN_MS) {
+        if (dashing) {
+          // 冲刺命中：每次冲刺只结算一次，伤害按最大生命百分比
+          if (!e.dashHit) {
+            e.dashHit = true;
+            state.playerHitAt = now;
+            damagePlayer(dashDamageOf(e), now);
+          }
+        } else if (now - state.playerHitAt >= cfg.ENEMY_CONTACT_COOLDOWN_MS) {
           state.playerHitAt = now;
           damagePlayer(dmg, now);
         }
@@ -945,7 +967,7 @@ function resolveContacts(now) {
       if (now - (c.hitAt || 0) < cfg.ENEMY_CONTACT_COOLDOWN_MS) continue;
 
       c.hitAt = now;
-      playerKit.damage(c, dmg, now);
+      playerKit.damage(c, dashing ? dashDamageOf(e) : dmg, now);
     }
   }
 }
@@ -1168,20 +1190,17 @@ function touchStart(e, now) {
     const p = changed[i];
     if (!p) continue;
 
-    // 自动开火按钮（关闭态是小钮，开启态铺满摇杆区域）
     if (autoKit.hit(p.x, p.y, state.autoFire)) {
       setAutoFire(!state.autoFire);
       continue;
     }
 
-    // 主动道具按钮
     const id = activeKit.hit(p.x, p.y);
     if (id) {
       useActive(id, t);
       continue;
     }
 
-    // 右上角菜单
     if (hitMenuButton(p.x, p.y)) {
       openPause();
       continue;

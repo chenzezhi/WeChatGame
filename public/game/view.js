@@ -1,4 +1,4 @@
-// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + 护盾/变大光环 + 摇杆 + 自动开火 + HUD。
+// 绘制总入口：背景 + 敌人 + 道具 + 子弹 + 分身 + 玩家 + 光环 + 摇杆 + 自动开火 + HUD + Boss 警告。
 
 const cfg = require('./config.js');
 const pal = require('./palette.js');
@@ -12,7 +12,7 @@ const activeKit = require('./active.js');
 const autoKit = require('./autofire.js');
 
 const C = pal.C;
-const BUILD = 'game-22';
+const BUILD = 'game-24';
 
 const XP_FILL = '#ffcf4d';
 const ICON_DARK = '#1d3a52';
@@ -236,7 +236,6 @@ function iconDamage(ctx, cx, cy, r) {
   ctx.fill();
 }
 
-// 弹夹图标：一颗子弹
 function iconAmmo(ctx, cx, cy, r, color) {
   ctx.fillStyle = color || ICON_AMMO;
 
@@ -251,7 +250,6 @@ function iconAmmo(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
-// 盾牌
 function iconShield(ctx, cx, cy, r, color) {
   ctx.fillStyle = color || ICON_SHIELD;
   ctx.beginPath();
@@ -265,7 +263,6 @@ function iconShield(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
-// 变大：圈 + 向上箭头
 function iconGrow(ctx, cx, cy, r, color) {
   const c = color || ICON_GROW;
 
@@ -284,7 +281,6 @@ function iconGrow(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
-// 准星（自动开火图标）
 function iconCrosshair(ctx, cx, cy, r, color) {
   const c = color || '#1f9ecf';
 
@@ -314,7 +310,6 @@ function iconCrosshair(ctx, cx, cy, r, color) {
   ctx.fill();
 }
 
-// 小锁（提示「锁定」）
 function iconLock(ctx, cx, cy, r, color) {
   const c = color || '#1f9ecf';
 
@@ -425,7 +420,6 @@ function drawMenuButton(ctx) {
   ctx.textBaseline = 'alphabetic';
 }
 
-// 主动道具按钮：瞄准摇杆右上角
 function drawActiveBar(ctx, state, now) {
   const items = activeKit.ITEMS;
 
@@ -455,7 +449,6 @@ function drawActiveBar(ctx, state, now) {
     if (id === 'shield') iconShield(ctx, icx, icy, 11, dim ? 'rgba(29,58,82,0.35)' : ICON_SHIELD);
     else iconGrow(ctx, icx, icy, 11, dim ? 'rgba(29,58,82,0.35)' : ICON_GROW);
 
-    // 右下角数量 / 剩余秒数
     ctx.textAlign = 'right';
     ctx.textBaseline = 'alphabetic';
     ctx.font = 'bold 11px sans-serif';
@@ -469,7 +462,6 @@ function drawActiveBar(ctx, state, now) {
   }
 }
 
-// 自动开火按钮：关闭时是摇杆右下角的小钮，开启时占据摇杆位置并放大
 function drawAutoButton(ctx, state, now) {
   const on = !!state.autoFire;
   const r = autoKit.rectOf(on);
@@ -483,7 +475,6 @@ function drawAutoButton(ctx, state, now) {
   if (on) {
     const pulse = 1 + Math.sin(now / 220) * 0.03;
 
-    // 外发光
     const g = ctx.createRadialGradient(cx, cy, rad * 0.5, cx, cy, rad * 1.35);
     g.addColorStop(0, 'rgba(94,224,192,0.30)');
     g.addColorStop(1, 'rgba(94,224,192,0)');
@@ -492,7 +483,6 @@ function drawAutoButton(ctx, state, now) {
     ctx.arc(cx, cy, rad * 1.35, 0, Math.PI * 2);
     ctx.fill();
 
-    // 主圆
     ctx.fillStyle = 'rgba(94,224,192,0.94)';
     ctx.beginPath();
     ctx.arc(cx, cy, rad * pulse, 0, Math.PI * 2);
@@ -516,7 +506,6 @@ function drawAutoButton(ctx, state, now) {
     ctx.fillStyle = 'rgba(11,58,52,0.72)';
     ctx.fillText('点击解除', cx, cy + rad * 0.46 + 13);
   } else {
-    // 小圆钮
     ctx.fillStyle = 'rgba(255,255,255,0.88)';
     ctx.beginPath();
     ctx.arc(cx, cy, rad, 0, Math.PI * 2);
@@ -530,14 +519,12 @@ function drawAutoButton(ctx, state, now) {
 
     iconCrosshair(ctx, cx - rad * 0.10, cy - rad * 0.10, rad * 0.56, ICON_SHIELD);
 
-    // 右下角的小锁，提示这是「锁定开火」
     iconLock(ctx, cx + rad * 0.66, cy + rad * 0.66, rad * 0.34, '#2f7fd0');
   }
 
   ctx.restore();
 }
 
-// 护盾光环：包住玩家的青色光圈 + 两颗绕着他转的小盾牌
 function drawShieldAura(ctx, state, now) {
   const until = state.shieldUntil;
   const p = state.player;
@@ -592,7 +579,6 @@ function drawShieldAura(ctx, state, now) {
   ctx.restore();
 }
 
-// 变大光环：紫色脉冲圈，表示属性翻倍生效中
 function drawGrowAura(ctx, state, now) {
   const until = state.growUntil;
   const p = state.player;
@@ -750,6 +736,52 @@ function drawHurtFlash(ctx, player, now) {
   ctx.strokeRect(0, 0, cfg.WIDTH, cfg.HEIGHT);
 }
 
+// Boss 蓄力冲刺警告：屏幕红色脉冲边框 + 顶部提示条
+function drawBossWarning(ctx, state, now) {
+  const list = (state.enemies && state.enemies.list) || [];
+  let boss = null;
+
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i];
+    if (e.isBoss && e.dashState === 'windup') {
+      boss = e;
+      break;
+    }
+  }
+
+  if (!boss) return;
+
+  const pulse = 0.5 + 0.5 * Math.sin(now / 90);
+
+  ctx.save();
+
+  ctx.strokeStyle = 'rgba(255,72,72,' + (0.30 + 0.45 * pulse).toFixed(3) + ')';
+  ctx.lineWidth = 16;
+  ctx.strokeRect(0, 0, cfg.WIDTH, cfg.HEIGHT);
+
+  const w = Math.min(cfg.WIDTH * 0.74, 300);
+  const h = 34;
+  const x = (cfg.WIDTH - w) / 2;
+  const y = cfg.HEIGHT * 0.145;
+
+  ctx.fillStyle = 'rgba(160,20,20,0.88)';
+  util.roundRectPath(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,225,225,' + (0.45 + 0.5 * pulse).toFixed(3) + ')';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff4f4';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('警告 · BOSS 蓄力冲刺', cfg.WIDTH / 2, y + h / 2 + 1);
+
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+}
+
 // ---------------- 暂停弹窗 ----------------
 function drawPause(ctx, state) {
   if (!state.menuOpen || !state.pausePanel) return;
@@ -863,6 +895,7 @@ function draw(ctx, state, now) {
   if (!state.autoFire) drawFx.drawAimStick(ctx, state.aimStick);
 
   drawAutoButton(ctx, state, now);
+  drawBossWarning(ctx, state, now);
 
   drawHud(ctx, state, now);
   drawHurtFlash(ctx, state.player, now);

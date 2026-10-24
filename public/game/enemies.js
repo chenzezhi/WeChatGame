@@ -1,4 +1,5 @@
 // 敌人：小怪 + 每 BOSS_EVERY_M 米一个 Boss。只维护数据，绘制在 drawEnemy.js。
+// Boss 额外有「蓄力冲刺」技能：idle → windup → dash → idle，每 3 秒掷一次骰子。
 
 const cfg = require('./config.js');
 const bullets = require('./bullets.js');
@@ -63,6 +64,20 @@ function bossFireMult(stage) {
 function bossBulletCount(stage) {
   const n = cfg.BOSS_BULLET_BASE + cfg.BOSS_BULLET_STEP * (stage - 1);
   return n > cfg.BOSS_BULLET_MAX ? cfg.BOSS_BULLET_MAX : n;
+}
+
+// 冲刺发动概率：15% 起，每关 +8%，上限 70%
+function bossDashChance(stage) {
+  const s = stage > 0 ? stage : 1;
+  const v = cfg.BOSS_DASH_CHANCE_BASE + cfg.BOSS_DASH_CHANCE_STEP * (s - 1);
+  return v > cfg.BOSS_DASH_CHANCE_MAX ? cfg.BOSS_DASH_CHANCE_MAX : v;
+}
+
+// 冲刺伤害比例：10% 起，每关 +2%，上限 60%
+function bossDashHpRatio(stage) {
+  const s = stage > 0 ? stage : 1;
+  const v = cfg.BOSS_DASH_HP_RATIO_BASE + cfg.BOSS_DASH_HP_RATIO_STEP * (s - 1);
+  return v > cfg.BOSS_DASH_HP_RATIO_MAX ? cfg.BOSS_DASH_HP_RATIO_MAX : v;
 }
 
 function reset(level, dist) {
@@ -145,6 +160,14 @@ function spawnBoss(level, playerX, dist, now) {
     nextMinionAt: NEVER,
     minionMin: mMin,
     minionMax: mMax,
+    // 冲刺技能
+    dashState: 'idle',
+    nextDashRollAt: now + cfg.BOSS_DASH_ROLL_MS,
+    dashWindupUntil: 0,
+    dashEndAt: 0,
+    dashVx: 0,
+    dashDir: 0,
+    dashHit: false,
     hurtAt: 0,
     bornAt: now,
     bobPhase: Math.random(),
@@ -236,6 +259,62 @@ function shootAt(eBullets, fromX, fromY, ang, speed, radius) {
   );
 }
 
+// Boss 冲刺技能状态机：idle → windup → dash → idle
+function updateDash(e, now, player) {
+  const rollMs = cfg.BOSS_DASH_ROLL_MS > 0 ? cfg.BOSS_DASH_ROLL_MS : 3000;
+  const windMs = cfg.BOSS_DASH_WINDUP_MS > 0 ? cfg.BOSS_DASH_WINDUP_MS : 900;
+  const dashMs = cfg.BOSS_DASH_MS > 0 ? cfg.BOSS_DASH_MS : 520;
+
+  if (e.dashState === 'windup') {
+    if (now < e.dashWindupUntil) return;
+
+    // 蓄力结束：按玩家「当前」位置决定方向，距离一定冲过去
+    const px = (player && player.alive) ? player.x + player.w / 2 : e.x + e.w / 2;
+    const bx = e.x + e.w / 2;
+    const dx = px - bx;
+    const dir = dx >= 0 ? 1 : -1;
+    const span = Math.abs(dx) + cfg.WIDTH * cfg.BOSS_DASH_OVERSHOOT_W;
+
+    e.dashState = 'dash';
+    e.dashDir = dir;
+    e.dashVx = (dir * span) / dashMs;
+    e.dashEndAt = now + dashMs;
+    e.dashHit = false;
+    e.dir = dir;
+    return;
+  }
+
+  if (e.dashState === 'dash') {
+    if (now >= e.dashEndAt) {
+      e.dashState = 'idle';
+      e.dashVx = 0;
+      e.nextDashRollAt = now + rollMs;
+    }
+    return;
+  }
+
+  // idle：每 rollMs 掷一次骰子
+  if (!e.nextDashRollAt) e.nextDashRollAt = now + rollMs;
+  if (now < e.nextDashRollAt) return;
+
+  e.nextDashRollAt = now + rollMs;
+
+  if (!player || !player.alive) return;
+
+  const bx = e.x + e.w / 2;
+  const px = player.x + player.w / 2;
+
+  // 还没进入交战范围就不发动
+  if (Math.abs(bx - px) > cfg.WIDTH * 1.9) return;
+
+  if (Math.random() < bossDashChance(e.stage || 1)) {
+    e.dashState = 'windup';
+    e.dashWindupUntil = now + windMs;
+    e.dashHit = false;
+    e.vx = 0;
+  }
+}
+
 function update(level, dt, now, player, eBullets, dist) {
   const list = level.list;
   const d = typeof dist === 'number' ? dist : 0;
@@ -249,19 +328,28 @@ function update(level, dt, now, player, eBullets, dist) {
 
     if (e.hurtAt && now - e.hurtAt > 150) e.hurtAt = 0;
 
-    if (now >= e.nextMoveAt) {
+    // Boss 冲刺技能
+    if (e.isBoss) updateDash(e, now, player);
+
+    const dashing = (e.dashState === 'dash');
+    const winding = (e.dashState === 'windup');
+
+    if (now >= e.nextMoveAt && !dashing && !winding) {
       const scale = e.isBoss ? 2.2 : 1;
       e.nextMoveAt = now + moveMs * scale * (0.7 + Math.random() * 0.6);
       decideMove(e, now, player, d);
     }
 
-    if (e.onGround && now - e.jumpQueuedAt <= 80) {
+    if (e.onGround && now - e.jumpQueuedAt <= 80 && !dashing) {
       e.vy = e.isBoss ? cfg.ENEMY_JUMP_V * 0.85 : cfg.ENEMY_JUMP_V;
       e.onGround = false;
       e.jumpQueuedAt = NEVER;
     }
 
-    e.vx = e.dir * e.speed;
+    if (dashing) e.vx = e.dashVx;
+    else if (winding) e.vx = 0;
+    else e.vx = e.dir * e.speed;
+
     e.vy += cfg.GRAVITY * dt;
     if (e.vy > cfg.MAX_FALL) e.vy = cfg.MAX_FALL;
 
@@ -278,7 +366,8 @@ function update(level, dt, now, player, eBullets, dist) {
     }
 
     if (player) {
-      const backLimit = player.x - cfg.WIDTH * 0.65;
+      // 冲刺时放宽后边界，保证能冲过玩家
+      const backLimit = player.x - cfg.WIDTH * (dashing ? 0.95 : 0.65);
       const frontLimit = player.x + cfg.WIDTH * 1.5;
 
       if (e.x < backLimit) {
@@ -312,6 +401,9 @@ function update(level, dt, now, player, eBullets, dist) {
       const mx = e.x + e.w * (Math.random() < 0.5 ? -0.35 : 0.35);
       spawnOne(level, mx, smallHp, smallDmg, now, d);
     }
+
+    // 蓄力 / 冲刺期间不开火
+    if (dashing || winding) continue;
 
     if (!near) continue;
     if (now < e.nextFireAt) continue;
@@ -397,4 +489,6 @@ module.exports = {
   bossHpMult: bossHpMult,
   bossFireMult: bossFireMult,
   bossBulletCount: bossBulletCount,
+  bossDashChance: bossDashChance,
+  bossDashHpRatio: bossDashHpRatio,
 };
