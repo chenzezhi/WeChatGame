@@ -1,5 +1,6 @@
 // 设置场景：音乐开关 / 音效开关 / 重置游戏数据。
 // 交互只认「点击」：按下不动、在同一行松手才生效。
+// 音效：所有行共用同一个点击音 ui。
 
 const scenes = require('../core/scenes.js');
 const profile = require('../core/profile.js');
@@ -110,11 +111,13 @@ function act(b) {
   if (!b) return;
 
   if (b.kind === 'back') {
+    audio.play('ui');
     scenes.switchTo('menu');
     return;
   }
 
   if (b.id === 'music') {
+    audio.play('ui');
     audio.setMusicOn(!audio.isMusicOn());
     refresh();
     return;
@@ -122,13 +125,14 @@ function act(b) {
 
   if (b.id === 'sfx') {
     audio.setSfxOn(!audio.isSfxOn());
-    // 开的时候给个即时反馈
-    if (audio.isSfxOn()) audio.play('pickup');
+    // 开的时候给个即时反馈（关的时候 play 会自动静默）
+    audio.play('ui');
     refresh();
     return;
   }
 
   if (b.id === 'reset') {
+    audio.play('ui');
     doReset();
   }
 }

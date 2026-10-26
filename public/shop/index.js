@@ -1,9 +1,12 @@
 // 商店控制器：升级（主体 / 分身） + 被动道具 + 主动道具（买 / 升时长） + 永久分身 + 夹角滑块。
 // 点击：按下不动、在同一行松手才生效。
 // 滑块：按住夹角行左侧的滑块上下拖动，实时生效（松手才落盘）。
+//
+// 音效：返回 / 页签 = ui；购买或升级成功 = upgrade；买不起 / 已满级 = ui。
 
 const scenes = require('../core/scenes.js');
 const profile = require('../core/profile.js');
+const audio = require('../core/audio.js');
 const buttons = require('./buttons.js');
 const view = require('./view.js');
 
@@ -70,17 +73,18 @@ function doUpgrade(id, isClone) {
 
   if (buttons.isMaxLevel(id, lv)) {
     toast('已经满级了');
-    return;
+    return false;
   }
 
   const cost = buttons.costOf(id, lv, isClone);
-  if (!spend(cost)) return;
+  if (!spend(cost)) return false;
 
   store[id] = lv + 1;
   profile.write(state.data);
   refresh();
 
   toast((isClone ? '分身' : '主体') + '升级成功 · Lv.' + (lv + 1));
+  return true;
 }
 
 function findRow(kind, id) {
@@ -95,33 +99,35 @@ function findRow(kind, id) {
 
 function doBuy(id) {
   const row = findRow('item', id);
-  if (!row) return;
-  if (!spend(row.cost)) return;
+  if (!row) return false;
+  if (!spend(row.cost)) return false;
 
   state.data.items[id] = (state.data.items[id] || 0) + 1;
   profile.write(state.data);
   refresh();
 
   toast('购买成功');
+  return true;
 }
 
 function doBuyPermClone() {
   const row = findRow('perm-clone', null);
-  if (!row) return;
-  if (!spend(row.cost)) return;
+  if (!row) return false;
+  if (!spend(row.cost)) return false;
 
   state.data.permClones = (state.data.permClones || 0) + 1;
   profile.write(state.data);
   refresh();
 
   toast('获得 1 个永久分身');
+  return true;
 }
 
 // ---------------- 主动道具 ----------------
 function doActiveBuy(id) {
   const row = findRow('active-buy', id);
-  if (!row) return;
-  if (!spend(row.cost)) return;
+  if (!row) return false;
+  if (!spend(row.cost)) return false;
 
   if (!state.data.activeItems) state.data.activeItems = { shield: 0, grow: 0 };
   state.data.activeItems[id] = (state.data.activeItems[id] || 0) + 1;
@@ -130,18 +136,19 @@ function doActiveBuy(id) {
   refresh();
 
   toast('购买成功 · 已有 ' + state.data.activeItems[id]);
+  return true;
 }
 
 function doActiveUpgrade(id) {
   const row = findRow('active-upgrade', id);
-  if (!row) return;
+  if (!row) return false;
 
   if (row.maxed) {
     toast('时长已经满级');
-    return;
+    return false;
   }
 
-  if (!spend(row.cost)) return;
+  if (!spend(row.cost)) return false;
 
   if (!state.data.activeUpgrades) state.data.activeUpgrades = { shield: 0, grow: 0 };
   state.data.activeUpgrades[id] = (state.data.activeUpgrades[id] || 0) + 1;
@@ -150,6 +157,7 @@ function doActiveUpgrade(id) {
   refresh();
 
   toast('时长提升 · Lv.' + state.data.activeUpgrades[id]);
+  return true;
 }
 
 // ---------------- 夹角滑块 ----------------
@@ -174,23 +182,30 @@ function act(b) {
   if (!b) return;
 
   if (b.kind === 'back') {
+    audio.play('ui');
     scenes.switchTo('menu');
     return;
   }
 
   if (b.kind === 'tab') {
     if (state.tab === b.id) return;
+    audio.play('ui');
     state.tab = b.id;
     refresh();
     return;
   }
 
-  if (b.kind === 'upgrade') { doUpgrade(b.id, false); return; }
-  if (b.kind === 'clone-upgrade') { doUpgrade(b.id, true); return; }
-  if (b.kind === 'perm-clone') { doBuyPermClone(); return; }
-  if (b.kind === 'active-buy') { doActiveBuy(b.id); return; }
-  if (b.kind === 'active-upgrade') { doActiveUpgrade(b.id); return; }
-  if (b.kind === 'item') { doBuy(b.id); }
+  let ok = false;
+
+  if (b.kind === 'upgrade') ok = doUpgrade(b.id, false);
+  else if (b.kind === 'clone-upgrade') ok = doUpgrade(b.id, true);
+  else if (b.kind === 'perm-clone') ok = doBuyPermClone();
+  else if (b.kind === 'active-buy') ok = doActiveBuy(b.id);
+  else if (b.kind === 'active-upgrade') ok = doActiveUpgrade(b.id);
+  else if (b.kind === 'item') ok = doBuy(b.id);
+
+  // 成功 = 升级音；失败（金币不足 / 已满级）= 普通点击音
+  audio.play(ok ? 'upgrade' : 'ui');
 }
 
 function enter() {

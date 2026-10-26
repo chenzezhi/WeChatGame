@@ -91,6 +91,9 @@ function touchStart(e) {
     return;
   }
 
+  // 主界面所有按钮共用同一个点击音（不做逐个按钮区分）
+  audio.play('ui');
+
   const fn = actions[item.id];
   if (fn) fn();
 }

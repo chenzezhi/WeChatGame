@@ -9,6 +9,10 @@
 //   audio/coin           拾取金币
 //   audio/hurt           受伤
 //   audio/boss           Boss 登场
+//   audio/ui             按钮点击（所有界面通用，一处播放）
+//   audio/upgrade        商店升级 / 购买成功
+//   audio/item           游戏内使用主动道具
+//   audio/levelup        角色升级
 //
 // 资源缺失时静默降级，不影响游戏运行。
 
@@ -25,6 +29,10 @@ const BASE = {
   coin: 'audio/coin',
   hurt: 'audio/hurt',
   boss: 'audio/boss',
+  ui: 'audio/ui',
+  upgrade: 'audio/upgrade',
+  item: 'audio/item',
+  levelup: 'audio/levelup',
 };
 
 const BGM_VOLUME = 0.30;
@@ -38,6 +46,10 @@ const MIN_GAP = {
   coin: 70,
   hurt: 180,
   boss: 500,
+  ui: 45,
+  upgrade: 80,
+  item: 80,
+  levelup: 150,
 };
 
 const POOL_SIZE = 3;
