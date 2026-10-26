@@ -19,7 +19,7 @@ try { fs = wx.getFileSystemManager(); } catch (e) { fs = null; }
 // ============ 开发期测试资产（上线前把这里改回 null） ============
 // 仅在 profile.json 不存在时作为初始值使用；也可以在设置页点「重置游戏数据」重新写入。
 const DEV_PROFILE = {
-  coins: 99999,
+  coins: 99999999,
   bossKills: 0,
   upgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0, cloneLife: 0, ammo: 0, reload: 0 },
   cloneUpgrades: { hp: 0, fire: 0, multi: 0, spread: 0, spreadAdj: 0, damage: 0 },
