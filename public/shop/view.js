@@ -1,9 +1,10 @@
 // 商店绘制：只负责画，不改状态。
-// 内容区用 clip() 裁剪，右侧画滚动条。
+// 全部在设计坐标系（960×540）内绘制，等比缩放到屏幕，尺寸永不变形。
 
 const canvasKit = require('../core/canvas.js');
+const ui = require('../core/ui.js');
 
-const BUILD = 'shop-7';
+const BUILD = 'shop-8';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -45,32 +46,31 @@ function drawCoinDot(ctx, cx, cy, r, color) {
   ctx.fillRect(cx - r * 0.16, cy - r * 0.5, r * 0.32, r * 1.0);
 }
 
-function drawBackground(ctx, width, height) {
-  const g = ctx.createLinearGradient(0, 0, 0, height);
+function drawBackground(ctx) {
+  const g = ctx.createLinearGradient(0, 0, 0, canvasKit.height);
   g.addColorStop(0, COLOR.bgTop);
   g.addColorStop(1, COLOR.bgBottom);
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, canvasKit.width, canvasKit.height);
 }
 
-// 顶部：标题（横屏高度紧张，压到左上角一行）
-function drawHeader(ctx, width, state) {
+function drawHeader(ctx, state) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 17px sans-serif';
-  ctx.fillText('商店', 94, 30);
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillText('商店', 126, 37);
 
-  const cx = width - 74;
-  const cy = 28;
+  const cx = ui.DESIGN_W - 96;
+  const cy = 37;
 
-  drawCoinDot(ctx, cx, cy, 9, COLOR.coin);
+  drawCoinDot(ctx, cx, cy, 10, COLOR.coin);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = 'bold 20px sans-serif';
   ctx.fillStyle = COLOR.coinText;
-  ctx.fillText(String(state.coins || 0), cx + 14, cy + 1);
+  ctx.fillText(String(state.coins || 0), cx + 16, cy + 1);
 
   ctx.textBaseline = 'alphabetic';
 }
@@ -83,11 +83,11 @@ function drawBack(ctx, back) {
   ctx.fill();
 
   ctx.strokeStyle = COLOR.cardStroke;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.6;
   ctx.stroke();
 
   ctx.fillStyle = COLOR.text;
-  ctx.font = '14px sans-serif';
+  ctx.font = '16px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('返回', back.x + back.w / 2, back.y + back.h / 2 + 1);
@@ -111,7 +111,7 @@ function drawTabs(ctx, built) {
     ctx.stroke();
 
     ctx.fillStyle = on ? COLOR.text : COLOR.textDim;
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(t.label, t.x + t.w / 2, t.y + t.h / 2 + 1);
@@ -127,26 +127,26 @@ function drawSlider(ctx, row) {
   const cx = s.x + s.w / 2;
 
   ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 6;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(cx, s.y + 5);
-  ctx.lineTo(cx, s.y + s.h - 5);
+  ctx.moveTo(cx, s.y + 6);
+  ctx.lineTo(cx, s.y + s.h - 6);
   ctx.stroke();
 
   let t = typeof row.sliderRatio === 'number' ? row.sliderRatio : 1;
   if (t < 0) t = 0;
   if (t > 1) t = 1;
 
-  const ky = s.y + 5 + (s.h - 10) * t;
+  const ky = s.y + 6 + (s.h - 12) * t;
 
   ctx.fillStyle = COLOR.accent;
   ctx.beginPath();
-  ctx.arc(cx, ky, 7, 0, Math.PI * 2);
+  ctx.arc(cx, ky, 8, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.4;
   ctx.stroke();
 
   ctx.lineCap = 'butt';
@@ -155,7 +155,7 @@ function drawSlider(ctx, row) {
 function drawSection(ctx, row) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.font = 'bold 11px sans-serif';
+  ctx.font = 'bold 12px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.45)';
   ctx.fillText(row.label, row.x + 2, row.y + row.h / 2 + 1);
   ctx.textBaseline = 'alphabetic';
@@ -172,11 +172,11 @@ function drawRow(ctx, row, coins) {
   const dim = maxed || poor;
 
   ctx.fillStyle = maxed ? 'rgba(255,255,255,0.03)' : COLOR.card;
-  roundRect(ctx, row.x, row.y, row.w, row.h, 12);
+  roundRect(ctx, row.x, row.y, row.w, row.h, 14);
   ctx.fill();
 
   ctx.strokeStyle = dim ? 'rgba(255,255,255,0.10)' : COLOR.cardStroke;
-  ctx.lineWidth = 1.4;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
   if (row.slider) drawSlider(ctx, row);
@@ -185,51 +185,51 @@ function drawRow(ctx, row, coins) {
   ctx.textBaseline = 'middle';
 
   const midY = row.y + row.h / 2;
-  const twoLine = row.h >= 40;
-  const tx = typeof row.textX === 'number' ? row.textX : row.x + 13;
+  const twoLine = row.h >= 44;
+  const tx = typeof row.textX === 'number' ? row.textX : row.x + 14;
 
-  ctx.font = 'bold 14px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.fillStyle = maxed ? COLOR.maxed : (poor ? COLOR.poor : COLOR.text);
-  ctx.fillText(row.label, tx, midY - (twoLine ? 7 : 0));
+  ctx.fillText(row.label, tx, midY - (twoLine ? 8 : 0));
 
   if (twoLine) {
-    ctx.font = '10px sans-serif';
+    ctx.font = '11px sans-serif';
     ctx.fillStyle = maxed ? 'rgba(255,255,255,0.30)' : COLOR.textDim;
-    ctx.fillText(row.desc || '', tx, midY + 9);
+    ctx.fillText(row.desc || '', tx, midY + 10);
   }
 
   // 满级：右侧显示「满级」，不显示价格
   if (maxed) {
     ctx.textAlign = 'right';
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = 'bold 14px sans-serif';
     ctx.fillStyle = 'rgba(94,224,192,0.55)';
-    ctx.fillText('满级', row.x + row.w - 13, midY + 1);
+    ctx.fillText('满级', row.x + row.w - 14, midY + 1);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     return;
   }
 
-  const priceX = row.x + row.w - 56;
+  const priceX = row.x + row.w - 62;
 
-  drawCoinDot(ctx, priceX, midY, 7, poor ? 'rgba(255,211,77,0.35)' : COLOR.coin);
+  drawCoinDot(ctx, priceX, midY, 8, poor ? 'rgba(255,211,77,0.35)' : COLOR.coin);
 
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 16px sans-serif';
   ctx.fillStyle = poor ? COLOR.poor : COLOR.coinText;
-  ctx.fillText(String(row.cost), priceX + 12, midY + 1);
+  ctx.fillText(String(row.cost), priceX + 14, midY + 1);
 
   ctx.textBaseline = 'alphabetic';
 }
 
-// 右侧滚动条
-function drawScrollBar(ctx, built, width) {
+// 右侧滚动条（内容超出视口时才画）
+function drawScrollBar(ctx, built) {
   const max = built.scrollMax || 0;
   if (max <= 0) return;
 
   const vh = built.viewH;
   const ch = built.contentH || (vh + max);
 
-  const barW = 4;
-  const barX = width - 7;
+  const barW = 5;
+  const barX = ui.DESIGN_W - 12;
   const trackY = built.viewTop;
   const trackH = vh;
 
@@ -238,7 +238,7 @@ function drawScrollBar(ctx, built, width) {
   ctx.fill();
 
   let thumbH = trackH * (vh / ch);
-  if (thumbH < 24) thumbH = 24;
+  if (thumbH < 28) thumbH = 28;
   if (thumbH > trackH) thumbH = trackH;
 
   const t = max > 0 ? built.scroll / max : 0;
@@ -252,17 +252,17 @@ function drawScrollBar(ctx, built, width) {
 function drawBuildTag(ctx) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = '10px sans-serif';
+  ctx.font = '11px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText(BUILD, 14, canvasKit.height - 6);
+  ctx.fillText(BUILD, 12, ui.DESIGN_H - 10);
 }
 
 function draw(ctx, state) {
-  const width = canvasKit.width;
-  const height = canvasKit.height;
+  drawBackground(ctx);
 
-  drawBackground(ctx, width, height);
-  drawHeader(ctx, width, state);
+  ui.begin(ctx);
+
+  drawHeader(ctx, state);
 
   const built = state.built;
 
@@ -270,10 +270,10 @@ function draw(ctx, state) {
     drawBack(ctx, built.back);
     drawTabs(ctx, built);
 
-    // ---- 内容区：裁剪后绘制（超出的部分不显示） ----
+    // ---- 内容区：只在视口内绘制 ----
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, built.viewTop, width, built.viewH);
+    ctx.rect(0, built.viewTop, ui.DESIGN_W, built.viewH);
     ctx.clip();
 
     const rows = built.rows || [];
@@ -281,10 +281,12 @@ function draw(ctx, state) {
 
     ctx.restore();
 
-    drawScrollBar(ctx, built, width);
+    drawScrollBar(ctx, built);
   }
 
   drawBuildTag(ctx);
+
+  ui.end(ctx);
 }
 
 module.exports = { draw: draw };

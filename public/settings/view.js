@@ -1,8 +1,10 @@
 // 设置界面绘制：只负责画，不改状态。
+// 全部在设计坐标系（960×540）内绘制，等比缩放到屏幕。
 
+const ui = require('../core/ui.js');
 const canvasKit = require('../core/canvas.js');
 
-const BUILD = 'settings-1';
+const BUILD = 'settings-2';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -19,7 +21,7 @@ const COLOR = {
 };
 
 function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
   ctx.lineTo(x + w - rr, y);
@@ -33,25 +35,27 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawBackground(ctx, width, height) {
-  const g = ctx.createLinearGradient(0, 0, 0, height);
+function drawBackground(ctx) {
+  const g = ctx.createLinearGradient(0, 0, 0, canvasKit.height);
   g.addColorStop(0, COLOR.bgTop);
   g.addColorStop(1, COLOR.bgBottom);
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, canvasKit.width, canvasKit.height);
 }
 
-function drawHeader(ctx, width, height) {
+function drawHeader(ctx) {
+  const cx = ui.DESIGN_W / 2;
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 24px sans-serif';
-  ctx.fillText('设置', width / 2, height * 0.19);
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText('设置', cx, 78);
 
-  ctx.font = '12px sans-serif';
+  ctx.font = '14px sans-serif';
   ctx.fillStyle = COLOR.textDim;
-  ctx.fillText('音乐 / 音效开关 · 重置游戏数据', width / 2, height * 0.19 + 22);
+  ctx.fillText('音乐 / 音效开关 · 重置游戏数据', cx, 104);
 }
 
 function drawBack(ctx, back) {
@@ -62,30 +66,29 @@ function drawBack(ctx, back) {
   ctx.fill();
 
   ctx.strokeStyle = COLOR.cardStroke;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.6;
   ctx.stroke();
 
   ctx.fillStyle = COLOR.text;
-  ctx.font = '14px sans-serif';
+  ctx.font = '16px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('返回', back.x + back.w / 2, back.y + back.h / 2 + 1);
   ctx.textBaseline = 'alphabetic';
 }
 
-// 开关
 function drawToggle(ctx, row, on) {
-  const tw = 52;
-  const th = 28;
-  const tx = row.x + row.w - tw - 16;
+  const tw = 64;
+  const th = 34;
+  const tx = row.x + row.w - tw - 20;
   const ty = row.y + (row.h - th) / 2;
 
   ctx.fillStyle = on ? COLOR.accent : COLOR.trackOff;
   roundRect(ctx, tx, ty, tw, th, th / 2);
   ctx.fill();
 
-  const kr = th / 2 - 3;
-  const kx = on ? tx + tw - kr - 3 : tx + kr + 3;
+  const kr = th / 2 - 4;
+  const kx = on ? tx + tw - kr - 4 : tx + kr + 4;
   const ky = ty + th / 2;
 
   ctx.fillStyle = COLOR.knob;
@@ -96,11 +99,11 @@ function drawToggle(ctx, row, on) {
 
 function drawToggleRow(ctx, row, on, sub) {
   ctx.fillStyle = COLOR.card;
-  roundRect(ctx, row.x, row.y, row.w, row.h, 16);
+  roundRect(ctx, row.x, row.y, row.w, row.h, 18);
   ctx.fill();
 
   ctx.strokeStyle = COLOR.cardStroke;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.6;
   ctx.stroke();
 
   ctx.textAlign = 'left';
@@ -108,13 +111,13 @@ function drawToggleRow(ctx, row, on, sub) {
 
   const midY = row.y + row.h / 2;
 
-  ctx.font = 'bold 17px sans-serif';
+  ctx.font = 'bold 19px sans-serif';
   ctx.fillStyle = COLOR.text;
-  ctx.fillText(row.label, row.x + 18, midY - 8);
+  ctx.fillText(row.label, row.x + 22, midY - 9);
 
-  ctx.font = '11px sans-serif';
+  ctx.font = '12px sans-serif';
   ctx.fillStyle = COLOR.textDim;
-  ctx.fillText(on ? sub[0] : sub[1], row.x + 18, midY + 12);
+  ctx.fillText(on ? sub[0] : sub[1], row.x + 22, midY + 13);
 
   drawToggle(ctx, row, on);
 
@@ -123,17 +126,17 @@ function drawToggleRow(ctx, row, on, sub) {
 
 function drawResetRow(ctx, row) {
   ctx.fillStyle = COLOR.dangerFill;
-  roundRect(ctx, row.x, row.y, row.w, row.h, 16);
+  roundRect(ctx, row.x, row.y, row.w, row.h, 18);
   ctx.fill();
 
   ctx.strokeStyle = COLOR.danger;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.6;
   ctx.stroke();
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = COLOR.danger;
-  ctx.font = 'bold 17px sans-serif';
+  ctx.font = 'bold 19px sans-serif';
   ctx.fillText(row.label, row.x + row.w / 2, row.y + row.h / 2 + 1);
 
   ctx.textBaseline = 'alphabetic';
@@ -142,17 +145,17 @@ function drawResetRow(ctx, row) {
 function drawBuildTag(ctx) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = '10px sans-serif';
+  ctx.font = '11px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText(BUILD, 14, canvasKit.height - 10);
+  ctx.fillText(BUILD, 12, ui.DESIGN_H - 10);
 }
 
 function draw(ctx, state) {
-  const width = canvasKit.width;
-  const height = canvasKit.height;
+  drawBackground(ctx);
 
-  drawBackground(ctx, width, height);
-  drawHeader(ctx, width, height);
+  ui.begin(ctx);
+
+  drawHeader(ctx);
 
   const b = state.built;
 
@@ -166,6 +169,8 @@ function draw(ctx, state) {
   }
 
   drawBuildTag(ctx);
+
+  ui.end(ctx);
 }
 
 module.exports = { draw: draw };

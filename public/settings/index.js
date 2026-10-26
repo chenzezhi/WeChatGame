@@ -1,18 +1,20 @@
 // 设置场景：音乐开关 / 音效开关 / 重置游戏数据。
 // 交互只认「点击」：按下不动、在同一行松手才生效。
-// 音效：所有行共用同一个点击音 ui。
+// 坐标系：设计单位（960×540），触摸点先经 core/ui.point() 转换。
 
 const scenes = require('../core/scenes.js');
 const profile = require('../core/profile.js');
 const storage = require('../core/storage.js');
 const audio = require('../core/audio.js');
-const canvasKit = require('../core/canvas.js');
+const ui = require('../core/ui.js');
 const view = require('./view.js');
 
-const TAP_SLOP = 14;
+const TAP_SLOP = 12;
 
-const ROW_H = 58;
-const ROW_GAP = 14;
+const ROW_W = 520;
+const ROW_H = 68;
+const ROW_GAP = 20;
+const ROW_TOP = 156;
 
 const state = {
   musicOn: true,
@@ -31,23 +33,18 @@ function toast(title) {
 }
 
 function buildLayout() {
-  const width = canvasKit.width;
-  const height = canvasKit.height;
+  const x = (ui.DESIGN_W - ROW_W) / 2;
+  let y = ROW_TOP;
 
-  const w = Math.min(width * 0.86, 440);
-  const x = (width - w) / 2;
-
-  let y = height * 0.30;
-
-  const music = { id: 'music', kind: 'toggle', label: '游戏音乐', x: x, y: y, w: w, h: ROW_H };
+  const music = { id: 'music', kind: 'toggle', label: '游戏音乐', x: x, y: y, w: ROW_W, h: ROW_H };
   y += ROW_H + ROW_GAP;
 
-  const sfx = { id: 'sfx', kind: 'toggle', label: '游戏音效', x: x, y: y, w: w, h: ROW_H };
-  y += ROW_H + ROW_GAP * 2.2;
+  const sfx = { id: 'sfx', kind: 'toggle', label: '游戏音效', x: x, y: y, w: ROW_W, h: ROW_H };
+  y += ROW_H + ROW_GAP * 2;
 
-  const reset = { id: 'reset', kind: 'reset', label: '重置游戏数据', x: x, y: y, w: w, h: ROW_H };
+  const reset = { id: 'reset', kind: 'reset', label: '重置游戏数据', x: x, y: y, w: ROW_W, h: ROW_H };
 
-  const back = { id: 'back', kind: 'back', x: 14, y: 14, w: 68, h: 32 };
+  const back = { id: 'back', kind: 'back', x: 20, y: 18, w: 84, h: 38 };
 
   return { music: music, sfx: sfx, reset: reset, back: back, rows: [music, sfx, reset] };
 }
@@ -156,8 +153,10 @@ function render(ctx) {
 }
 
 function touchStart(e) {
-  const p = e.touches && e.touches[0];
-  if (!p) return;
+  const raw = e.touches && e.touches[0];
+  if (!raw) return;
+
+  const p = ui.point(raw);
 
   state.downId = p.id;
   state.downX = p.x;
@@ -170,14 +169,15 @@ function touchMove(e) {
   if (state.downId < 0) return;
 
   const list = e.touches || [];
-  let p = null;
+  let raw = null;
 
   for (let i = 0; i < list.length; i++) {
-    if (list[i].id === state.downId) { p = list[i]; break; }
+    if (list[i].id === state.downId) { raw = list[i]; break; }
   }
 
-  if (!p) return;
+  if (!raw) return;
 
+  const p = ui.point(raw);
   const dx = p.x - state.downX;
   const dy = p.y - state.downY;
 
@@ -188,14 +188,13 @@ function touchEnd(e) {
   if (state.downId < 0) return;
 
   const changed = e.changed || [];
-  let p = null;
+  let raw = null;
 
   for (let i = 0; i < changed.length; i++) {
-    if (changed[i].id === state.downId) { p = changed[i]; break; }
+    if (changed[i].id === state.downId) { raw = changed[i]; break; }
   }
 
-  const x = p ? p.x : state.downX;
-  const y = p ? p.y : state.downY;
+  const p = raw ? ui.point(raw) : { x: state.downX, y: state.downY };
 
   const down = state.downBtn;
   const moved = state.moved;
@@ -204,7 +203,7 @@ function touchEnd(e) {
 
   if (!down || moved) return;
 
-  const up = hitRow(x, y);
+  const up = hitRow(p.x, p.y);
   if (!up || up.id !== down.id) return;
 
   act(up);

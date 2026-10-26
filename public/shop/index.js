@@ -1,13 +1,16 @@
 // 商店控制器：升级（主体 / 分身） + 被动道具 + 主动道具（买 / 升时长） + 永久分身 + 夹角滑块。
-// 点击：按下不动、在同一行松手才生效。
-// 滚动：按下后纵向拖动超过 TAP_SLOP 即进入滚动（此时不会误触发购买）。
-// 滑块：按住夹角行左侧的滑块上下拖动，实时生效（松手才落盘），优先级高于滚动。
 //
-// 音效：返回 / 页签 = ui；购买或升级成功 = upgrade；买不起 / 已满级 = ui。
+// 坐标系：触摸点先经 core/ui.point() 转成设计坐标，之后所有命中检测 /
+// 滚动 / 滑块计算都在设计坐标系里做，视觉与点击永远一致。
+//
+// 点击：按下不动、在同一行松手才生效。
+// 滚动：按下后纵向拖动超过 TAP_SLOP 即滚动（不会误触发购买）。
+// 滑块：按住夹角行左侧滑块上下拖动，优先级高于滚动。
 
 const scenes = require('../core/scenes.js');
 const profile = require('../core/profile.js');
 const audio = require('../core/audio.js');
+const ui = require('../core/ui.js');
 const buttons = require('./buttons.js');
 const view = require('./view.js');
 
@@ -35,7 +38,6 @@ function toast(title) {
   try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
-// 只重建视图，不重新读盘（拖动 / 滚动时用）
 function applyView() {
   state.coins = (state.data && state.data.coins) || 0;
   state.built = buttons.build(state.data, state.tab, state.scroll);
@@ -47,7 +49,6 @@ function refresh() {
   applyView();
 }
 
-// 设置滚动位置（自动夹紧到合法范围）
 function setScroll(v) {
   const max = state.built ? state.built.scrollMax : 0;
 
@@ -226,7 +227,6 @@ function act(b) {
   else if (b.kind === 'active-upgrade') ok = doActiveUpgrade(b.id);
   else if (b.kind === 'item') ok = doBuy(b.id);
 
-  // 成功 = 升级音；失败（金币不足 / 已满级）= 普通点击音
   audio.play(ok ? 'upgrade' : 'ui');
 }
 
@@ -250,8 +250,10 @@ function render(ctx) {
 }
 
 function touchStart(e) {
-  const p = e.touches && e.touches[0];
-  if (!p) return;
+  const raw = e.touches && e.touches[0];
+  if (!raw) return;
+
+  const p = ui.point(raw);
 
   // 滑块优先：按到滑块就不进入滚动逻辑
   const sliderRow = buttons.hitSlider(state.built, p.x, p.y);
@@ -264,7 +266,6 @@ function touchStart(e) {
 
   if (sliderRow) {
     state.downBtn = null;
-    state.downScroll = state.scroll;
     state.drag = {
       id: p.id,
       rect: { x: sliderRow.slider.x, y: sliderRow.slider.y, w: sliderRow.slider.w, h: sliderRow.slider.h },
@@ -283,13 +284,15 @@ function touchMove(e) {
   if (state.downId < 0) return;
 
   const list = e.touches || [];
-  let p = null;
+  let raw = null;
 
   for (let i = 0; i < list.length; i++) {
-    if (list[i].id === state.downId) { p = list[i]; break; }
+    if (list[i].id === state.downId) { raw = list[i]; break; }
   }
 
-  if (!p) return;
+  if (!raw) return;
+
+  const p = ui.point(raw);
 
   if (state.drag) {
     applyDrag(p.y);
@@ -302,7 +305,6 @@ function touchMove(e) {
   if (!state.moved && dx * dx + dy * dy > TAP_SLOP * TAP_SLOP) state.moved = true;
   if (!state.moved) return;
 
-  // 拖动 = 滚动内容（向下拖 = 往回看，所以取负）
   const max = state.built ? state.built.scrollMax : 0;
   if (max > 0) setScroll(state.downScroll - dy);
 }
@@ -311,23 +313,22 @@ function touchEnd(e) {
   if (state.downId < 0) return;
 
   const changed = e.changed || [];
-  let p = null;
+  let raw = null;
 
   for (let i = 0; i < changed.length; i++) {
-    if (changed[i].id === state.downId) { p = changed[i]; break; }
+    if (changed[i].id === state.downId) { raw = changed[i]; break; }
   }
+
+  const p = raw ? ui.point(raw) : { x: state.downX, y: state.downY };
 
   // 拖动滑块结束：落盘并重建
   if (state.drag) {
-    if (p) applyDrag(p.y);
+    if (raw) applyDrag(p.y);
     resetDown();
     profile.write(state.data);
     refresh();
     return;
   }
-
-  const x = p ? p.x : state.downX;
-  const y = p ? p.y : state.downY;
 
   const down = state.downBtn;
   const moved = state.moved;
@@ -336,7 +337,7 @@ function touchEnd(e) {
 
   if (!down || moved) return;
 
-  const up = buttons.hit(state.built, x, y);
+  const up = buttons.hit(state.built, p.x, p.y);
   if (!up || up.kind !== down.kind || up.id !== down.id) return;
 
   act(up);

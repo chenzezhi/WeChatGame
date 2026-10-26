@@ -1,36 +1,43 @@
 // 商店布局与命中检测。三个页签：主体 / 分身 / 道具。
 // 价格与数值全部来自 config/shop/，这里不硬编码。
 //
-// 【滚动】横屏可视高度有限，所以：
-//   - 每行高度固定（不再按剩余高度压缩，避免按钮被压扁变形）
-//   - 内容在「内容坐标系」里排好后，统一减去 scroll 转成屏幕坐标
-//   - build() 额外返回 viewTop / viewH / contentH / scrollMax / scroll
-//     供绘制层 clip() 裁剪并画滚动条
-//   - 顶部「返回」与三个页签固定不滚动
+// 坐标系 = 设计单位（960×540），由 core/ui.js 统一等比缩放到屏幕，
+// 因此行高 / 圆角比例在任何分辨率下都不会变。
+//
+// 内容超出视口时在「设计坐标系」内滚动（滚动只改变 y 偏移，不影响尺寸）。
 //
 // 行数据（row）字段：
-//   kind        upgrade | clone-upgrade | item | perm-clone | active-buy | active-upgrade | section | back | tab
+//   kind        upgrade | clone-upgrade | item | perm-clone | active-buy | active-upgrade | section
 //   level       当前等级
 //   maxLevel    满级等级
-//   maxed       是否已满级（满级后变灰、显示「满级」）
+//   maxed       是否已满级
 //   desc        小字提示
-//   slider      弹道夹角行专属：滑块矩形（已换算为屏幕坐标）
+//   slider      弹道夹角行专属：滑块矩形（设计坐标）
 //   sliderRange 滑块可调范围（度）
 //   sliderRatio 滑块位置 0(顶=最大夹角) ~ 1(底=已购买的最小夹角)
 
-const canvasKit = require('../core/canvas.js');
+const ui = require('../core/ui.js');
 const cfg = require('../game/config.js');
+
+const W = ui.DESIGN_W;
+const H = ui.DESIGN_H;
 
 const PRICES = cfg.SHOP_ITEM_PRICES || {};
 const MAXLV = cfg.SHOP_MAX_LEVEL || {};
 
-const ROW_H = 54;        // 每行固定高度
-const ROW_GAP = 6;       // 行间距
-const SECTION_H = 16;    // 小标题高度
-const TAB_H = 32;        // 页签高度
-const TAB_Y = 52;        // 页签纵向位置（在「返回」按钮下面）
-const TOP_PAD = 8;       // 页签与内容之间的间距
-const BOTTOM_PAD = 12;   // 内容区距屏幕底部
+const ROW_H = 52;
+const ROW_GAP = 8;
+const SECTION_H = 18;
+
+const TAB_PAD = 92;
+const TAB_Y = 64;
+const TAB_H = 38;
+const TAB_GAP = 10;
+
+const VIEW_TOP = TAB_Y + TAB_H + 10;       // 112
+const VIEW_H = H - 16 - VIEW_TOP;          // 412
+
+const CARD_GAP = 10;                       // 主动道具两张卡片之间的间距
 
 function itemPrice(id) {
   const v = PRICES[id];
@@ -62,7 +69,6 @@ function fixed1(v) {
   return (Math.round(v * 10) / 10).toFixed(1);
 }
 
-// 主动道具的持续时长（秒，文本）
 function activeDurationOf(id, level) {
   const lv = level > 0 ? level : 0;
 
@@ -87,7 +93,6 @@ function activeUpCost(id, level) {
   return b * (1 + lv);
 }
 
-// 返回 { v: 当前值文本, step: 每级变化文本 }
 function statOf(id, level, isClone, adj) {
   const lv = level > 0 ? level : 0;
 
@@ -112,8 +117,7 @@ function statOf(id, level, isClone, adj) {
     const range = cfg.MULTI_SPREAD_DEG - base;
     let a = adj > 0 ? adj : 0;
     if (a > range) a = range;
-    const eff = base + a;
-    return { v: fixed1(eff) + '°', step: '每级 -' + cfg.SPREAD_SHOP_STEP_DEG + '°' };
+    return { v: fixed1(base + a) + '°', step: '每级 -' + cfg.SPREAD_SHOP_STEP_DEG + '°' };
   }
 
   if (id === 'damage') {
@@ -178,7 +182,6 @@ const CLONE_UPGRADES = [
   { id: 'damage', label: '子弹伤害' },
 ];
 
-// 主动道具（购买 + 升级时长）
 const ACTIVE_ITEMS = [
   { id: 'shield', label: '护盾', stepMs: cfg.SHIELD_STEP_MS },
   { id: 'grow', label: '变大', stepMs: cfg.GROW_STEP_MS },
@@ -236,13 +239,12 @@ function upgradeCost(level) {
 // ---------------- 主动道具卡片（左护盾 / 右变大） ----------------
 function buildActiveCards(rows, data, x, w, y, rh, gap) {
   const cardH = rh * 2 + gap;
-  const cardGap = 6;
-  const cardW = (w - cardGap) / 2;
+  const cardW = (w - CARD_GAP) / 2;
   const half = cardH / 2;
 
   for (let i = 0; i < ACTIVE_ITEMS.length; i++) {
     const it = ACTIVE_ITEMS[i];
-    const cx = x + i * (cardW + cardGap);
+    const cx = x + i * (cardW + CARD_GAP);
 
     const own = (data && data.activeItems && data.activeItems[it.id]) || 0;
     const lv = (data && data.activeUpgrades && data.activeUpgrades[it.id]) || 0;
@@ -261,7 +263,7 @@ function buildActiveCards(rows, data, x, w, y, rh, gap) {
       y: y,
       w: cardW,
       h: half - 2,
-      textX: cx + 10,
+      textX: cx + 12,
     });
 
     rows.push({
@@ -277,7 +279,7 @@ function buildActiveCards(rows, data, x, w, y, rh, gap) {
       y: y + half + 2,
       w: cardW,
       h: half - 2,
-      textX: cx + 10,
+      textX: cx + 12,
     });
   }
 
@@ -285,37 +287,28 @@ function buildActiveCards(rows, data, x, w, y, rh, gap) {
 }
 
 // ---------------- 主构建 ----------------
-// scroll：纵向滚动偏移（像素）。返回的 rows 已经是屏幕坐标（已减掉滚动）。
+// scroll：纵向滚动偏移（设计单位）。返回的 rows 坐标已经减掉滚动。
 function build(data, tab, scroll) {
-  const width = canvasKit.width;
-  const height = canvasKit.height;
-
   const mode = (tab === 'clone' || tab === 'items') ? tab : 'player';
   const isClone = mode === 'clone';
   const isItems = mode === 'items';
 
-  const w = Math.min(width * 0.9, 520);
-  const x = (width - w) / 2;
+  const w = W - TAB_PAD * 2;
+  const x = TAB_PAD;
 
-  const tabGap = 6;
-  const tabW = (w - tabGap * 2) / 3;
+  const tabW = (w - TAB_GAP * 2) / 3;
 
   const tabs = [
     { id: 'player', label: '主体', x: x, y: TAB_Y, w: tabW, h: TAB_H },
-    { id: 'clone', label: '分身', x: x + tabW + tabGap, y: TAB_Y, w: tabW, h: TAB_H },
-    { id: 'items', label: '道具', x: x + (tabW + tabGap) * 2, y: TAB_Y, w: tabW, h: TAB_H },
+    { id: 'clone', label: '分身', x: x + tabW + TAB_GAP, y: TAB_Y, w: tabW, h: TAB_H },
+    { id: 'items', label: '道具', x: x + (tabW + TAB_GAP) * 2, y: TAB_Y, w: tabW, h: TAB_H },
   ];
-
-  // 内容视口（滚动区域）
-  const viewTop = TAB_Y + TAB_H + TOP_PAD;
-  const viewH = Math.max(90, height - BOTTOM_PAD - viewTop);
 
   const rh = ROW_H;
   const gap = ROW_GAP;
-
   const list = isClone ? CLONE_UPGRADES : (isItems ? ITEMS : PLAYER_UPGRADES);
 
-  // ---- 先在最朴素的「内容坐标」里排好（y 从 0 开始） ----
+  // ---- 先在内容坐标里排（y 从 0 开始） ----
   const content = [];
   let cy = 0;
 
@@ -344,7 +337,7 @@ function build(data, tab, scroll) {
         own: own,
         cost: it.price,
         maxed: false,
-        textX: x + 13,
+        textX: x + 14,
         x: x,
         y: cy,
         w: w,
@@ -367,14 +360,14 @@ function build(data, tab, scroll) {
         maxLevel: maxLevelOf(it.id),
         maxed: maxed,
         cost: maxed ? 0 : costOf(it.id, lv, isClone),
-        textX: x + 13,
+        textX: x + 14,
         x: x,
         y: cy,
         w: w,
         h: rh,
       };
 
-      // 弹道夹角行：左侧加一条可拖动滑块（范围 = 已购买的最小夹角 ~ 初始夹角）
+      // 弹道夹角行：左侧加一条可拖动滑块
       if (it.id === 'spread') {
         const base = spreadBaseAt(lv);
         const range = cfg.MULTI_SPREAD_DEG - base;
@@ -383,10 +376,10 @@ function build(data, tab, scroll) {
           let a = adj > 0 ? adj : 0;
           if (a > range) a = range;
 
-          row.slider = { x: x + 6, y: cy + 6, w: 30, h: Math.max(16, rh - 12) };
+          row.slider = { x: x + 8, y: cy + 6, w: 34, h: Math.max(18, rh - 12) };
           row.sliderRange = range;
           row.sliderRatio = 1 - a / range;
-          row.textX = x + 44;
+          row.textX = x + 50;
         }
       }
 
@@ -407,7 +400,7 @@ function build(data, tab, scroll) {
       own: owned,
       cost: permCloneCost(owned),
       maxed: false,
-      textX: x + 13,
+      textX: x + 14,
       x: x,
       y: cy,
       w: w,
@@ -418,13 +411,13 @@ function build(data, tab, scroll) {
   }
 
   const contentH = cy > 0 ? cy : rh;
-  const scrollMax = Math.max(0, contentH - viewH);
+  const scrollMax = Math.max(0, contentH - VIEW_H);
 
   let off = (typeof scroll === 'number' && isFinite(scroll)) ? scroll : 0;
   if (off < 0) off = 0;
   if (off > scrollMax) off = scrollMax;
 
-  // ---- 内容坐标 → 屏幕坐标 ----
+  // ---- 内容坐标 → 视口坐标（只改 y） ----
   const rows = [];
 
   for (let i = 0; i < content.length; i++) {
@@ -442,7 +435,7 @@ function build(data, tab, scroll) {
       own: r.own,
       textX: r.textX,
       x: r.x,
-      y: viewTop - off + r.y,
+      y: VIEW_TOP - off + r.y,
       w: r.w,
       h: r.h,
     };
@@ -450,7 +443,7 @@ function build(data, tab, scroll) {
     if (r.slider) {
       o.slider = {
         x: r.slider.x,
-        y: viewTop - off + r.slider.y,
+        y: VIEW_TOP - off + r.slider.y,
         w: r.slider.w,
         h: r.slider.h,
       };
@@ -461,15 +454,15 @@ function build(data, tab, scroll) {
     rows.push(o);
   }
 
-  const back = { id: 'back', kind: 'back', x: 14, y: 14, w: 68, h: 32 };
+  const back = { id: 'back', kind: 'back', x: 20, y: 18, w: 84, h: 38 };
 
   return {
     rows: rows,
     back: back,
     tabs: tabs,
     tab: mode,
-    viewTop: viewTop,
-    viewH: viewH,
+    viewTop: VIEW_TOP,
+    viewH: VIEW_H,
     contentH: contentH,
     scrollMax: scrollMax,
     scroll: off,
@@ -478,10 +471,14 @@ function build(data, tab, scroll) {
 
 // 行是否落在可视区域内（视口外的行不参与命中）
 function inView(built, y, h) {
+  if (!built) return true;
+
   const top = built.viewTop;
   const bottom = built.viewTop + built.viewH;
+
   if (y + h <= top) return false;
   if (y >= bottom) return false;
+
   return true;
 }
 
@@ -542,4 +539,6 @@ module.exports = {
   activePrice: activePrice,
   activeUpCost: activeUpCost,
   ROW_H: ROW_H,
+  VIEW_TOP: VIEW_TOP,
+  VIEW_H: VIEW_H,
 };
