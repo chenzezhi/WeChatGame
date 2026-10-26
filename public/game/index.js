@@ -1,4 +1,8 @@
 // 游戏控制器：配置 / 人物 / 敌人 / 子弹 / 道具 / 分身 / 主动道具 / 自动开火 / 绘制。
+// 音效统一走 core/audio.js：
+//   ui       界面按钮（菜单弹窗三个按钮 / 右上菜单 / 锁定开火 / 死亡后返回）
+//   item     使用主动道具成功
+//   levelup  角色升级
 
 const cfg = require('./config.js');
 const input = require('./input.js');
@@ -332,12 +336,14 @@ function useActive(id, now) {
 
   if (isActiveNow(id, t)) {
     toast(label + ' 还在生效中');
+    audio.play('ui');
     return;
   }
 
   const count = (state.activeItems && state.activeItems[id]) || 0;
   if (count <= 0) {
     toast('没有 ' + label + ' 了');
+    audio.play('ui');
     return;
   }
 
@@ -354,7 +360,7 @@ function useActive(id, now) {
   prof.activeItems = state.activeItems;
   profile.write(prof);
 
-  audio.play('pickup');
+  audio.play('item');
 }
 
 function stopActive() {
@@ -670,6 +676,8 @@ function applyLevelUp() {
   if (state.level % cfg.LEVEL_MULTI_EVERY === 0 && state.multishot < cfg.PLAYER_MULTI_MAX) {
     state.multishot += 1;
   }
+
+  audio.play('levelup');
 }
 
 function gainXp(amount) {
@@ -1155,6 +1163,7 @@ function touchStart(e, now) {
 
   if (state.phase === 'dead') {
     if (t - state.deadAt < DEAD_TAP_DELAY) return;
+    audio.play('ui');
     scenes.switchTo('menu');
     return;
   }
@@ -1167,6 +1176,9 @@ function touchStart(e, now) {
 
     const b = hitPauseButton(p.x, p.y);
     if (!b) return;
+
+    // 菜单弹窗三个按钮：返回游戏 / 返回主菜单 / 退出游戏，共用同一个点击音
+    audio.play('ui');
 
     if (b.id === 'resume') {
       closePause();
@@ -1191,6 +1203,7 @@ function touchStart(e, now) {
     if (!p) continue;
 
     if (autoKit.hit(p.x, p.y, state.autoFire)) {
+      audio.play('ui');
       setAutoFire(!state.autoFire);
       continue;
     }
@@ -1202,6 +1215,7 @@ function touchStart(e, now) {
     }
 
     if (hitMenuButton(p.x, p.y)) {
+      audio.play('ui');
       openPause();
       continue;
     }

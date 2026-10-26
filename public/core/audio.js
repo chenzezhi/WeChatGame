@@ -9,12 +9,13 @@
 //   audio/coin           拾取金币
 //   audio/hurt           受伤
 //   audio/boss           Boss 登场
-//   audio/ui             按钮点击（所有界面通用，一处播放）
-//   audio/upgrade        商店升级 / 购买成功
-//   audio/item           游戏内使用主动道具
-//   audio/levelup        角色升级
+//   audio/ui             界面按钮点击（主菜单 / 商店 / 设置 / 游戏内菜单，全部共用这一个）
+//   audio/upgrade        商店购买 / 升级成功
+//   audio/item           游戏内使用主动道具（护盾 / 变大）
+//   audio/levelup        角色吃经验升级
 //
-// 资源缺失时静默降级，不影响游戏运行。
+// 资源缺失时静默降级；缺失不会「永久静音」，只是进入冷却后重试，
+// 补放音频文件后无需重启小游戏。
 
 const settings = require('./settings.js');
 
@@ -35,6 +36,18 @@ const BASE = {
   levelup: 'audio/levelup',
 };
 
+// 兼容历史写法：play('enemy-shoot') 与 play('enemyShoot') 指向同一个池
+const ALIAS = {
+  'enemy-shoot': 'enemyShoot',
+  'enemy_shoot': 'enemyShoot',
+  'level-up': 'levelup',
+  'level_up': 'levelup',
+};
+
+function keyOf(name) {
+  return ALIAS[name] || name;
+}
+
 const BGM_VOLUME = 0.30;
 const SFX_VOLUME = 0.60;
 
@@ -54,6 +67,13 @@ const MIN_GAP = {
 
 const POOL_SIZE = 3;
 
+// InnerAudioContext 实例上限保护：超出时按「最久未播放」淘汰旧池。
+// 池是懒创建的，只有真的播过的音效才会占实例。
+const MAX_LIVE_INSTANCES = 24;
+
+// 文件缺失后的重试冷却（毫秒）
+const RETRY_COOLDOWN_MS = 2500;
+
 let supported = false;
 try {
   supported = typeof wx !== 'undefined' && typeof wx.createInnerAudioContext === 'function';
@@ -72,6 +92,7 @@ const st = {
   poolIdx: {},
   poolSrc: {},
   extIdx: {},
+  retryAt: {},
   lastAt: {},
 };
 
@@ -92,6 +113,11 @@ function srcOf(name) {
   const ext = extOf(name);
   if (!ext) return null;
   return BASE[name] + '.' + ext;
+}
+
+function coolingDown(name, now) {
+  const t = st.retryAt[name] || 0;
+  return !!t && now < t;
 }
 
 function createAudio(src, loop, volume) {
@@ -135,15 +161,64 @@ function destroyBgm() {
   st.bgmPlaying = false;
 }
 
+function liveCount() {
+  let n = st.bgm ? 1 : 0;
+  const keys = Object.keys(st.pools);
+
+  for (let i = 0; i < keys.length; i++) {
+    const p = st.pools[keys[i]];
+    if (p && p.length) n += p.length;
+  }
+
+  return n;
+}
+
+// 实例超预算时，淘汰最久没播过的音效池
+function evictFor(exceptName, need) {
+  let guard = 0;
+
+  while (liveCount() + need > MAX_LIVE_INSTANCES && guard < 32) {
+    guard++;
+
+    let victim = '';
+    let oldest = Infinity;
+    const keys = Object.keys(st.pools);
+
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const p = st.pools[k];
+      if (k === exceptName || !p || !p.length) continue;
+
+      const t = st.lastAt[k] || 0;
+      if (t < oldest) {
+        oldest = t;
+        victim = k;
+      }
+    }
+
+    if (!victim) break;
+    destroyPool(victim);
+  }
+}
+
 function onMediaError(name, src) {
   const cur = srcOf(name);
   if (cur && src && cur !== src) return;
 
-  st.extIdx[name] = (st.extIdx[name] || 0) + 1;
+  const next = (st.extIdx[name] || 0) + 1;
+
+  if (next >= EXT_ORDER.length) {
+    // 所有扩展名都试过了：说明文件当前确实不在包里。
+    // 不要永久锁死 —— 重置下标 + 冷却，冷却结束后下次播放会重新尝试。
+    st.extIdx[name] = 0;
+    st.retryAt[name] = Date.now() + RETRY_COOLDOWN_MS;
+  } else {
+    st.extIdx[name] = next;
+  }
 
   if (name === 'bgm') {
     destroyBgm();
-    if (st.bgmWanted && st.musicOn && extOf('bgm')) playBgm();
+    if (st.bgmWanted && st.musicOn && extOf('bgm') && !coolingDown('bgm', Date.now())) playBgm();
     return;
   }
 
@@ -180,6 +255,7 @@ function playBgm() {
 
   st.bgmWanted = true;
   if (!st.musicOn) return;
+  if (coolingDown('bgm', Date.now())) return;
 
   const a = ensureBgm();
   if (!a || st.bgmPlaying) return;
@@ -213,6 +289,8 @@ function ensurePool(name) {
 
   if (st.pools[name]) destroyPool(name);
 
+  evictFor(name, POOL_SIZE);
+
   const list = [];
 
   for (let i = 0; i < POOL_SIZE; i++) {
@@ -238,8 +316,15 @@ function ensurePool(name) {
 function play(name) {
   if (!supported || !st.sfxOn || !name) return;
 
-  const gap = typeof MIN_GAP[name] === 'number' ? MIN_GAP[name] : 60;
+  name = keyOf(name);
+  if (!BASE[name] || name === 'bgm') return;
+
   const now = Date.now();
+
+  // 刚失败过（文件缺失）：冷却期内不再反复创建实例
+  if (coolingDown(name, now)) return;
+
+  const gap = typeof MIN_GAP[name] === 'number' ? MIN_GAP[name] : 60;
 
   if (now - (st.lastAt[name] || 0) < gap) return;
   st.lastAt[name] = now;
