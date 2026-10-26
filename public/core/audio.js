@@ -9,13 +9,17 @@
 //   audio/coin           拾取金币
 //   audio/hurt           受伤
 //   audio/boss           Boss 登场
-//   audio/ui             界面按钮点击（主菜单 / 商店 / 设置 / 游戏内菜单，全部共用这一个）
+//   audio/ui             界面按钮点击（主菜单 / 商店 / 设置 / 游戏内菜单，共用这一个）
 //   audio/upgrade        商店购买 / 升级成功
 //   audio/item           游戏内使用主动道具（护盾 / 变大）
 //   audio/levelup        角色吃经验升级
 //
-// 资源缺失时静默降级；缺失不会「永久静音」，只是进入冷却后重试，
-// 补放音频文件后无需重启小游戏。
+// 【重要】InnerAudioContext 设置 src 之后是「异步加载」的，加载完成前调用 play()
+// 会被无声丢弃（不报错）。所以这里每个实例都跟踪 ready 状态：未就绪时把播放
+// 请求挂起，等 onCanplay 再补播；另有一个兜底定时器，防止个别基础库不回调
+// onCanplay 导致永远没声音。
+//
+// 资源缺失时静默降级；缺失只进入短暂冷却，补放文件后无需重启小游戏。
 
 const settings = require('./settings.js');
 
@@ -65,14 +69,17 @@ const MIN_GAP = {
   levelup: 150,
 };
 
-const POOL_SIZE = 3;
+// 每个音效的实例数量（2 个足够覆盖连击，又不浪费实例）
+const POOL_SIZE = 2;
 
-// InnerAudioContext 实例上限保护：超出时按「最久未播放」淘汰旧池。
-// 池是懒创建的，只有真的播过的音效才会占实例。
-const MAX_LIVE_INSTANCES = 24;
+// InnerAudioContext 实例总量上限：超出时淘汰「最久没播」的音效池。
+const MAX_LIVE_INSTANCES = 12;
 
 // 文件缺失后的重试冷却（毫秒）
 const RETRY_COOLDOWN_MS = 2500;
+
+// 等不到 onCanplay 时的兜底播放延迟（毫秒）
+const READY_WAIT_MS = 260;
 
 let supported = false;
 try {
@@ -84,9 +91,8 @@ try {
 const st = {
   musicOn: true,
   sfxOn: true,
-  bgm: null,
+  bgm: null,        // 声音实例（不是原生 context）
   bgmSrc: '',
-  bgmPlaying: false,
   bgmWanted: false,
   pools: {},
   poolIdx: {},
@@ -120,7 +126,8 @@ function coolingDown(name, now) {
   return !!t && now < t;
 }
 
-function createAudio(src, loop, volume) {
+// ---------------- 原生 context ----------------
+function createRaw(src, loop, volume) {
   if (!supported || !src) return null;
 
   let a = null;
@@ -137,17 +144,144 @@ function createAudio(src, loop, volume) {
   return a;
 }
 
-function destroyAudio(a) {
+function destroyRaw(a) {
   if (!a) return;
   try { a.stop(); } catch (e) { /* 忽略 */ }
   try { a.destroy(); } catch (e) { /* 忽略 */ }
 }
 
+// ---------------- 声音实例（包装 ready / 挂起播放） ----------------
+function createVoice(name, src, loop, volume) {
+  const raw = createRaw(src, loop, volume);
+  if (!raw) return null;
+
+  const v = {
+    name: name,
+    src: src,
+    raw: raw,
+    ready: false,
+    pending: false,
+    playing: false,
+    started: false,
+    timer: 0,
+  };
+
+  // 每个回调单独 try：某个基础库缺方法时不影响其他回调注册
+  try {
+    if (typeof raw.onCanplay === 'function') {
+      raw.onCanplay(function () {
+        v.ready = true;
+        flushVoice(v);
+      });
+    }
+  } catch (e) { /* 忽略 */ }
+
+  try {
+    if (typeof raw.onPlay === 'function') {
+      raw.onPlay(function () {
+        v.ready = true;
+        v.started = true;
+        v.playing = true;
+      });
+    }
+  } catch (e) { /* 忽略 */ }
+
+  try {
+    if (typeof raw.onPause === 'function') raw.onPause(function () { v.playing = false; });
+  } catch (e) { /* 忽略 */ }
+
+  try {
+    if (typeof raw.onStop === 'function') raw.onStop(function () { v.playing = false; });
+  } catch (e) { /* 忽略 */ }
+
+  try {
+    if (typeof raw.onEnded === 'function') raw.onEnded(function () { v.playing = false; });
+  } catch (e) { /* 忽略 */ }
+
+  try {
+    if (typeof raw.onError === 'function') {
+      raw.onError(function () { onMediaError(name, src); });
+    }
+  } catch (e) { /* 忽略 */ }
+
+  return v;
+}
+
+function destroyVoice(v) {
+  if (!v) return;
+
+  if (v.timer) {
+    clearTimeout(v.timer);
+    v.timer = 0;
+  }
+
+  v.pending = false;
+  v.ready = false;
+  v.playing = false;
+
+  destroyRaw(v.raw);
+  v.raw = null;
+}
+
+function doPlay(v) {
+  if (!v || !v.raw) return;
+
+  try {
+    // 只对「已经在响」的实例先停，避免复用时从头叠加。
+    // 对从未播放过的实例不要调 stop()：iOS 上会吃掉紧接着的 play()。
+    if (v.playing) {
+      try { v.raw.stop(); } catch (e) { /* 忽略 */ }
+    }
+
+    v.raw.play();
+    v.started = true;
+  } catch (e) {
+    onMediaError(v.name, v.src);
+  }
+}
+
+// 挂起的播放请求，等加载完成后补播
+function flushVoice(v) {
+  if (!v) return;
+
+  if (v.timer) {
+    clearTimeout(v.timer);
+    v.timer = 0;
+  }
+
+  if (!v.pending) return;
+
+  v.pending = false;
+  doPlay(v);
+}
+
+function requestPlay(v) {
+  if (!v || !v.raw) return;
+
+  if (v.ready) {
+    doPlay(v);
+    return;
+  }
+
+  // 还没加载完：挂起，等 onCanplay 补播
+  v.pending = true;
+
+  // 兜底：个别基础库不回调 onCanplay 时，等一小会儿直接播
+  if (v.timer) clearTimeout(v.timer);
+  v.timer = setTimeout(function () {
+    v.timer = 0;
+    if (!v.pending) return;
+    v.pending = false;
+    doPlay(v);
+  }, READY_WAIT_MS);
+}
+
+// ---------------- 池管理 ----------------
 function destroyPool(name) {
   const pool = st.pools[name];
   if (!pool) return;
 
-  for (let i = 0; i < pool.length; i++) destroyAudio(pool[i]);
+  for (let i = 0; i < pool.length; i++) destroyVoice(pool[i]);
 
   st.pools[name] = null;
   st.poolIdx[name] = 0;
@@ -155,10 +289,9 @@ function destroyPool(name) {
 }
 
 function destroyBgm() {
-  destroyAudio(st.bgm);
+  destroyVoice(st.bgm);
   st.bgm = null;
   st.bgmSrc = '';
-  st.bgmPlaying = false;
 }
 
 function liveCount() {
@@ -233,21 +366,13 @@ function ensureBgm() {
 
   if (st.bgm) destroyBgm();
 
-  const a = createAudio(src, true, BGM_VOLUME);
-  if (!a) return null;
+  const v = createVoice('bgm', src, true, BGM_VOLUME);
+  if (!v) return null;
 
-  try {
-    a.onPlay(function () { st.bgmPlaying = true; });
-    a.onPause(function () { st.bgmPlaying = false; });
-    a.onStop(function () { st.bgmPlaying = false; });
-    a.onEnded(function () { st.bgmPlaying = false; });
-    a.onError(function () { onMediaError('bgm', src); });
-  } catch (e) { /* 忽略 */ }
-
-  st.bgm = a;
+  st.bgm = v;
   st.bgmSrc = src;
 
-  return a;
+  return v;
 }
 
 function playBgm() {
@@ -257,28 +382,40 @@ function playBgm() {
   if (!st.musicOn) return;
   if (coolingDown('bgm', Date.now())) return;
 
-  const a = ensureBgm();
-  if (!a || st.bgmPlaying) return;
+  const v = ensureBgm();
+  if (!v || v.playing) return;
 
-  try { a.play(); } catch (e) { onMediaError('bgm', st.bgmSrc); }
+  requestPlay(v);
 }
 
 function pauseBgm() {
-  const a = st.bgm;
-  if (!a) return;
+  const v = st.bgm;
+  if (!v || !v.raw) return;
 
-  try { a.pause(); } catch (e) { /* 忽略 */ }
-  st.bgmPlaying = false;
+  if (v.timer) {
+    clearTimeout(v.timer);
+    v.timer = 0;
+  }
+  v.pending = false;
+
+  try { v.raw.pause(); } catch (e) { /* 忽略 */ }
+  v.playing = false;
 }
 
 function stopBgm() {
   st.bgmWanted = false;
 
-  const a = st.bgm;
-  if (!a) return;
+  const v = st.bgm;
+  if (!v || !v.raw) return;
 
-  try { a.stop(); } catch (e) { /* 忽略 */ }
-  st.bgmPlaying = false;
+  if (v.timer) {
+    clearTimeout(v.timer);
+    v.timer = 0;
+  }
+  v.pending = false;
+
+  try { v.raw.stop(); } catch (e) { /* 忽略 */ }
+  v.playing = false;
 }
 
 // ---------------- 音效 ----------------
@@ -294,14 +431,9 @@ function ensurePool(name) {
   const list = [];
 
   for (let i = 0; i < POOL_SIZE; i++) {
-    const a = createAudio(src, false, SFX_VOLUME);
-    if (!a) continue;
-
-    try {
-      a.onError(function () { onMediaError(name, src); });
-    } catch (e) { /* 忽略 */ }
-
-    list.push(a);
+    const v = createVoice(name, src, false, SFX_VOLUME);
+    if (!v) continue;
+    list.push(v);
   }
 
   if (!list.length) return null;
@@ -335,11 +467,7 @@ function play(name) {
   const idx = st.poolIdx[name] || 0;
   st.poolIdx[name] = (idx + 1) % pool.length;
 
-  const a = pool[idx];
-  if (!a) return;
-
-  try { a.stop(); } catch (e) { /* 忽略 */ }
-  try { a.play(); } catch (e) { onMediaError(name, st.poolSrc[name]); }
+  requestPlay(pool[idx]);
 }
 
 // ---------------- 开关 ----------------
