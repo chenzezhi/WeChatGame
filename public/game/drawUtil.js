@@ -1,4 +1,4 @@
-// 绘制小工具：圆角矩形 / 椭圆 / 圆角肢体 / 脚掌。
+// 绘制小工具：圆角矩形 / 椭圆 / 带描边的通用图形 / 圆角肢体 / 脚掌。
 
 function roundRectPath(ctx, x, y, w, h, r) {
   const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
@@ -16,6 +16,8 @@ function roundRectPath(ctx, x, y, w, h, r) {
 }
 
 function fillEllipse(ctx, cx, cy, rx, ry, style) {
+  if (!(rx > 0) || !(ry > 0)) return;
+
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(1, ry / rx);
@@ -24,6 +26,41 @@ function fillEllipse(ctx, cx, cy, rx, ry, style) {
   ctx.fillStyle = style;
   ctx.fill();
   ctx.restore();
+}
+
+// 带描边的圆角矩形
+function roundRectStyled(ctx, x, y, w, h, r, fill, out, outW) {
+  roundRectPath(ctx, x, y, w, h, r);
+
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  if (out) {
+    ctx.strokeStyle = out;
+    ctx.lineWidth = outW || 2;
+    ctx.stroke();
+  }
+}
+
+// 带描边的圆
+function circleStyled(ctx, cx, cy, r, fill, out, outW) {
+  if (!(r > 0)) return;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  if (out) {
+    ctx.strokeStyle = out;
+    ctx.lineWidth = outW || 2;
+    ctx.stroke();
+  }
 }
 
 // 以关节为轴心画一段圆角肢体：肢体从轴心向下延伸 len
@@ -51,6 +88,8 @@ function drawFoot(ctx, jointX, jointY, len, thick, angle, color) {
 module.exports = {
   roundRectPath: roundRectPath,
   fillEllipse: fillEllipse,
+  roundRectStyled: roundRectStyled,
+  circleStyled: circleStyled,
   drawLimb: drawLimb,
   drawFoot: drawFoot,
 };

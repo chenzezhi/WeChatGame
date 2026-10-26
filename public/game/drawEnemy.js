@@ -1,34 +1,41 @@
-// 敌人绘制：小怪（紫）+ Boss（暗红、王冠、粗血条）+ Boss 冲刺技能特效。
+// 敌人绘制（Q 版）：胖圆果冻身 + 小脚 + 大白眼 + 彩色瞳孔高光 + 小犄角。
+// Boss：更大、戴王冠、粗血条；仍然保留蓄力 / 冲刺特效。
 
 const cfg = require('./config.js');
 const pal = require('./palette.js');
 const util = require('./drawUtil.js');
 
 const C = pal.C;
+const OUT = pal.OUT;
 
-const BOSS_BODY = '#b8322c';
-const BOSS_BODY_DARK = '#7d1d18';
-const BOSS_HORN = '#ffd88a';
-const BOSS_EYE = '#ffe14d';
-const BOSS_HP = '#ff5252';
+const BOSS_BODY = '#ef5f57';
+const BOSS_BODY_DARK = '#c23b36';
+const BOSS_HORN = '#ffd98a';
+const BOSS_EYE = '#ffb020';
+const BOSS_HP = '#ff6a6a';
 const BOSS_CROWN = '#ffd34d';
+const BOSS_CROWN_DARK = '#d99a12';
 
-function drawCrown(ctx, cx, topY, bodyW) {
-  const w = bodyW * 0.5;
-  const h = bodyW * 0.22;
+function drawCrown(ctx, cx, topY, bodyW, outW) {
+  const w = bodyW * 0.50;
+  const h = bodyW * 0.24;
   const x0 = cx - w / 2;
 
-  ctx.fillStyle = BOSS_CROWN;
   ctx.beginPath();
   ctx.moveTo(x0, topY);
   ctx.lineTo(x0 + w * 0.18, topY - h);
-  ctx.lineTo(x0 + w * 0.34, topY - h * 0.25);
-  ctx.lineTo(x0 + w * 0.5, topY - h * 1.1);
-  ctx.lineTo(x0 + w * 0.66, topY - h * 0.25);
+  ctx.lineTo(x0 + w * 0.34, topY - h * 0.28);
+  ctx.lineTo(x0 + w * 0.50, topY - h * 1.12);
+  ctx.lineTo(x0 + w * 0.66, topY - h * 0.28);
   ctx.lineTo(x0 + w * 0.82, topY - h);
   ctx.lineTo(x0 + w, topY);
   ctx.closePath();
+
+  ctx.fillStyle = BOSS_CROWN;
   ctx.fill();
+  ctx.strokeStyle = BOSS_CROWN_DARK;
+  ctx.lineWidth = outW * 0.8;
+  ctx.stroke();
 }
 
 // 蓄力：背后红光 + 向内收缩的蓄力环
@@ -89,22 +96,27 @@ function drawOne(ctx, e, cameraX, now) {
 
   const boss = !!e.isBoss;
   const hurt = !!(e.hurtAt && now - e.hurtAt < 150);
-  const bob = Math.sin(now / (boss ? 560 : 420) + (e.bobPhase || 0) * 6.283) * h * (boss ? 0.014 : 0.028);
+  const bob = Math.sin(now / (boss ? 560 : 420) + (e.bobPhase || 0) * 6.283) * h * (boss ? 0.014 : 0.03);
 
   const cx = x + w / 2;
   const baseY = e.y + h + bob;
 
-  const bodyW = w * 0.86;
-  const bodyH = h * 0.80;
+  const bodyW = w * 0.92;
+  const bodyH = h * 0.82;
   const bodyX = cx - bodyW / 2;
   const bodyY = baseY - bodyH;
 
-  const bodyCol = boss ? (hurt ? '#ffffff' : BOSS_BODY) : (hurt ? C.enemyHurt : C.enemyBody);
+  const outW = Math.max(1.8, bodyW * 0.055);
+
+  const bodyCol = boss
+    ? (hurt ? '#ffffff' : BOSS_BODY)
+    : (hurt ? C.enemyHurt : C.enemyBody);
   const darkCol = boss ? BOSS_BODY_DARK : C.enemyBodyDark;
   const hornCol = boss ? BOSS_HORN : C.enemyHorn;
   const eyeCol = boss ? BOSS_EYE : C.enemyEye;
+  const OUTCOL = hurt ? 'rgba(255,255,255,0.9)' : OUT;
 
-  util.fillEllipse(ctx, cx, cfg.GROUND_Y + 3, w * 0.44, w * 0.14, C.shadow);
+  util.fillEllipse(ctx, cx, cfg.GROUND_Y + 4, w * 0.46, w * 0.15, C.shadow);
 
   // Boss 技能特效（画在身体后面）
   if (boss) {
@@ -112,69 +124,102 @@ function drawOne(ctx, e, cameraX, now) {
     else if (e.dashState === 'dash') drawDashTrail(ctx, e, cx, bodyY, bodyW, bodyH);
   }
 
+  // 小脚
+  ctx.fillStyle = darkCol;
+  util.fillEllipse(ctx, cx - bodyW * 0.24, baseY - bodyH * 0.02, bodyW * 0.17, bodyH * 0.10, darkCol);
+  util.fillEllipse(ctx, cx + bodyW * 0.24, baseY - bodyH * 0.02, bodyW * 0.17, bodyH * 0.10, darkCol);
+
   // 犄角
   ctx.fillStyle = hornCol;
+
   ctx.beginPath();
-  ctx.moveTo(bodyX + bodyW * 0.20, bodyY + bodyH * 0.12);
-  ctx.lineTo(bodyX + bodyW * 0.05, bodyY - bodyH * 0.22);
-  ctx.lineTo(bodyX + bodyW * 0.38, bodyY + bodyH * 0.04);
+  ctx.moveTo(bodyX + bodyW * 0.24, bodyY + bodyH * 0.16);
+  ctx.quadraticCurveTo(bodyX + bodyW * 0.10, bodyY - bodyH * 0.30, bodyX + bodyW * 0.40, bodyY + bodyH * 0.02);
   ctx.closePath();
   ctx.fill();
-
-  ctx.beginPath();
-  ctx.moveTo(bodyX + bodyW * 0.80, bodyY + bodyH * 0.12);
-  ctx.lineTo(bodyX + bodyW * 0.95, bodyY - bodyH * 0.22);
-  ctx.lineTo(bodyX + bodyW * 0.62, bodyY + bodyH * 0.04);
-  ctx.closePath();
-  ctx.fill();
-
-  // 身体
-  ctx.fillStyle = bodyCol;
-  util.roundRectPath(ctx, bodyX, bodyY, bodyW, bodyH, bodyW * 0.42);
-  ctx.fill();
-
-  ctx.fillStyle = hurt ? 'rgba(255,255,255,0.5)' : darkCol;
-  util.roundRectPath(ctx, bodyX, bodyY + bodyH * 0.64, bodyW, bodyH * 0.36, bodyW * 0.3);
-  ctx.fill();
-
-  // 眼睛：蓄力/冲刺时变白
-  const charging = (e.dashState === 'windup' || e.dashState === 'dash');
-  ctx.fillStyle = (boss && charging) ? '#ffffff' : eyeCol;
-
-  const eyeR = bodyW * (boss ? 0.13 : 0.11);
-  ctx.beginPath();
-  ctx.arc(cx - bodyW * 0.18, bodyY + bodyH * 0.32, eyeR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx + bodyW * 0.18, bodyY + bodyH * 0.32, eyeR, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 嘴
-  ctx.strokeStyle = hurt ? 'rgba(120,90,160,0.5)' : darkCol;
-  ctx.lineWidth = Math.max(1.5, bodyW * 0.05);
-  ctx.beginPath();
-  ctx.arc(cx, bodyY + bodyH * 0.58, bodyW * 0.2, Math.PI * 0.18, Math.PI * 0.82);
+  ctx.strokeStyle = OUTCOL;
+  ctx.lineWidth = outW * 0.8;
   ctx.stroke();
 
+  ctx.beginPath();
+  ctx.moveTo(bodyX + bodyW * 0.76, bodyY + bodyH * 0.16);
+  ctx.quadraticCurveTo(bodyX + bodyW * 0.90, bodyY - bodyH * 0.30, bodyX + bodyW * 0.60, bodyY + bodyH * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = OUTCOL;
+  ctx.lineWidth = outW * 0.8;
+  ctx.stroke();
+
+  // 身体（胖圆）
+  util.roundRectPath(ctx, bodyX, bodyY, bodyW, bodyH, Math.min(bodyW, bodyH) * 0.46);
+  ctx.fillStyle = bodyCol;
+  ctx.fill();
+  ctx.strokeStyle = OUTCOL;
+  ctx.lineWidth = outW;
+  ctx.stroke();
+
+  // 肚皮高光
+  if (!hurt) {
+    util.fillEllipse(ctx, cx, bodyY + bodyH * 0.72, bodyW * 0.32, bodyH * 0.20, 'rgba(255,255,255,0.22)');
+  }
+
+  // 眼睛：大白眼 + 彩色瞳孔 + 高光
+  const eyeR = bodyW * (boss ? 0.17 : 0.155);
+  const eyeY = bodyY + bodyH * 0.36;
+  const eyeDX = bodyW * 0.21;
+
+  const charging = (e.dashState === 'windup' || e.dashState === 'dash');
+
+  for (let i = 0; i < 2; i++) {
+    const ex = i === 0 ? cx - eyeDX : cx + eyeDX;
+
+    util.circleStyled(ctx, ex, eyeY, eyeR, '#ffffff', OUTCOL, outW * 0.7);
+
+    if (charging) {
+      util.circleStyled(ctx, ex, eyeY, eyeR * 0.52, '#ffffff', null, 0);
+      util.circleStyled(ctx, ex, eyeY, eyeR * 0.26, hurt ? '#ffdede' : eyeCol, null, 0);
+    } else {
+      util.circleStyled(ctx, ex, eyeY + eyeR * 0.06, eyeR * 0.56, eyeCol, null, 0);
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(ex + eyeR * 0.26, eyeY - eyeR * 0.30, Math.max(1, eyeR * 0.26), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 嘴：小 "o" / 微笑
+  ctx.strokeStyle = darkCol;
+  ctx.lineWidth = Math.max(1.5, bodyW * 0.05);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+
+  if (charging) {
+    ctx.arc(cx, bodyY + bodyH * 0.66, bodyW * 0.10, 0, Math.PI * 2);
+  } else {
+    ctx.arc(cx, bodyY + bodyH * 0.62, bodyW * 0.13, Math.PI * 0.20, Math.PI * 0.80);
+  }
+
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
   // Boss 王冠
-  if (boss) drawCrown(ctx, cx, bodyY - bodyH * 0.04, bodyW);
+  if (boss) drawCrown(ctx, cx, bodyY - bodyH * 0.02, bodyW, outW);
 
   // 血条：Boss 常显且更粗
   const showBar = boss || e.maxHp > 1 || e.hp < e.maxHp;
   if (showBar) {
     const barW = bodyW * (boss ? 0.98 : 0.92);
-    const barH = boss ? 8 : 5;
+    const barH = boss ? 9 : 6;
     const barX = cx - barW / 2;
-    const barY = bodyY - barH - (boss ? 26 : 9);
+    const barY = bodyY - barH - (boss ? 30 : 10);
 
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    util.roundRectPath(ctx, barX, barY, barW, barH, barH / 2);
-    ctx.fill();
+    util.roundRectStyled(ctx, barX, barY, barW, barH, barH / 2, 'rgba(40,26,52,0.42)', 'rgba(255,255,255,0.5)', 1.4);
 
     const ratio = e.hp > 0 ? e.hp / e.maxHp : 0;
     if (ratio > 0) {
-      ctx.fillStyle = boss ? BOSS_HP : C.enemyHp;
       util.roundRectPath(ctx, barX, barY, barW * ratio, barH, barH / 2);
+      ctx.fillStyle = boss ? BOSS_HP : C.enemyHp;
       ctx.fill();
     }
   }

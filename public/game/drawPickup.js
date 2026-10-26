@@ -1,18 +1,21 @@
-// 道具绘制：按类型区分颜色与图标。
+// 道具绘制（Q 版）：亮色圆珠 + 深色描边 + 高光，按类型换图标与颜色。
 
 const cfg = require('./config.js');
 const util = require('./drawUtil.js');
 
+// 描边（比角色的淡一点，避免道具太脏）
+const OUT = 'rgba(58,40,72,0.55)';
+
 const STYLE = {
-  clone: { halo: 'rgba(120,220,255,0.26)', core: 'rgba(232,250,255,0.95)', ring: '#59c8ff', icon: '#2f8fd6' },
-  speed: { halo: 'rgba(255,205,90,0.26)', core: 'rgba(255,252,236,0.95)', ring: '#ffb02e', icon: '#e08a00' },
-  multi: { halo: 'rgba(170,140,255,0.26)', core: 'rgba(246,240,255,0.95)', ring: '#a78bff', icon: '#6f4fd0' },
-  spread: { halo: 'rgba(120,255,220,0.26)', core: 'rgba(240,255,250,0.95)', ring: '#33e0b8', icon: '#0f9e7e' },
-  heal: { halo: 'rgba(255,120,140,0.26)', core: 'rgba(255,244,246,0.95)', ring: '#ff5a72', icon: '#e02f4a' },
-  coin: { halo: 'rgba(255,211,77,0.30)', core: 'rgba(255,250,230,0.95)', ring: '#ffd34d', icon: '#ffd34d' },
-  damage: { halo: 'rgba(255,140,80,0.28)', core: 'rgba(255,246,238,0.95)', ring: '#ff8a3d', icon: '#e2551a' },
-  ammo: { halo: 'rgba(140,200,255,0.28)', core: 'rgba(240,248,255,0.95)', ring: '#5aa9ff', icon: '#1f6fd0' },
-  reload: { halo: 'rgba(120,235,190,0.28)', core: 'rgba(240,255,250,0.95)', ring: '#38d6a0', icon: '#128a63' },
+  clone: { halo: 'rgba(120,220,255,0.30)', core: 'rgba(236,251,255,1)', ring: '#59c8ff', icon: '#2f8fd6' },
+  speed: { halo: 'rgba(255,205,90,0.30)', core: 'rgba(255,253,238,1)', ring: '#ffb02e', icon: '#e08a00' },
+  multi: { halo: 'rgba(170,140,255,0.30)', core: 'rgba(248,242,255,1)', ring: '#a78bff', icon: '#6f4fd0' },
+  spread: { halo: 'rgba(120,255,220,0.30)', core: 'rgba(242,255,252,1)', ring: '#33e0b8', icon: '#0f9e7e' },
+  heal: { halo: 'rgba(255,120,140,0.30)', core: 'rgba(255,246,248,1)', ring: '#ff5a72', icon: '#e02f4a' },
+  coin: { halo: 'rgba(255,211,77,0.34)', core: 'rgba(255,251,232,1)', ring: '#ffd34d', icon: '#f0a800' },
+  damage: { halo: 'rgba(255,140,80,0.30)', core: 'rgba(255,248,242,1)', ring: '#ff8a3d', icon: '#e2551a' },
+  ammo: { halo: 'rgba(140,200,255,0.30)', core: 'rgba(242,249,255,1)', ring: '#5aa9ff', icon: '#1f6fd0' },
+  reload: { halo: 'rgba(120,235,190,0.30)', core: 'rgba(242,255,251,1)', ring: '#38d6a0', icon: '#128a63' },
 };
 
 function drawCloneIcon(ctx, cx, cy, r, color) {
@@ -63,7 +66,7 @@ function drawMultiIcon(ctx, cx, cy, r, color) {
 // 弹道夹角：三条线向一点收拢
 function drawSpreadIcon(ctx, cx, cy, r, color) {
   ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1.6, r * 0.18);
+  ctx.lineWidth = Math.max(1.8, r * 0.20);
   ctx.lineCap = 'round';
 
   const ys = [-r * 0.44, 0, r * 0.44];
@@ -81,9 +84,9 @@ function drawSpreadIcon(ctx, cx, cy, r, color) {
 function drawHealIcon(ctx, cx, cy, r, color) {
   ctx.fillStyle = color;
 
-  util.roundRectPath(ctx, cx - r * 0.16, cy - r * 0.46, r * 0.32, r * 0.92, r * 0.10);
+  util.roundRectPath(ctx, cx - r * 0.16, cy - r * 0.46, r * 0.32, r * 0.92, r * 0.12);
   ctx.fill();
-  util.roundRectPath(ctx, cx - r * 0.46, cy - r * 0.16, r * 0.92, r * 0.32, r * 0.10);
+  util.roundRectPath(ctx, cx - r * 0.46, cy - r * 0.16, r * 0.92, r * 0.32, r * 0.12);
   ctx.fill();
 }
 
@@ -93,14 +96,14 @@ function drawCoinIcon(ctx, cx, cy, r, color) {
   ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
-  ctx.lineWidth = Math.max(1, r * 0.10);
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  ctx.lineWidth = Math.max(1.2, r * 0.12);
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.56, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r * 0.54, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(cx - r * 0.13, cy - r * 0.42, r * 0.26, r * 0.84);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fillRect(cx - r * 0.13, cy - r * 0.40, r * 0.26, r * 0.80);
 }
 
 function drawDamageIcon(ctx, cx, cy, r, color) {
@@ -125,7 +128,7 @@ function drawDamageIcon(ctx, cx, cy, r, color) {
 function drawAmmoIcon(ctx, cx, cy, r, color) {
   ctx.fillStyle = color;
 
-  util.roundRectPath(ctx, cx - r * 0.22, cy - r * 0.12, r * 0.44, r * 0.58, r * 0.10);
+  util.roundRectPath(ctx, cx - r * 0.22, cy - r * 0.12, r * 0.44, r * 0.58, r * 0.12);
   ctx.fill();
 
   ctx.beginPath();
@@ -135,15 +138,15 @@ function drawAmmoIcon(ctx, cx, cy, r, color) {
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  util.roundRectPath(ctx, cx - r * 0.22, cy + r * 0.26, r * 0.44, r * 0.16, r * 0.07);
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  util.roundRectPath(ctx, cx - r * 0.22, cy + r * 0.26, r * 0.44, r * 0.16, r * 0.08);
   ctx.fill();
 }
 
 // 快速装填：环形箭头
 function drawReloadIcon(ctx, cx, cy, r, color) {
   ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1.6, r * 0.22);
+  ctx.lineWidth = Math.max(1.8, r * 0.22);
   ctx.lineCap = 'round';
 
   ctx.beginPath();
@@ -182,16 +185,21 @@ function drawOne(ctx, it, cameraX, now) {
   ctx.arc(cx, cy, r * 1.5 * pulse, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = st.core;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
-  ctx.fill();
+  // 主体 + 描边
+  util.circleStyled(ctx, cx, cy, r * 0.92, st.core, OUT, 2.2);
 
+  // 内圈彩色环
   ctx.strokeStyle = st.ring;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r * 0.76, 0, Math.PI * 2);
   ctx.stroke();
+
+  // 高光
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.34, cy - r * 0.40, r * 0.16, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.save();
   if (it.kind === 'speed') drawSpeedIcon(ctx, cx, cy, r, st.icon);
