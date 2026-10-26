@@ -1,9 +1,10 @@
 // 主界面绘制：只负责画，不改状态。
+// 按钮区用 clip() 裁剪，右侧画滚动条。
 
 const canvasKit = require('../core/canvas.js');
 
 // 版本标记，用于确认真机跑的是哪一版
-const BUILD = 'menu-3';
+const BUILD = 'menu-4';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -20,7 +21,7 @@ const COLOR = {
 };
 
 function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
   ctx.lineTo(x + w - rr, y);
@@ -42,23 +43,24 @@ function drawBackground(ctx, width, height) {
   ctx.fillRect(0, 0, width, height);
 }
 
+// 横屏：标题压扁到左上，避免占用中间高度
 function drawTitle(ctx, width, height) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('冒险之旅', width / 2, height * 0.24);
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillText('冒险之旅', width / 2, height * 0.17);
 
-  ctx.font = '15px sans-serif';
+  ctx.font = '13px sans-serif';
   ctx.fillStyle = COLOR.textDim;
-  ctx.fillText('点击开始你的冒险', width / 2, height * 0.24 + 32);
+  ctx.fillText('点击开始你的冒险', width / 2, height * 0.17 + 24);
 }
 
 // 右上角金币
 function drawCoins(ctx, width, state) {
   const cx = width - 78;
-  const cy = 32;
+  const cy = 30;
 
   ctx.fillStyle = COLOR.coin;
   ctx.beginPath();
@@ -105,14 +107,43 @@ function drawButtons(ctx, state) {
   }
 }
 
+// 右侧滚动条（内容超出视口时才画）
+function drawScrollBar(ctx, built, width) {
+  const max = built.scrollMax || 0;
+  if (max <= 0) return;
+
+  const vh = built.viewH;
+  const ch = built.contentH || (vh + max);
+
+  const barW = 4;
+  const barX = width - 8;
+  const trackY = built.viewTop;
+  const trackH = vh;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  roundRect(ctx, barX, trackY, barW, trackH, barW / 2);
+  ctx.fill();
+
+  let thumbH = trackH * (vh / ch);
+  if (thumbH < 24) thumbH = 24;
+  if (thumbH > trackH) thumbH = trackH;
+
+  const t = max > 0 ? built.scroll / max : 0;
+  const thumbY = trackY + (trackH - thumbH) * t;
+
+  ctx.fillStyle = 'rgba(94,224,192,0.75)';
+  roundRect(ctx, barX, thumbY, barW, thumbH, barW / 2);
+  ctx.fill();
+}
+
 function drawFooter(ctx, width, height, state) {
   if (!state.best) return;
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = '14px sans-serif';
+  ctx.font = '13px sans-serif';
   ctx.fillStyle = COLOR.textFaint;
-  ctx.fillText('最佳距离 ' + state.best + ' m', width / 2, height * 0.95);
+  ctx.fillText('最佳距离 ' + state.best + ' m', width / 2, height - 12);
 }
 
 function drawBuildTag(ctx) {
@@ -120,7 +151,7 @@ function drawBuildTag(ctx) {
   ctx.textBaseline = 'alphabetic';
   ctx.font = '10px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText(BUILD, 10, canvasKit.height - 10);
+  ctx.fillText(BUILD, 10, canvasKit.height - 6);
 }
 
 function draw(ctx, state) {
@@ -130,7 +161,22 @@ function draw(ctx, state) {
   drawBackground(ctx, width, height);
   drawTitle(ctx, width, height);
   drawCoins(ctx, width, state);
-  drawButtons(ctx, state);
+
+  const built = state.built;
+
+  if (built) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, built.viewTop, width, built.viewH);
+    ctx.clip();
+    drawButtons(ctx, state);
+    ctx.restore();
+
+    drawScrollBar(ctx, built, width);
+  } else {
+    drawButtons(ctx, state);
+  }
+
   drawFooter(ctx, width, height, state);
   drawBuildTag(ctx);
 }

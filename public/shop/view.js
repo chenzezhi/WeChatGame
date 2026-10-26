@@ -1,8 +1,9 @@
 // 商店绘制：只负责画，不改状态。
+// 内容区用 clip() 裁剪，右侧画滚动条。
 
 const canvasKit = require('../core/canvas.js');
 
-const BUILD = 'shop-6';
+const BUILD = 'shop-7';
 
 const COLOR = {
   bgTop: '#1e1e2e',
@@ -20,7 +21,7 @@ const COLOR = {
 };
 
 function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
   ctx.lineTo(x + w - rr, y);
@@ -52,16 +53,13 @@ function drawBackground(ctx, width, height) {
   ctx.fillRect(0, 0, width, height);
 }
 
-function drawHeader(ctx, width, height, state) {
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
+// 顶部：标题（横屏高度紧张，压到左上角一行）
+function drawHeader(ctx, width, state) {
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = COLOR.text;
-  ctx.font = 'bold 21px sans-serif';
-  ctx.fillText('商店', width / 2, height * 0.075);
-
-  ctx.font = '11px sans-serif';
-  ctx.fillStyle = COLOR.textDim;
-  ctx.fillText('分身升级是主体的 2 倍 · 点击生效（滑动无效）', width / 2, height * 0.075 + 17);
+  ctx.font = 'bold 17px sans-serif';
+  ctx.fillText('商店', 94, 30);
 
   const cx = width - 74;
   const cy = 28;
@@ -222,12 +220,41 @@ function drawRow(ctx, row, coins) {
   ctx.textBaseline = 'alphabetic';
 }
 
+// 右侧滚动条
+function drawScrollBar(ctx, built, width) {
+  const max = built.scrollMax || 0;
+  if (max <= 0) return;
+
+  const vh = built.viewH;
+  const ch = built.contentH || (vh + max);
+
+  const barW = 4;
+  const barX = width - 7;
+  const trackY = built.viewTop;
+  const trackH = vh;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  roundRect(ctx, barX, trackY, barW, trackH, barW / 2);
+  ctx.fill();
+
+  let thumbH = trackH * (vh / ch);
+  if (thumbH < 24) thumbH = 24;
+  if (thumbH > trackH) thumbH = trackH;
+
+  const t = max > 0 ? built.scroll / max : 0;
+  const thumbY = trackY + (trackH - thumbH) * t;
+
+  ctx.fillStyle = 'rgba(94,224,192,0.75)';
+  roundRect(ctx, barX, thumbY, barW, thumbH, barW / 2);
+  ctx.fill();
+}
+
 function drawBuildTag(ctx) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.font = '10px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText(BUILD, 14, canvasKit.height - 10);
+  ctx.fillText(BUILD, 14, canvasKit.height - 6);
 }
 
 function draw(ctx, state) {
@@ -235,15 +262,26 @@ function draw(ctx, state) {
   const height = canvasKit.height;
 
   drawBackground(ctx, width, height);
-  drawHeader(ctx, width, height, state);
+  drawHeader(ctx, width, state);
 
   const built = state.built;
+
   if (built) {
     drawBack(ctx, built.back);
     drawTabs(ctx, built);
 
+    // ---- 内容区：裁剪后绘制（超出的部分不显示） ----
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, built.viewTop, width, built.viewH);
+    ctx.clip();
+
     const rows = built.rows || [];
     for (let i = 0; i < rows.length; i++) drawRow(ctx, rows[i], state.coins || 0);
+
+    ctx.restore();
+
+    drawScrollBar(ctx, built, width);
   }
 
   drawBuildTag(ctx);

@@ -1,6 +1,7 @@
 // 商店控制器：升级（主体 / 分身） + 被动道具 + 主动道具（买 / 升时长） + 永久分身 + 夹角滑块。
 // 点击：按下不动、在同一行松手才生效。
-// 滑块：按住夹角行左侧的滑块上下拖动，实时生效（松手才落盘）。
+// 滚动：按下后纵向拖动超过 TAP_SLOP 即进入滚动（此时不会误触发购买）。
+// 滑块：按住夹角行左侧的滑块上下拖动，实时生效（松手才落盘），优先级高于滚动。
 //
 // 音效：返回 / 页签 = ui；购买或升级成功 = upgrade；买不起 / 已满级 = ui。
 
@@ -10,13 +11,16 @@ const audio = require('../core/audio.js');
 const buttons = require('./buttons.js');
 const view = require('./view.js');
 
-const TAP_SLOP = 14;
+const TAP_SLOP = 12;
 
 const state = {
   built: null,
   data: null,
   coins: 0,
   tab: 'player',   // player | clone | items
+
+  scroll: 0,
+  downScroll: 0,
 
   downId: -1,
   downX: 0,
@@ -31,14 +35,30 @@ function toast(title) {
   try { wx.showToast({ title: title, icon: 'none' }); } catch (e) { /* 忽略 */ }
 }
 
-// 只重建视图，不重新读盘（拖动时用）
+// 只重建视图，不重新读盘（拖动 / 滚动时用）
 function applyView() {
   state.coins = (state.data && state.data.coins) || 0;
-  state.built = buttons.build(state.data, state.tab);
+  state.built = buttons.build(state.data, state.tab, state.scroll);
+  state.scroll = state.built.scroll;
 }
 
 function refresh() {
   state.data = profile.read();
+  applyView();
+}
+
+// 设置滚动位置（自动夹紧到合法范围）
+function setScroll(v) {
+  const max = state.built ? state.built.scrollMax : 0;
+
+  let n = v;
+  if (!isFinite(n)) n = 0;
+  if (n < 0) n = 0;
+  if (n > max) n = max;
+
+  if (n === state.scroll) return;
+
+  state.scroll = n;
   applyView();
 }
 
@@ -189,8 +209,10 @@ function act(b) {
 
   if (b.kind === 'tab') {
     if (state.tab === b.id) return;
+
     audio.play('ui');
     state.tab = b.id;
+    state.scroll = 0;
     refresh();
     return;
   }
@@ -210,6 +232,7 @@ function act(b) {
 
 function enter() {
   resetDown();
+  state.scroll = 0;
   refresh();
 }
 
@@ -230,14 +253,18 @@ function touchStart(e) {
   const p = e.touches && e.touches[0];
   if (!p) return;
 
+  // 滑块优先：按到滑块就不进入滚动逻辑
   const sliderRow = buttons.hitSlider(state.built, p.x, p.y);
 
+  state.downId = p.id;
+  state.downX = p.x;
+  state.downY = p.y;
+  state.downScroll = state.scroll;
+  state.moved = false;
+
   if (sliderRow) {
-    state.downId = p.id;
-    state.downX = p.x;
-    state.downY = p.y;
-    state.moved = false;
     state.downBtn = null;
+    state.downScroll = state.scroll;
     state.drag = {
       id: p.id,
       rect: { x: sliderRow.slider.x, y: sliderRow.slider.y, w: sliderRow.slider.w, h: sliderRow.slider.h },
@@ -249,10 +276,6 @@ function touchStart(e) {
   }
 
   state.drag = null;
-  state.downId = p.id;
-  state.downX = p.x;
-  state.downY = p.y;
-  state.moved = false;
   state.downBtn = buttons.hit(state.built, p.x, p.y);
 }
 
@@ -276,7 +299,12 @@ function touchMove(e) {
   const dx = p.x - state.downX;
   const dy = p.y - state.downY;
 
-  if (dx * dx + dy * dy > TAP_SLOP * TAP_SLOP) state.moved = true;
+  if (!state.moved && dx * dx + dy * dy > TAP_SLOP * TAP_SLOP) state.moved = true;
+  if (!state.moved) return;
+
+  // 拖动 = 滚动内容（向下拖 = 往回看，所以取负）
+  const max = state.built ? state.built.scrollMax : 0;
+  if (max > 0) setScroll(state.downScroll - dy);
 }
 
 function touchEnd(e) {

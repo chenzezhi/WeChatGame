@@ -1,16 +1,20 @@
 // 商店布局与命中检测。三个页签：主体 / 分身 / 道具。
 // 价格与数值全部来自 config/shop/，这里不硬编码。
 //
-// 「道具」页从上到下：主动道具卡片（左护盾 / 右变大）→ 被动道具列表 → 永久分身。
-// 每张主动卡片分上下两块：上半 = 购买，下半 = 升级时长。
+// 【滚动】横屏可视高度有限，所以：
+//   - 每行高度固定（不再按剩余高度压缩，避免按钮被压扁变形）
+//   - 内容在「内容坐标系」里排好后，统一减去 scroll 转成屏幕坐标
+//   - build() 额外返回 viewTop / viewH / contentH / scrollMax / scroll
+//     供绘制层 clip() 裁剪并画滚动条
+//   - 顶部「返回」与三个页签固定不滚动
 //
 // 行数据（row）字段：
 //   kind        upgrade | clone-upgrade | item | perm-clone | active-buy | active-upgrade | section | back | tab
 //   level       当前等级
 //   maxLevel    满级等级
 //   maxed       是否已满级（满级后变灰、显示「满级」）
-//   desc        小字提示：未满级 = 「当前值 · 每级 +X」，满级 = 只有当前值
-//   slider      弹道夹角行专属：滑块矩形
+//   desc        小字提示
+//   slider      弹道夹角行专属：滑块矩形（已换算为屏幕坐标）
 //   sliderRange 滑块可调范围（度）
 //   sliderRatio 滑块位置 0(顶=最大夹角) ~ 1(底=已购买的最小夹角)
 
@@ -19,6 +23,14 @@ const cfg = require('../game/config.js');
 
 const PRICES = cfg.SHOP_ITEM_PRICES || {};
 const MAXLV = cfg.SHOP_MAX_LEVEL || {};
+
+const ROW_H = 54;        // 每行固定高度
+const ROW_GAP = 6;       // 行间距
+const SECTION_H = 16;    // 小标题高度
+const TAB_H = 32;        // 页签高度
+const TAB_Y = 52;        // 页签纵向位置（在「返回」按钮下面）
+const TOP_PAD = 8;       // 页签与内容之间的间距
+const BOTTOM_PAD = 12;   // 内容区距屏幕底部
 
 function itemPrice(id) {
   const v = PRICES[id];
@@ -195,7 +207,7 @@ function multiCost(level) {
   return 3 + lv * (lv + 1) * 2;
 }
 
-// 弹道夹角：10 / 14 / 22 / 34 / 50 …（套用子弹数量的成长倍率，起点 10）
+// 弹道夹角：10 / 14 / 22 / 34 / 50 …
 function spreadCost(level) {
   const lv = level > 0 ? level : 0;
   return cfg.SPREAD_COST_BASE + cfg.SPREAD_COST_GROWTH * lv * (lv + 1);
@@ -272,7 +284,9 @@ function buildActiveCards(rows, data, x, w, y, rh, gap) {
   return y + cardH;
 }
 
-function build(data, tab) {
+// ---------------- 主构建 ----------------
+// scroll：纵向滚动偏移（像素）。返回的 rows 已经是屏幕坐标（已减掉滚动）。
+function build(data, tab, scroll) {
   const width = canvasKit.width;
   const height = canvasKit.height;
 
@@ -280,52 +294,40 @@ function build(data, tab) {
   const isClone = mode === 'clone';
   const isItems = mode === 'items';
 
-  const w = Math.min(width * 0.88, 460);
+  const w = Math.min(width * 0.9, 520);
   const x = (width - w) / 2;
 
-  const tabH = 34;
   const tabGap = 6;
   const tabW = (w - tabGap * 2) / 3;
-  const tabY = height * 0.155;
 
   const tabs = [
-    { id: 'player', label: '主体', x: x, y: tabY, w: tabW, h: tabH },
-    { id: 'clone', label: '分身', x: x + tabW + tabGap, y: tabY, w: tabW, h: tabH },
-    { id: 'items', label: '道具', x: x + (tabW + tabGap) * 2, y: tabY, w: tabW, h: tabH },
+    { id: 'player', label: '主体', x: x, y: TAB_Y, w: tabW, h: TAB_H },
+    { id: 'clone', label: '分身', x: x + tabW + tabGap, y: TAB_Y, w: tabW, h: TAB_H },
+    { id: 'items', label: '道具', x: x + (tabW + tabGap) * 2, y: TAB_Y, w: tabW, h: TAB_H },
   ];
 
-  const rows = [];
+  // 内容视口（滚动区域）
+  const viewTop = TAB_Y + TAB_H + TOP_PAD;
+  const viewH = Math.max(90, height - BOTTOM_PAD - viewTop);
 
-  let list;
-  if (isClone) list = CLONE_UPGRADES;
-  else if (isItems) list = ITEMS;
-  else list = PLAYER_UPGRADES;
+  const rh = ROW_H;
+  const gap = ROW_GAP;
 
-  const top = tabY + tabH + 10;
-  const bottom = height * 0.95;
-  const gap = 5;
+  const list = isClone ? CLONE_UPGRADES : (isItems ? ITEMS : PLAYER_UPGRADES);
 
-  // 道具页：主动卡片占 2 行的高度，另有 2 个分级小标题
-  const sectionH = 14;
-  const sections = isItems ? 2 : 0;
-  const rowCount = list.length + (isItems ? 3 : 0); // 被动 + 永久分身 + 主动卡片(折 2 行)
-
-  const usable = (bottom - top) - sections * sectionH - Math.max(0, rowCount + sections - 1) * gap;
-  let rh = usable / (rowCount || 1);
-  if (rh < 28) rh = 28;
-  if (rh > 64) rh = 64;
-
-  let y = top;
+  // ---- 先在最朴素的「内容坐标」里排好（y 从 0 开始） ----
+  const content = [];
+  let cy = 0;
 
   if (isItems) {
-    rows.push({ kind: 'section', id: 'sec-active', label: '主动道具（点上面买 · 点下面升时长）', x: x, y: y, w: w, h: sectionH });
-    y += sectionH + gap;
+    content.push({ kind: 'section', id: 'sec-active', label: '主动道具（点上面买 · 点下面升时长）', x: x, y: cy, w: w, h: SECTION_H });
+    cy += SECTION_H + gap;
 
-    y = buildActiveCards(rows, data, x, w, y, rh, gap);
-    y += gap;
+    cy = buildActiveCards(content, data, x, w, cy, rh, gap);
+    cy += gap;
 
-    rows.push({ kind: 'section', id: 'sec-passive', label: '被动道具', x: x, y: y, w: w, h: sectionH });
-    y += sectionH + gap;
+    content.push({ kind: 'section', id: 'sec-passive', label: '被动道具', x: x, y: cy, w: w, h: SECTION_H });
+    cy += SECTION_H + gap;
   }
 
   for (let i = 0; i < list.length; i++) {
@@ -334,7 +336,7 @@ function build(data, tab) {
     if (isItems) {
       const own = (data && data.items && data.items[it.id]) || 0;
 
-      rows.push({
+      content.push({
         id: it.id,
         kind: 'item',
         label: it.label,
@@ -344,7 +346,7 @@ function build(data, tab) {
         maxed: false,
         textX: x + 13,
         x: x,
-        y: y,
+        y: cy,
         w: w,
         h: rh,
       });
@@ -367,7 +369,7 @@ function build(data, tab) {
         cost: maxed ? 0 : costOf(it.id, lv, isClone),
         textX: x + 13,
         x: x,
-        y: y,
+        y: cy,
         w: w,
         h: rh,
       };
@@ -381,23 +383,23 @@ function build(data, tab) {
           let a = adj > 0 ? adj : 0;
           if (a > range) a = range;
 
-          row.slider = { x: x + 6, y: y + 6, w: 30, h: Math.max(16, rh - 12) };
+          row.slider = { x: x + 6, y: cy + 6, w: 30, h: Math.max(16, rh - 12) };
           row.sliderRange = range;
           row.sliderRatio = 1 - a / range;
           row.textX = x + 44;
         }
       }
 
-      rows.push(row);
+      content.push(row);
     }
 
-    y += rh + gap;
+    cy += rh + gap;
   }
 
   if (isItems) {
     const owned = (data && data.permClones) || 0;
 
-    rows.push({
+    content.push({
       id: 'permClone',
       kind: 'perm-clone',
       label: '永久分身',
@@ -407,15 +409,80 @@ function build(data, tab) {
       maxed: false,
       textX: x + 13,
       x: x,
-      y: y,
+      y: cy,
       w: w,
       h: rh,
     });
+
+    cy += rh + gap;
+  }
+
+  const contentH = cy > 0 ? cy : rh;
+  const scrollMax = Math.max(0, contentH - viewH);
+
+  let off = (typeof scroll === 'number' && isFinite(scroll)) ? scroll : 0;
+  if (off < 0) off = 0;
+  if (off > scrollMax) off = scrollMax;
+
+  // ---- 内容坐标 → 屏幕坐标 ----
+  const rows = [];
+
+  for (let i = 0; i < content.length; i++) {
+    const r = content[i];
+
+    const o = {
+      id: r.id,
+      kind: r.kind,
+      label: r.label,
+      desc: r.desc,
+      level: r.level,
+      maxLevel: r.maxLevel,
+      maxed: r.maxed,
+      cost: r.cost,
+      own: r.own,
+      textX: r.textX,
+      x: r.x,
+      y: viewTop - off + r.y,
+      w: r.w,
+      h: r.h,
+    };
+
+    if (r.slider) {
+      o.slider = {
+        x: r.slider.x,
+        y: viewTop - off + r.slider.y,
+        w: r.slider.w,
+        h: r.slider.h,
+      };
+      o.sliderRange = r.sliderRange;
+      o.sliderRatio = r.sliderRatio;
+    }
+
+    rows.push(o);
   }
 
   const back = { id: 'back', kind: 'back', x: 14, y: 14, w: 68, h: 32 };
 
-  return { rows: rows, back: back, tabs: tabs, tab: mode };
+  return {
+    rows: rows,
+    back: back,
+    tabs: tabs,
+    tab: mode,
+    viewTop: viewTop,
+    viewH: viewH,
+    contentH: contentH,
+    scrollMax: scrollMax,
+    scroll: off,
+  };
+}
+
+// 行是否落在可视区域内（视口外的行不参与命中）
+function inView(built, y, h) {
+  const top = built.viewTop;
+  const bottom = built.viewTop + built.viewH;
+  if (y + h <= top) return false;
+  if (y >= bottom) return false;
+  return true;
 }
 
 function hit(built, x, y) {
@@ -436,6 +503,7 @@ function hit(built, x, y) {
   for (let i = 0; i < rows.length; i++) {
     const b = rows[i];
     if (b.kind === 'section') continue;
+    if (!inView(built, b.y, b.h)) continue;
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
   }
 
@@ -449,6 +517,7 @@ function hitSlider(built, x, y) {
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     if (!r.slider) continue;
+    if (!inView(built, r.y, r.h)) continue;
 
     const s = r.slider;
     if (x >= s.x - 8 && x <= s.x + s.w + 8 && y >= s.y - 6 && y <= s.y + s.h + 6) return r;
@@ -472,4 +541,5 @@ module.exports = {
   activeDurationOf: activeDurationOf,
   activePrice: activePrice,
   activeUpCost: activeUpCost,
+  ROW_H: ROW_H,
 };
