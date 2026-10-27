@@ -1,23 +1,24 @@
 /**
  * 地板系统（features/floor）—— 业务编排层
  *
+ * 关键原则：
+ *   · 贴图原样使用，**绝不做任何裁剪/遮罩/变形**
+ *   · 地图整体形状（rect/diamond）只决定「画不画某格」
+ *   · 背景先铺（纯色或背景图），菱形缺口自然露出背景
+ *
  * 地图数据三条路（优先级从高到低）：
  *   1. mapFile   纯文本地图（assets/maps/*.txt）
  *   2. mapName   JS 地图（assets/maps/index.js 注册）
  *   3. pattern   按 tilePool 随机生成
  *
- * 布局模式由 config.layout 决定（'grid' / 'staggered' / 'iso'）。
- * 菱形 + jpg 时 config.maskDiamond = true，启动时一次性裁成菱形。
- *
  * 状态统一走 state/actions.js 与 state/selectors.js。
  *
  * ⚠️ 导出约定：以下都是「对象」，必须 .create(...) / .parse(...) 调用
  *   ./config/floor-config.js   →  { create, DEFAULTS }
- *   ./render/floor-renderer.js →  { create }
+ *   ./render/floor-renderer.js →  { create, isInsideShape }
  *   ./scroll/floor-scroll.js   →  { create }
  *   ./data/map-data.js         →  { resolve, normalize, fit, toIndex }
  *   ./data/map-text.js         →  { load, clearCache, parse, loadAndParse }
- *   ../../core/assets/atlas/atlas-mask.js → { createDiamondMask }
  */
 'use strict';
 
@@ -30,9 +31,9 @@ var floorRendererModule = require('./render/floor-renderer.js');
 var floorScrollModule = require('./scroll/floor-scroll.js');
 var mapDataModule = require('./data/map-data.js');
 var mapTextModule = require('./data/map-text.js');
-var atlasMaskModule = require('../../core/assets/atlas/atlas-mask.js');
 
 var ATLAS_KEY = 'floor-atlas';
+var BG_KEY = 'floor-background';
 
 function createFloorSystem(ctx) {
   var store = ctx.store;
@@ -43,9 +44,12 @@ function createFloorSystem(ctx) {
   var painter = floorRendererModule.create(renderer);
   var scroll = null;
   var atlas = null;
+  var backgroundImage = null;
   var activeMap = null;
 
   var layoutMode = config.layout || 'grid';
+  var mapShape = config.mapShape || 'rect';
+  var shapeTolerance = typeof config.shapeTolerance === 'number' ? config.shapeTolerance : 0;
   var staggerX = (config.stagger && typeof config.stagger.x === 'number') ? config.stagger.x : 0.5;
   var staggerY = (config.stagger && typeof config.stagger.y === 'number') ? config.stagger.y : 0.5;
 
@@ -138,6 +142,7 @@ function createFloorSystem(ctx) {
       layout: layoutMode,
       staggerX: staggerX,
       staggerY: staggerY,
+      mapShape: mapShape,
       map: map,
       mapSource: activeMap ? 'file' : 'generated',
       mapName: activeMap ? activeMap.name : null,
@@ -146,6 +151,27 @@ function createFloorSystem(ctx) {
       viewportWidth: view.width,
       viewportHeight: view.height
     });
+  }
+
+  /** 加载背景图（可选，失败不影响） */
+  function loadBackground() {
+    if (!config.backgroundImage) {
+      return Promise.resolve(null);
+    }
+
+    return assets.loadImage(BG_KEY, config.backgroundImage, { timeout: config.loadTimeout || 8000 })
+      .then(function (img) {
+        backgroundImage = img;
+        stateActions.setBackgroundReady(store, img.width, img.height);
+        console.log('[floor] 背景图就绪：' + img.width + 'x' + img.height);
+        return img;
+      })
+      ['catch'](function (err) {
+        var msg = (err && err.message) || String(err);
+        stateActions.setBackgroundError(store, msg);
+        console.warn('[floor] 背景图加载失败（用纯色代替）：' + msg);
+        return null;
+      });
   }
 
   function init() {
@@ -167,18 +193,9 @@ function createFloorSystem(ctx) {
       .then(function (img) {
         atlas = assets.registerAtlas(ATLAS_KEY, config.tileset, img);
 
-        // 菱形 + jpg：一次性裁成菱形，解决「实心角盖住邻居」
-        var masked = false;
-        if (config.maskDiamond) {
-          report('生成菱形遮罩…', 0.8);
-          var maskedImage = atlasMaskModule.createDiamondMask(atlas);
-          if (maskedImage) {
-            atlas.image = maskedImage;   // 之后渲染直接用遮罩后的图
-            masked = true;
-          }
-        }
+        // 贴图原样使用，不做任何遮罩/变形
+        stateActions.setAtlasReady(store, ATLAS_KEY, img.width, img.height, atlas.count);
 
-        stateActions.setAtlasReady(store, ATLAS_KEY, img.width, img.height, atlas.count, masked);
         relayout();
 
         var floorState = stateSelectors.getFloor(store);
@@ -190,11 +207,16 @@ function createFloorSystem(ctx) {
           source = '自动生成，地板池 ' + pool.length + ' 块 [' + pool.join(',') + ']';
         }
 
+        var visible = layout.countVisibleTiles(mapShape, floorState.columns, floorState.rows, shapeTolerance);
+
         console.log('[floor] 贴图就绪：' + img.width + 'x' + img.height +
           '，切出 ' + atlas.columns + 'x' + atlas.rows + ' = ' + atlas.count + ' 块' +
           '，布局 ' + layoutMode + '(' + staggerX + ',' + staggerY + ')' +
-          (masked ? '，已做菱形遮罩' : '') +
+          '，形状 ' + mapShape + (mapShape === 'diamond' ? '（可见 ' + visible + ' 格）' : '') +
           '，' + source);
+
+        // 背景图与地板并行加载，不阻塞
+        loadBackground();
 
         return {
           columns: atlas.columns,
@@ -233,11 +255,43 @@ function createFloorSystem(ctx) {
     if (scroll) scroll.update(dt);
   }
 
+  /** 背景图按 cover 方式铺满屏幕 */
+  function drawBackground(view) {
+    if (!backgroundImage) return;
+
+    var iw = backgroundImage.width;
+    var ih = backgroundImage.height;
+    if (!iw || !ih) return;
+
+    var vw = view.width;
+    var vh = view.height;
+    var s = Math.max(vw / iw, vh / ih);
+    var dw = iw * s;
+    var dh = ih * s;
+    var dx = (vw - dw) / 2;
+    var dy = (vh - dh) / 2;
+
+    renderer.drawTile(backgroundImage, { sx: 0, sy: 0, sw: iw, sh: ih }, dx, dy, dw, dh);
+  }
+
   function render() {
     var floor = stateSelectors.getFloor(store);
+    var view = getViewport();
+
     renderer.beginFrame();
-    renderer.fillBackground(floor.background || config.background);
-    painter.draw(floor, getViewport(), atlas || assets.getAtlas(ATLAS_KEY));
+
+    // ① 背景：有背景图就铺图，否则纯色
+    if (backgroundImage) {
+      renderer.fillBackground(floor.background || config.background);
+      drawBackground(view);
+    } else {
+      renderer.fillBackground(floor.background || config.background);
+    }
+
+    // ② 地板：原样贴图，菱形外的格子跳过
+    painter.draw(floor, view, atlas || assets.getAtlas(ATLAS_KEY), {
+      shapeTolerance: shapeTolerance
+    });
   }
 
   function reloadMap() {
@@ -260,6 +314,20 @@ function createFloorSystem(ctx) {
     relayout();
   }
 
+  /** 运行时切换地图形状：'rect' | 'diamond' */
+  function setMapShape(shape) {
+    mapShape = shape || 'rect';
+    config.mapShape = mapShape;
+    relayout();
+  }
+
+  /** 运行时调整菱形容差（0 = 标准菱形，越大越胖） */
+  function setShapeTolerance(value) {
+    shapeTolerance = typeof value === 'number' ? value : 0;
+    config.shapeTolerance = shapeTolerance;
+    relayout();
+  }
+
   createScroll();
 
   return {
@@ -270,6 +338,8 @@ function createFloorSystem(ctx) {
     reloadMap: reloadMap,
     setLayoutMode: setLayoutMode,
     setStagger: setStagger,
+    setMapShape: setMapShape,
+    setShapeTolerance: setShapeTolerance,
     getAtlas: function () { return atlas; },
     getScroll: function () { return scroll; },
     getMap: function () { return activeMap; }

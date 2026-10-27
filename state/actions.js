@@ -23,11 +23,11 @@ function setViewport(store, size) {
  * ============================================================ */
 function setAtlasLoading(store, key) {
   store.update('assets', {
-    atlas: { status: 'loading', key: key || null, width: 0, height: 0, tileCount: 0, masked: false, error: null }
+    atlas: { status: 'loading', key: key || null, width: 0, height: 0, tileCount: 0, error: null }
   });
 }
 
-function setAtlasReady(store, key, width, height, tileCount, masked) {
+function setAtlasReady(store, key, width, height, tileCount) {
   store.update('assets', {
     atlas: {
       status: 'ready',
@@ -35,7 +35,6 @@ function setAtlasReady(store, key, width, height, tileCount, masked) {
       width: width || 0,
       height: height || 0,
       tileCount: tileCount || 0,
-      masked: !!masked,
       error: null
     }
   });
@@ -43,7 +42,19 @@ function setAtlasReady(store, key, width, height, tileCount, masked) {
 
 function setAtlasError(store, message) {
   store.update('assets', {
-    atlas: { status: 'error', key: null, width: 0, height: 0, tileCount: 0, masked: false, error: message || '未知错误' }
+    atlas: { status: 'error', key: null, width: 0, height: 0, tileCount: 0, error: message || '未知错误' }
+  });
+}
+
+function setBackgroundReady(store, width, height) {
+  store.update('assets', {
+    background: { status: 'ready', width: width || 0, height: height || 0, error: null }
+  });
+}
+
+function setBackgroundError(store, message) {
+  store.update('assets', {
+    background: { status: 'error', width: 0, height: 0, error: message || '未知错误' }
   });
 }
 
@@ -73,6 +84,11 @@ function setStagger(store, staggerX, staggerY) {
     staggerX: typeof staggerX === 'number' ? staggerX : 0.5,
     staggerY: typeof staggerY === 'number' ? staggerY : 0.5
   });
+}
+
+/** 设置地图整体形状：'rect' | 'diamond' */
+function setMapShape(store, shape) {
+  store.update('floor', { mapShape: shape || 'rect' });
 }
 
 function setGrid(store, columns, rows) {
@@ -133,6 +149,7 @@ function applyLayout(store, layout) {
     layout: layout.layout || 'grid',
     staggerX: typeof layout.staggerX === 'number' ? layout.staggerX : 0.5,
     staggerY: typeof layout.staggerY === 'number' ? layout.staggerY : 0.5,
+    mapShape: layout.mapShape || 'rect',
     map: layout.map || null,
     mapSource: layout.mapSource || 'generated',
     mapName: layout.mapName || null,
@@ -151,12 +168,15 @@ module.exports = {
   setAtlasLoading: setAtlasLoading,
   setAtlasReady: setAtlasReady,
   setAtlasError: setAtlasError,
+  setBackgroundReady: setBackgroundReady,
+  setBackgroundError: setBackgroundError,
 
   setFloorStatus: setFloorStatus,
   setFloorError: setFloorError,
   setTileSize: setTileSize,
   setLayout: setLayout,
   setStagger: setStagger,
+  setMapShape: setMapShape,
   setGrid: setGrid,
   setMap: setMap,
   setOffset: setOffset,

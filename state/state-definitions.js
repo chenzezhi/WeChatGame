@@ -20,6 +20,12 @@ var CONSTANTS = {
     ISO: 'iso'              // 等距投影（col-row, col+row）
   },
 
+  // 地图整体形状（只决定「画哪些格子」，不碰贴图）
+  MAP_SHAPE: {
+    RECT: 'rect',       // 矩形，全部格子都画
+    DIAMOND: 'diamond'  // 菱形，边界外的格子整块不画 → 四边留缺口
+  },
+
   EMPTY_TILE: -1
 };
 
@@ -43,7 +49,12 @@ var INITIAL_STATE = {
       width: 0,
       height: 0,
       tileCount: 0,
-      masked: false,    // 是否已做菱形遮罩
+      error: null
+    },
+    background: {
+      status: 'idle',   // idle | loading | ready | error
+      width: 0,
+      height: 0,
       error: null
     }
   },
@@ -90,10 +101,16 @@ var INITIAL_STATE = {
 
     // ---- 交错比例（仅 staggered 有效）----
     //   staggerX：相邻行横向错开多少「格宽」的比例（0.5 = 半格）
-    //   staggerY：相邻行纵向走多少「格高」的比例（0.5 = 半格，菱形标准值）
-    //   菱形更扁 → staggerY 调小；菱形更高 → 调大
+    //   staggerY：相邻行纵向走多少「格高」的比例（0.5 = 菱形标准值）
     staggerX: 0.5,
     staggerY: 0.5,
+
+    // ---- 地图整体形状 ----
+    //   'rect'    矩形，全部格子都画
+    //   'diamond' 菱形，边界外的格子整块不画（四边留缺口）← 你要的效果
+    //
+    // ⚠️ 这里只决定「画不画某一块」，绝不修改贴图本身
+    mapShape: 'diamond',
 
     // ---- 地图数据：map[row][col] = 图集索引，-1 = 空格子 ----
     map: null,
@@ -104,7 +121,7 @@ var INITIAL_STATE = {
     pattern: 'random',
     seed: 20240101,
 
-    // 背景色（空格子/地图外围露出这个颜色）
+    // 背景色（没有背景图时铺这个）
     background: '#0d1117'
   }
 };
@@ -137,7 +154,10 @@ function createInitialState(viewportSize) {
 
   return {
     viewport: view,
-    assets: { atlas: shallow(INITIAL_STATE.assets.atlas) },
+    assets: {
+      atlas: shallow(INITIAL_STATE.assets.atlas),
+      background: shallow(INITIAL_STATE.assets.background)
+    },
     floor: cloneFloor(INITIAL_STATE.floor)
   };
 }

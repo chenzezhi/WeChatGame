@@ -20,6 +20,10 @@ function isAtlasReady(store) {
   return getAtlasState(store).status === 'ready';
 }
 
+function getBackgroundState(store) {
+  return store.getState().assets.background;
+}
+
 /* ---------------- 地板 ---------------- */
 function getFloor(store) {
   return store.getState().floor;
@@ -41,6 +45,11 @@ function getStagger(store) {
     x: typeof floor.staggerX === 'number' ? floor.staggerX : 0.5,
     y: typeof floor.staggerY === 'number' ? floor.staggerY : 0.5
   };
+}
+
+/** 地图整体形状：'rect' | 'diamond' */
+function getMapShape(store) {
+  return getFloor(store).mapShape || 'rect';
 }
 
 function getTileRenderSize(store) {
@@ -84,11 +93,13 @@ module.exports = {
 
   getAtlasState: getAtlasState,
   isAtlasReady: isAtlasReady,
+  getBackgroundState: getBackgroundState,
 
   getFloor: getFloor,
   isFloorReady: isFloorReady,
   getLayout: getLayout,
   getStagger: getStagger,
+  getMapShape: getMapShape,
   getTileRenderSize: getTileRenderSize,
   getFloorSize: getFloorSize,
   getMap: getMap,

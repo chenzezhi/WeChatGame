@@ -1,12 +1,16 @@
 /**
  * 地板布局（features/floor/layout）
- * 纯函数：输入屏幕尺寸 + 配置 + 图集，输出格子数、缩放、每格位置。
- * 不碰渲染、不碰状态。
+ * 纯函数：布局位置、地图形状裁剪、格子数/缩放、地图生成。
+ * 不碰渲染、不碰状态、**不碰贴图**。
  *
- * 三种布局：
+ * 布局模式（只影响格子摆在哪）：
  *   'grid'       正方形平铺
  *   'staggered'  菱形交错（每行错开 staggerX 格宽，纵向前进 staggerY 格高）
  *   'iso'        等距投影（col-row, col+row）
+ *
+ * 地图形状（只影响画不画某个格子）：
+ *   'rect'       矩形，全部画
+ *   'diamond'    菱形，边界外整块不画 → 四边留缺口
  */
 'use strict';
 
@@ -25,15 +29,6 @@ function createRng(seed) {
 /* ============================================================
  * 格子位置（不含布局原点偏移）
  * ============================================================ */
-/**
- * @param {String} layout   'grid' | 'staggered' | 'iso'
- * @param {Number} col
- * @param {Number} row
- * @param {Number} tileW    单块显示宽
- * @param {Number} tileH    单块显示高
- * @param {Number} staggerX 横向错开比例（默认 0.5）
- * @param {Number} staggerY 纵向前进比例（默认 0.5）
- */
 function getTilePosition(layout, col, row, tileW, tileH, staggerX, staggerY) {
   var sx = typeof staggerX === 'number' ? staggerX : 0.5;
   var sy = typeof staggerY === 'number' ? staggerY : 0.5;
@@ -63,6 +58,57 @@ function getLayoutOrigin(layout, tileW, tileH, rows) {
   return { x: 0, y: 0 };
 }
 
+/* ============================================================
+ * 地图整体形状（决定「画不画这一格」，不修改贴图）
+ * ============================================================ */
+/**
+ * 某个格子是否在地图形状内部
+ *
+ *   'rect'     全部返回 true
+ *   'diamond'  菱形：|Δcol| / 半宽 + |Δrow| / 半高 <= 1
+ *              形状外部整块不画，于是四边自然留出缺口（菱形边界呈锯齿状）
+ *
+ * @param {String} shape    'rect' | 'diamond'
+ * @param {Number} col
+ * @param {Number} row
+ * @param {Number} columns  总列数
+ * @param {Number} rows     总行数
+ * @param {Number} tolerance 可放宽的容差（默认 0，越大菱形越胖）
+ */
+function isInsideShape(shape, col, row, columns, rows, tolerance) {
+  if (shape !== 'diamond') return true;
+  if (columns <= 0 || rows <= 0) return false;
+
+  var tol = typeof tolerance === 'number' ? tolerance : 0;
+
+  // 单行或单列时退化为中心线，不做菱形裁剪
+  if (columns <= 2 || rows <= 2) return true;
+
+  var cx = (columns - 1) / 2;
+  var cy = (rows - 1) / 2;
+
+  var nx = Math.abs(col - cx) / cx;   // 0 = 中心列，1 = 最左/右列
+  var ny = Math.abs(row - cy) / cy;   // 0 = 中心行，1 = 最上/下行
+
+  return nx + ny <= 1 + tol;
+}
+
+/**
+ * 统计某个形状里实际会画多少格（调试 / 日志用）
+ */
+function countVisibleTiles(shape, columns, rows, tolerance) {
+  var count = 0;
+  for (var row = 0; row < rows; row++) {
+    for (var col = 0; col < columns; col++) {
+      if (isInsideShape(shape, col, row, columns, rows, tolerance)) count++;
+    }
+  }
+  return count;
+}
+
+/* ============================================================
+ * 内容尺寸
+ * ============================================================ */
 /**
  * 整体内容尺寸（像素，已含 scale）
  *
@@ -195,6 +241,8 @@ module.exports = {
   createRng: createRng,
   getTilePosition: getTilePosition,
   getLayoutOrigin: getLayoutOrigin,
+  isInsideShape: isInsideShape,
+  countVisibleTiles: countVisibleTiles,
   computeContentSize: computeContentSize,
   computeGrid: computeGrid,
   createMap: createMap
