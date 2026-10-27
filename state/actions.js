@@ -95,6 +95,16 @@ function setTileSize(store, tileWidth, tileHeight) {
   });
 }
 
+/**
+ * 设置布局模式
+ *   'grid'      正方形平铺
+ *   'staggered' 菱形交错铺
+ *   'iso'       等距投影
+ */
+function setLayout(store, layout) {
+  store.update('floor', { layout: layout || 'grid' });
+}
+
 function setGrid(store, columns, rows) {
   store.update('floor', { columns: columns, rows: rows });
 }
@@ -158,6 +168,7 @@ function applyLayout(store, layout) {
     tileWidth: layout.tileWidth || 0,
     tileHeight: layout.tileHeight || 0,
     scale: layout.scale || 1,
+    layout: layout.layout || 'grid',
     map: layout.map || null,
     mapSource: layout.mapSource || 'generated',
     mapName: layout.mapName || null,
@@ -183,6 +194,7 @@ module.exports = {
   setFloorStatus: setFloorStatus,
   setFloorError: setFloorError,
   setTileSize: setTileSize,
+  setLayout: setLayout,
   setGrid: setGrid,
   setMap: setMap,
   setOffset: setOffset,

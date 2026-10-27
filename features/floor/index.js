@@ -6,6 +6,8 @@
  *   2. mapName   JS 地图（assets/maps/index.js 注册）
  *   3. pattern   按 tilePool 随机生成
  *
+ * 布局模式由 config.layout 决定（'grid' / 'staggered' / 'iso'）。
+ *
  * 流程图：加载大图 → 注册图集 → 取地图数据 → 算布局 → 写入状态 → 每帧绘制
  *
  * 状态统一走 state/actions.js 与 state/selectors.js。
@@ -14,7 +16,7 @@
  *   ./config/floor-config.js   →  { create, DEFAULTS }
  *   ./render/floor-renderer.js →  { create }
  *   ./scroll/floor-scroll.js   →  { create }
- *   ./layout/floor-layout.js   →  { createRng, computeGrid, createMap, computeContentSize }
+ *   ./layout/floor-layout.js   →  { createRng, getTilePosition, getLayoutOrigin, computeContentSize, computeGrid, createMap }
  *   ./data/map-data.js         →  { EMPTY, resolve, normalize, fit, toIndex }
  *   ./data/map-text.js         →  { EMPTY, load, clearCache, parse, loadAndParse }
  *   以上都是「对象」，不是函数，必须 .create(...) / .parse(...) 调用。
@@ -43,6 +45,9 @@ function createFloorSystem(ctx) {
   var scroll = null;
   var atlas = null;
   var activeMap = null;   // 归一化后的地图数据（null = 走随机生成）
+
+  // 当前布局模式（取 config.layout，缺省 'grid'）
+  var layoutMode = config.layout || 'grid';
 
   function getViewport() {
     return stateSelectors.getViewport(store);
@@ -122,7 +127,6 @@ function createFloorSystem(ctx) {
 
     var map;
     if (activeMap) {
-      // 地图尺寸已经和 grid.columns/rows 一致，这里 fit 只是安全兜底
       map = mapDataModule.fit(activeMap.map, grid.columns, grid.rows);
     } else {
       map = layout.createMap({
@@ -135,7 +139,8 @@ function createFloorSystem(ctx) {
       });
     }
 
-    var content = layout.computeContentSize(grid);
+    // 内容尺寸按布局模式计算
+    var content = layout.computeContentSize(grid, layoutMode);
 
     stateActions.applyLayout(store, {
       columns: grid.columns,
@@ -143,6 +148,7 @@ function createFloorSystem(ctx) {
       tileWidth: grid.tileWidth,
       tileHeight: grid.tileHeight,
       scale: grid.scale,
+      layout: layoutMode,
       map: map,
       mapSource: activeMap ? 'file' : 'generated',
       mapName: activeMap ? activeMap.name : null,
@@ -186,6 +192,7 @@ function createFloorSystem(ctx) {
 
         console.log('[floor] 贴图就绪：' + img.width + 'x' + img.height +
           '，切出 ' + atlas.columns + 'x' + atlas.rows + ' = ' + atlas.count + ' 块' +
+          '，布局 ' + layoutMode +
           '，' + source);
 
         return {
@@ -239,6 +246,13 @@ function createFloorSystem(ctx) {
     relayout();
   }
 
+  /** 运行时切换布局（例如从 grid 切到 staggered） */
+  function setLayoutMode(mode) {
+    layoutMode = mode || 'grid';
+    config.layout = layoutMode;
+    relayout();
+  }
+
   createScroll();
 
   return {
@@ -247,6 +261,7 @@ function createFloorSystem(ctx) {
     render: render,
     relayout: relayout,
     reloadMap: reloadMap,
+    setLayoutMode: setLayoutMode,
     getAtlas: function () { return atlas; },
     getScroll: function () { return scroll; },
     getMap: function () { return activeMap; }

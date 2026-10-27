@@ -37,6 +37,11 @@ function isFloorReady(store) {
   return getFloor(store).status === 'ready';
 }
 
+/** 当前布局模式：'grid' | 'staggered' | 'iso' */
+function getLayout(store) {
+  return getFloor(store).layout || 'grid';
+}
+
 /** 单块地板在屏幕上的渲染尺寸 */
 function getTileRenderSize(store) {
   var floor = getFloor(store);
@@ -96,6 +101,7 @@ module.exports = {
   // 地板
   getFloor: getFloor,
   isFloorReady: isFloorReady,
+  getLayout: getLayout,
   getTileRenderSize: getTileRenderSize,
   getFloorSize: getFloorSize,
   getMap: getMap,

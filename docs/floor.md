@@ -5,25 +5,60 @@
 
 ---
 
-## 一、渲染策略（先搞清楚这个）
+## 一、菱形贴图怎么无缝（先看这个）
+
+如果你的贴图是**菱形**（四个角透明），按方块平铺一定会有缺口 —— 因为相邻两块的透明角落对在一起。改一行就好：
+
+```js
+// features/floor/config/floor-config.js
+layout: 'staggered',
+```
+
+三种模式：
+
+| `layout` | 效果 | 适合 |
+| --- | --- | --- |
+| `'grid'` | 正方形平铺 | 方块地砖 |
+| `'staggered'` | 每行半格错开，菱形像砖墙那样咬合 | ✅ 菱形贴图，最常用 |
+| `'iso'` | 45° 等距投影，坐标 `(col-row, col+row)` | 要「三视角/斜向地图」的观感 |
+
+### 它是怎么算的
+
+```
+staggered:  x = col × W + (row % 2) × (W/2)
+            y = row × (H/2)
+
+iso:        x = (col − row) × (W/2)
+            y = (col + row) × (H/2)
+```
+
+`W`/`H` 就是 `floor-tileset.js` 里的 `tileWidth`/`tileHeight`。
+
+### 前提条件
+
+菱形的四个顶点必须**贴着 56×56 方框的四条边中点**。也就是说：
+
+- 如果图里菱形占满整个方框（上顶点在 `(28,0)`，下顶点在 `(28,56)`），那就对
+- 如果菱形周围还有留白，`tileWidth`/`tileHeight` 要按**含留白的整个方框**来填，不要只填菱形本身
+
+---
+
+## 二、渲染策略
 
 **整张大图进内存，坐标现算，不预切、不缓存切片。**
 
 | | 状态 |
 | --- | --- |
-| 大图 | 内存里 **1 份**（`wx.createImage` 解码后常驻） |
-| 每块的位置 | **不存**，`getTileRect()` 每次现算（几次乘除，比查表还快） |
-| 预切的小图 | **没有**，一张都不生成 |
-| 地图 map | 存**索引数字**，不是图片 |
+| 大图 | 内存里 **1 份** |
+| 每块的位置 | **不存**，`getTileScreenPos()` 每次现算 |
+| 预切的小图 | **没有** |
+| 地图 map | 存**索引数字** |
 
-绘制走 `ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh)` —— 九参重载，
-从内存里那张大图上按坐标现切一块。好处：内存只有一份、任意缩放不失真、不用重切。
-
-另外已做**可见区裁剪**：只画屏幕内的格子，大地图也不会掉帧。
+绘制走 `ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh)`，九参重载现切。
 
 ---
 
-## 二、每块显示多大（缩放规则）
+## 三、每块显示多大（缩放规则）
 
 `computeGrid()` 的决策顺序：
 
@@ -31,18 +66,13 @@
 | --- | --- | --- |
 | `tileDisplaySize > 0` | `tileDisplaySize / tileWidth` | 你说了算 |
 | 有地图文件 或 有 `grid` 格子数 | **1** | 保持原始大小，超出屏幕就**滚动** |
-| 什么都没指定 | `屏宽 / (auto列数 × tileWidth)` | 自适应铺满一屏（不能滚） |
-
-> 第二档是关键：它保证「地图变大时每块大小不变，改成滚动」。
+| 什么都没指定 | `屏宽 / (auto列数 × tileWidth)` | 自适应铺满一屏 |
 
 ---
 
-## 三、指定用哪几块地板块（地板池）
+## 四、指定用哪几块地板块（地板池）
 
 > 仅随机生成模式有效。用地图文件时请直接在地图里写索引。
-
-大图切出来是 N 行 × M 列的网格，用「第几行第几列」点名。
-**行、列都从 0 开始**，左上角是 `{ row: 0, col: 0 }`。
 
 ```js
 tilePool: [
@@ -58,17 +88,15 @@ tilePool: [
 tilePool: [
   { row: 2, col: 1 },   // 对象写法（推荐）
   [2, 1],               // 数组简写：⚠️ 顺序是 [行, 列]
-  17,                   // 扁平索引：从左上角往右数
-  'floor_0'             // floor-tileset.js 里 tiles 起的名字
+  17,                   // 扁平索引
+  'floor_0'             // tileset.tiles 里起的名字
 ]
 ```
-
-越界坐标会被钳制到合法范围，不会崩。
 
 ### 怎么选
 
 ```js
-pattern: 'random'    // 随机（配合 seed，每次进入花纹一致）
+pattern: 'random'    // 随机（配合 seed）
 pattern: 'sequence'  // 按顺序循环
 pattern: 'checker'   // 棋盘交替
 pattern: 'single'    // 只用池子第一个（调试切图最好用这个）
@@ -76,16 +104,16 @@ pattern: 'single'    // 只用池子第一个（调试切图最好用这个）
 
 ---
 
-## 四、地板大小与滚动
+## 五、地板大小与滚动
 
 ```js
 grid: { columns: 10, rows: 20 }   // 仅随机生成模式有效
 ```
 
-- 填 **0** = 按屏幕自适应，刚好铺满一屏。
+- 填 **0** = 按屏幕自适应。
 - 填具体数字 = 固定大小，**超出屏幕就能滑**，每块大小不变。
 
-用地地图文件时，格子数由地图文件的行列决定，`grid` 自动失效。
+用地图文件时，格子数由地图文件的行列决定，`grid` 自动失效。
 
 ### 滑动
 
@@ -93,31 +121,25 @@ grid: { columns: 10, rows: 20 }   // 仅随机生成模式有效
 scroll: {
   enabled: true,
   inertia: true,
-  friction: 0.92   // 越小停得越快（0.85 ~ 0.96）
+  friction: 0.92
 }
 ```
 
-- 单指拖动，跟手
-- 松手带惯性，自动减速
-- **自动限制边界**，拖不出地板外面
-- 内容没超出屏幕时完全不能拖
-
-滑动状态全在 `state/modules/floor/state.js`：
-`offsetX/offsetY`、`maxScrollX/maxScrollY`、`velocityX/velocityY`、`isDragging`。
+状态全在 `state/state-definitions.js`（`floor` 下的 `offsetX`/`offsetY`/`maxScrollX`/`maxScrollY`/`velocityX`/`velocityY`/`isDragging`）。
 
 ---
 
-## 五、调参顺序（推荐）
+## 六、调参顺序（推荐）
 
-1. `pattern: 'single'`、`tilePool: [{ row: 0, col: 0 }]`
-   → 满屏是**一张干净完整的瓷砖**，没有黑边碎边
-2. 换成多个块，观察是不是你要的那几块
-3. 打开地图文件或填大 `grid`，测试滚动
-4. 最后把 `pattern` 改回 `'random'`
+1. `pattern: 'single'`、`tilePool: [{ row: 0, col: 0 }]` → 满屏是**一张干净完整的瓷砖**
+2. 菱形贴图 → 把 `layout` 改成 `'staggered'`，观察菱形是否咬合无缝
+3. 如果还有缝，检查 `tileWidth`/`tileHeight` 是不是菱形的**外接方框**尺寸
+4. 打开地图文件，测试滚动
+5. 最后把 `pattern` 改回 `'random'`
 
 ---
 
-## 六、切图参数在哪改
+## 七、切图参数在哪改
 
 **`assets/atlas/floor-tileset.js`**
 
@@ -133,7 +155,5 @@ rows: 0
 改完看 Console：
 
 ```
-[floor] 贴图就绪：512x512，切出 4x4 = 16 块，地图 assets/maps/level-1.txt（8x6）
+[floor] 贴图就绪：512x512，切出 4x4 = 16 块，布局 staggered，地图 assets/maps/level-1.txt（8x6）
 ```
-
-行 × 列 和你在大图上数出来的一致就对了。

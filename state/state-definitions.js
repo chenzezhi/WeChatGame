@@ -28,6 +28,13 @@ var CONSTANTS = {
     GENERATED: 'generated'  // 由 pattern + tilePool 随机生成
   },
 
+  // 地板布局模式
+  LAYOUT: {
+    GRID: 'grid',           // 正方形平铺（方块地砖）
+    STAGGERED: 'staggered', // 菱形交错铺（每行半格错开，菱形无缝）
+    ISO: 'iso'              // 等距投影（col-row, col+row），三视角
+  },
+
   // 空格子标记（渲染时跳过，露出背景）
   EMPTY_TILE: -1
 };
@@ -66,7 +73,7 @@ var INITIAL_STATE = {
     tileHeight: 56,
 
     // ---- 渲染缩放：显示尺寸 = 原始尺寸 × scale ----
-    scale: 5,
+    scale: 1,
 
     // ---- 地板格数 ----
     columns: 0,
@@ -90,6 +97,12 @@ var INITIAL_STATE = {
     velocityX: 0,
     velocityY: 0,
 
+    // ---- 布局模式（★ 菱形地板必改这一项）----
+    //   'grid'      正方形平铺，适合方块地砖
+    //   'staggered' 菱形交错铺（每行半格错开），菱形贴图无缝 ← 推荐
+    //   'iso'       等距投影（45°），菱形贴图无缝，地图呈斜向
+    layout: 'grid',
+
     // ---- 地图数据：map[row][col] = 图集索引，-1 = 空格子 ----
     map: null,
     mapSource: 'generated',   // 'file' | 'generated'
@@ -99,7 +112,7 @@ var INITIAL_STATE = {
     pattern: 'random',
     seed: 20240101,
 
-    // ---- 背景色（空格子露出这个颜色）----
+    // ---- 背景色（空格子/地图外围露出这个颜色）----
     background: '#0d1117'
   }
 };
