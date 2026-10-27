@@ -1,172 +1,80 @@
 /**
- * 微信小游戏入口（微信运行时自动执行本文件）
+ * 微信小游戏入口 —— cax 引擎最小 MVP
  *
- *   ENGINE = 'auto'    存在 cocos/ 构建产物就用 Cocos，否则用内置引擎
- *   ENGINE = 'cocos'   强制 Cocos Creator
- *   ENGINE = 'builtin' 强制内置引擎
+ * 只在做一件事：验证「第三方引擎能跑起来」这一个事实。
+ * 画面：绿色方块弹跳 + FPS + 点屏幕把方块抓到手指位置。
  *
- * ⚠️ 两条铁律（踩过坑）：
- *   1. 第一次 wx.createCanvas() 才是「上屏画布」，必须由本文件创建并一路传下去。
- *      其它地方再调 createCanvas() 拿到的是离屏画布，画了也看不见（表现为卡启动页）。
- *   2. 先画一帧再 require 业务模块。只要画了，微信启动页立刻消失。
- *
- * 启动失败时会把「诊断信息」逐条打在屏幕上（app/diagnostics.js），
- * 方便不看截图也能定位问题。
+ * 两个从 cax 源码里确认的关键点（别改顺序）：
+ *   1. require('./libs/cax.js') 内部会调 wx.createCanvas()，
+ *      那一次就是上屏画布。所以必须先 require，绝不能自己建画布。
+ *   2. 小游戏用 new cax.Stage()（无参），走 isWegame 分支，
+ *      内部直接用那块上屏画布。不要传 (w, h, canvas)，那是 Web 分支。
  */
 'use strict';
 
-var ENGINE = 'auto';
+/* 1. 引擎（必须第一个 require） */
+var cax = require('./libs/cax.js');
 
-var GAME_CONFIG = {
-  orientation: 'portrait',
-  designWidth: 750,
-  designHeight: 1334,
-  debug: true,
+/* 2. 舞台 */
+var stage = new cax.Stage();
+stage.hitAABB = true;          // 用矩形命中测试，别用像素级（更快、更稳）
 
-  // 地板模块配置（覆盖 features/floor/config/floor-config.js 的默认值）
-  floor: {
-    // pattern: 'random' | 'checker' | 'single'
-    // tilePool: [0, 1, 2, 3]
-    // grid: { columns: 0, rows: 0 }
-  }
-};
+var DPR = wx.getSystemInfoSync().pixelRatio || 1;
+var W = stage.canvas.width;    // 物理像素
+var H = stage.canvas.height;
 
-/* ================= 全局错误捕获 ================= */
-if (typeof wx.onError === 'function') {
-  wx.onError(function (err) {
-    console.error('[game] 未捕获错误：' + (err && (err.stack || err.message || err)));
-  });
-}
+/* 3. 三个对象：背景 / 方块 / 文字 */
+stage.add(new cax.Rect(W, H, { fillStyle: '#0d1117' }));
 
-/* ================= 阶段 0：立刻创建上屏画布并出画面 ================= */
-function createStage() {
-  var info = wx.getSystemInfoSync();
-  var dpr = info.pixelRatio || 1;
-  var width = info.windowWidth || 375;
-  var height = info.windowHeight || 667;
+var SIZE = 50 * DPR;
+var box = new cax.Rect(SIZE, SIZE, { fillStyle: '#07c160' });
+box.x = W / 2 - SIZE / 2;
+box.y = H / 2 - SIZE / 2;
+stage.add(box);
 
-  // 整个游戏里唯一一次取上屏画布
-  var canvas = wx.createCanvas();
-  canvas.width = Math.floor(width * dpr);
-  canvas.height = Math.floor(height * dpr);
+var label = new cax.Text('0 fps', { font: (14 * DPR) + 'px sans-serif', color: '#8b98a5' });
+label.x = 16 * DPR;
+label.y = 40 * DPR;
+stage.add(label);
 
-  var ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+/* 4. 触摸：移到手指位置（屏幕坐标 × DPR = 画布坐标） */
+wx.onTouchStart(function (e) {
+  var t = e.touches && e.touches[0];
+  if (!t) return;
+  box.x = t.clientX * DPR - SIZE / 2;
+  box.y = t.clientY * DPR - SIZE / 2;
+});
 
-  ctx.fillStyle = '#0d1117';
-  ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#8b98a5';
-  ctx.font = '14px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('正在启动…', width / 2, height / 2);
+/* 5. 主循环 */
+var vx = 120 * DPR;
+var vy = 180 * DPR;
+var last = Date.now();
+var frames = 0;
+var fps = 0;
+var t0 = Date.now();
 
-  return {
-    canvas: canvas,
-    ctx: ctx,
-    width: width,
-    height: height,
-    dpr: dpr
-  };
-}
+function frame() {
+  var now = Date.now();
+  var dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
 
-var stage = null;
-try {
-  stage = createStage();
-  console.log('[game] 上屏画布已创建 ' + stage.width + 'x' + stage.height + ' @' + stage.dpr + 'x');
-} catch (e) {
-  console.error('[game] 创建画布失败：' + (e && (e.stack || e.message)));
-}
+  box.x += vx * dt;
+  box.y += vy * dt;
+  if (box.x < 0) { box.x = 0; vx = -vx; }
+  if (box.x > W - SIZE) { box.x = W - SIZE; vx = -vx; }
+  if (box.y < 0) { box.y = 0; vy = -vy; }
+  if (box.y > H - SIZE) { box.y = H - SIZE; vy = -vy; }
 
-/* ================= 加载画面 ================= */
-var screen = null;
-try {
-  if (stage) screen = require('./app/loading-screen.js').create(stage);
-} catch (e) {
-  console.error('[game] 加载画面不可用：' + (e && (e.stack || e.message)));
-}
-
-/* ================= 图集描述（诊断用，可选） ================= */
-var tileset = null;
-try {
-  tileset = require('./assets/atlas/floor-tileset.js');
-} catch (e) {
-  console.error('[game] 图集描述加载失败：' + (e && (e.stack || e.message)));
-}
-
-/* ================= 诊断输出 ================= */
-function diagnostics() {
-  try {
-    return require('./app/diagnostics.js').collect({
-      tileset: tileset,
-      canvas: stage ? stage.canvas : null
-    });
-  } catch (e) {
-    return [{ text: '诊断模块本身出错：' + ((e && e.message) || e), level: 'error' }];
-  }
-}
-
-function dumpDiagnostics() {
-  var lines = diagnostics();
-  for (var i = 0; i < lines.length; i++) {
-    if (screen && screen.push) screen.push(lines[i].text, lines[i].level);
-  }
-  console.log('[game] ===== 诊断 =====');
-  for (var j = 0; j < lines.length; j++) {
-    console.log('[game] ' + lines[j].text);
-  }
-  return lines;
-}
-
-function fatal(where, error) {
-  var message = (error && (error.stack || error.message)) || String(error);
-  console.error('[game] ' + where + ' 失败：\n' + message);
-
-  if (screen) {
-    screen.showError(where + '\n' + message);
-  } else if (stage) {
-    try {
-      stage.ctx.fillStyle = '#1a0000';
-      stage.ctx.fillRect(0, 0, stage.width, stage.height);
-      stage.ctx.fillStyle = '#ff6b6b';
-      stage.ctx.font = '12px monospace';
-      stage.ctx.textAlign = 'left';
-      var lines = String(message).split('\n');
-      for (var i = 0; i < lines.length && i < 18; i++) {
-        stage.ctx.fillText(lines[i].slice(0, 60), 16, 40 + i * 18);
-      }
-    } catch (e2) {
-      console.error('[game] 错误信息都画不出来：' + (e2 && e2.message));
-    }
+  frames++;
+  if (now - t0 >= 500) {
+    fps = Math.round(frames * 1000 / (now - t0));
+    frames = 0;
+    t0 = now;
+    label.text = fps + ' fps';
   }
 
-  dumpDiagnostics();
+  stage.update();
+  requestAnimationFrame(frame);
 }
 
-/* ================= 阶段 1：延迟一拍再启动，让画面先刷新 ================= */
-var result = { engine: 'pending', entry: null, app: null };
-
-setTimeout(function () {
-  try {
-    // 启动前先打一遍诊断，正常情况也能看出图集有没有进包
-    dumpDiagnostics();
-
-    var started = require('./engine/index.js').start({
-      engine: ENGINE,
-      config: GAME_CONFIG,
-      debug: GAME_CONFIG.debug,
-      canvas: stage ? stage.canvas : undefined,
-      screen: screen
-    });
-
-    result.engine = started.engine;
-    result.entry = started.entry;
-    result.app = started.app;
-
-    console.log('[game] 启动完成，引擎：' + result.engine +
-      (result.entry ? ' (' + result.entry + ')' : ''));
-  } catch (e) {
-    fatal('启动', e);
-  }
-}, 0);
-
-module.exports = result;
+frame();

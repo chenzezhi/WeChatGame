@@ -1,15 +1,19 @@
 {
-  "description": "最简单的微信小游戏模板",
+  "description": "微信小游戏 MVP（cax 引擎 + 裸 canvas 双模式）",
   "packOptions": {
     "ignore": [
       { "type": "folder", "value": "backup" },
       { "type": "folder", "value": "node_modules" },
       { "type": "folder", "value": ".git" },
+      { "type": "folder", "value": "docs" },
+      { "type": "folder", "value": "vendor" },
       { "type": "suffix", "value": ".key" },
       { "type": "file", "value": "upload.js" },
       { "type": "file", "value": "upload.sh" },
       { "type": "file", "value": "upload-auto.sh" },
       { "type": "file", "value": "upload-proot.sh" },
+      { "type": "file", "value": "get-qr.sh" },
+      { "type": "file", "value": "deploy-and-get.sh" },
       { "type": "file", "value": "backup.sh" },
       { "type": "file", "value": "node-android-fix.js" },
       { "type": "file", "value": "forktest.js" },
