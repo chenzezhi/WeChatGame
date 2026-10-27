@@ -8,6 +8,8 @@
  *
  * 流程图：加载大图 → 注册图集 → 取地图数据 → 算布局 → 写入状态 → 每帧绘制
  *
+ * 状态统一走 state/actions.js 与 state/selectors.js。
+ *
  * ⚠️ 导出约定（踩过坑，务必看清）：
  *   ./config/floor-config.js   →  { create, DEFAULTS }
  *   ./render/floor-renderer.js →  { create }
@@ -19,9 +21,8 @@
  */
 'use strict';
 
-var floorActions = require('../../state/modules/floor/actions.js');
-var floorSelectors = require('../../state/modules/floor/selectors.js');
-var assetsActions = require('../../state/modules/assets/actions.js');
+var stateActions = require('../../state/actions.js');
+var stateSelectors = require('../../state/selectors.js');
 var layout = require('./layout/floor-layout.js');
 
 var floorConfigModule = require('./config/floor-config.js');
@@ -44,7 +45,7 @@ function createFloorSystem(ctx) {
   var activeMap = null;   // 归一化后的地图数据（null = 走随机生成）
 
   function getViewport() {
-    return store.getState().viewport;
+    return stateSelectors.getViewport(store);
   }
 
   function warnToScreen(text) {
@@ -136,7 +137,7 @@ function createFloorSystem(ctx) {
 
     var content = layout.computeContentSize(grid);
 
-    floorActions.applyLayout(store, {
+    stateActions.applyLayout(store, {
       columns: grid.columns,
       rows: grid.rows,
       tileWidth: grid.tileWidth,
@@ -154,14 +155,14 @@ function createFloorSystem(ctx) {
 
   /** 加载贴图并布局，返回 Promise<{columns, rows, count, width, height}> */
   function init() {
-    floorActions.setStatus(store, 'loading');
-    assetsActions.setAtlasLoading(store, ATLAS_KEY);
+    stateActions.setFloorStatus(store, 'loading');
+    stateActions.setAtlasLoading(store, ATLAS_KEY);
 
     var image = config.tileset && config.tileset.image;
     if (!image) {
       var missing = new Error('图集描述里缺少 image 字段（assets/atlas/floor-tileset.js）');
-      assetsActions.setAtlasError(store, missing.message);
-      floorActions.setError(store, missing.message);
+      stateActions.setAtlasError(store, missing.message);
+      stateActions.setFloorError(store, missing.message);
       relayout();
       return Promise.reject(missing);
     }
@@ -171,10 +172,10 @@ function createFloorSystem(ctx) {
     return assets.loadImage(ATLAS_KEY, image, { timeout: config.loadTimeout || 8000 })
       .then(function (img) {
         atlas = assets.registerAtlas(ATLAS_KEY, config.tileset, img);
-        assetsActions.setAtlasReady(store, ATLAS_KEY, img.width, img.height, atlas.count);
+        stateActions.setAtlasReady(store, ATLAS_KEY, img.width, img.height, atlas.count);
         relayout();
 
-        var floorState = floorSelectors.getFloor(store);
+        var floorState = stateSelectors.getFloor(store);
         var source;
         if (floorState.mapSource === 'file') {
           source = '地图 ' + floorState.mapName + '（' + floorState.columns + 'x' + floorState.rows + '）';
@@ -199,8 +200,8 @@ function createFloorSystem(ctx) {
         var msg = (err && err.message) || String(err);
         console.error('[floor] 贴图加载失败，改用纯色地板：' + msg);
 
-        assetsActions.setAtlasError(store, msg);
-        floorActions.setError(store, msg);
+        stateActions.setAtlasError(store, msg);
+        stateActions.setFloorError(store, msg);
         relayout();
 
         throw err;
@@ -226,7 +227,7 @@ function createFloorSystem(ctx) {
   }
 
   function render() {
-    var floor = floorSelectors.getFloor(store);
+    var floor = stateSelectors.getFloor(store);
     renderer.beginFrame();
     renderer.fillBackground(floor.background || config.background);
     painter.draw(floor, getViewport(), atlas || assets.getAtlas(ATLAS_KEY));

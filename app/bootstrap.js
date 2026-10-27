@@ -4,20 +4,18 @@
  * 只负责「装配」：把 platform / core / state / features 拼起来，
  * 不写任何具体玩法逻辑。
  *
- * 关键点：
- *   1. 画布由 game.js 创建并传进来，这里绝不再调 wx.createCanvas()；
- *   2. 主循环等「地板贴图加载完」再启动，避免加载画面被立刻擦掉；
- *   3. 无论如何 8 秒后强制进游戏，绝不无限卡在加载画面。
+ * 状态相关：统一从 state/actions.js 改、state/selectors.js 读，
+ * 不再深入 state/modules 子目录。
  */
 'use strict';
 
 var platform = require('../platform/index.js');
 var createAppStore = require('../state/index.js').createAppStore;
+var stateActions = require('../state/actions.js');
 var createRenderer = require('../core/render/renderer.js');
 var createGameLoop = require('../core/loop/game-loop.js');
 var createAssetManager = require('../core/assets/asset-manager.js');
 var createTouchManager = require('../core/input/touch-manager.js');
-var viewportActions = require('../state/modules/viewport/actions.js');
 var floorFeature = require('../features/floor/index.js');
 
 // ⚠️ floor-config.js 导出的是 { create, DEFAULTS }，不是函数
@@ -66,6 +64,7 @@ function start(options) {
     assets: assets,
     renderer: renderer,
     touch: touch,
+    screen: screen,
     config: floorConfigModule.create(config.floor),
     report: report
   });
@@ -106,7 +105,7 @@ function start(options) {
 
   // ---------------------------------------------------------- 7. 屏幕旋转
   platform.system.onResize(function (size) {
-    viewportActions.setViewport(store, size);
+    stateActions.setViewport(store, size);
     renderer.resize(size);
     floor.relayout();
   });

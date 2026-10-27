@@ -1,17 +1,87 @@
 /**
- * 动作：地板（state/modules/floor）
- * 所有修改地板状态的地方都必须走这里，方便追踪与调试。
+ * 所有「改状态」的函数（唯一入口）
+ *
+ * 业务代码不允许直接改 state 对象，一律调这里的函数：
+ *   好处一：改状态的地方只有这一处，方便排查
+ *   好处二：每次改完自动通知订阅者（store.update 内部处理）
+ *
+ * 按功能分组：视口 / 资源 / 地板
+ * 初始值在 state/state-definitions.js
  */
 'use strict';
 
-function setStatus(store, status, message) {
+/* ============================================================
+ * 一、视口
+ * ============================================================ */
+
+/** 设置屏幕尺寸 */
+function setViewport(store, size) {
+  if (!size) return;
+  store.update('viewport', {
+    width: size.width,
+    height: size.height,
+    dpr: size.dpr || 1
+  });
+}
+
+/* ============================================================
+ * 二、资源
+ * ============================================================ */
+
+/** 图集开始加载 */
+function setAtlasLoading(store, key) {
+  store.update('assets', {
+    atlas: {
+      status: 'loading',
+      key: key || null,
+      width: 0,
+      height: 0,
+      tileCount: 0,
+      error: null
+    }
+  });
+}
+
+/** 图集就绪 */
+function setAtlasReady(store, key, width, height, tileCount) {
+  store.update('assets', {
+    atlas: {
+      status: 'ready',
+      key: key || null,
+      width: width || 0,
+      height: height || 0,
+      tileCount: tileCount || 0,
+      error: null
+    }
+  });
+}
+
+/** 图集加载失败 */
+function setAtlasError(store, message) {
+  store.update('assets', {
+    atlas: {
+      status: 'error',
+      key: null,
+      width: 0,
+      height: 0,
+      tileCount: 0,
+      error: message || '未知错误'
+    }
+  });
+}
+
+/* ============================================================
+ * 三、地板
+ * ============================================================ */
+
+function setFloorStatus(store, status, message) {
   store.update('floor', {
     status: status,
     error: message || null
   });
 }
 
-function setError(store, message) {
+function setFloorError(store, message) {
   store.update('floor', {
     status: 'error',
     error: message || '未知错误'
@@ -64,14 +134,7 @@ function setScrollBounds(store, maxScrollX, maxScrollY) {
   });
 }
 
-/**
- * 一次性应用布局结果（地板系统算好后交给状态层）
- *
- * layout: { columns, rows, tileWidth, tileHeight, scale, map,
- *           mapSource, mapName,
- *           contentWidth, contentHeight,
- *           viewportWidth, viewportHeight }
- */
+/** 一次性应用布局结果（地板系统算好后交给状态层） */
 function applyLayout(store, layout) {
   layout = layout || {};
 
@@ -108,8 +171,17 @@ function applyLayout(store, layout) {
 }
 
 module.exports = {
-  setStatus: setStatus,
-  setError: setError,
+  // 视口
+  setViewport: setViewport,
+
+  // 资源
+  setAtlasLoading: setAtlasLoading,
+  setAtlasReady: setAtlasReady,
+  setAtlasError: setAtlasError,
+
+  // 地板
+  setFloorStatus: setFloorStatus,
+  setFloorError: setFloorError,
   setTileSize: setTileSize,
   setGrid: setGrid,
   setMap: setMap,
