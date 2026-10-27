@@ -4,6 +4,12 @@
  * 流程：加载大图 → 注册图集 → 算布局 → 写入状态 → 每帧按状态绘制
  * init() 返回 Promise，方便启动流程知道「贴图到底好没好」，
  * 失败也会先退回纯色地板，保证能进游戏。
+ *
+ * ⚠️ 导出约定（踩过两次坑，务必看清）：
+ *   ./config/floor-config.js  →  { create, DEFAULTS }
+ *   ./render/floor-renderer.js→  { create }
+ *   ./layout/floor-layout.js  →  { createRng, computeGrid, createMap }
+ *   以上都是「对象」，不是函数，必须 .create(...) 调用。
  */
 'use strict';
 
@@ -11,10 +17,9 @@ var floorActions = require('../../state/modules/floor/actions.js');
 var floorSelectors = require('../../state/modules/floor/selectors.js');
 var assetsActions = require('../../state/modules/assets/actions.js');
 var layout = require('./layout/floor-layout.js');
-var createFloorRenderer = require('./render/floor-renderer.js');
 
-// ⚠️ floor-config.js 导出的是 { create, DEFAULTS }，不是函数
 var floorConfigModule = require('./config/floor-config.js');
+var floorRendererModule = require('./render/floor-renderer.js');
 
 var ATLAS_KEY = 'floor-atlas';
 
@@ -24,7 +29,7 @@ function createFloorSystem(ctx) {
   var renderer = ctx.renderer;
   var config = ctx.config || floorConfigModule.create();
   var report = ctx.report || function () {};
-  var painter = createFloorRenderer(renderer);
+  var painter = floorRendererModule.create(renderer);
   var atlas = null;
 
   function getViewport() {
