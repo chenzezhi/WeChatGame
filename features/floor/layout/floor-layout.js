@@ -1,16 +1,16 @@
 /**
  * 地板布局（features/floor/layout）
- * 纯函数：输入屏幕尺寸 + 配置 + 图集，输出格子数、缩放、每格索引。
+ * 纯函数：输入屏幕尺寸 + 配置 + 图集，输出格子数、缩放、每格位置。
  * 不碰渲染、不碰状态。
  *
- * 支持三种布局模式：
+ * 三种布局：
  *   'grid'       正方形平铺
- *   'staggered'  菱形交错铺（每行半格错开，菱形无缝）
- *   'iso'        等距投影（col-row, col+row），45° 斜向
+ *   'staggered'  菱形交错（每行错开 staggerX 格宽，纵向前进 staggerY 格高）
+ *   'iso'        等距投影（col-row, col+row）
  */
 'use strict';
 
-/** 可复现的伪随机（xorshift32），保证地板每次进入都一样 */
+/** 可复现的伪随机（xorshift32） */
 function createRng(seed) {
   var s = (seed || 1) >>> 0;
   if (s === 0) s = 1;
@@ -23,26 +23,25 @@ function createRng(seed) {
 }
 
 /* ============================================================
- * 三种布局的核心几何
+ * 格子位置（不含布局原点偏移）
  * ============================================================ */
-
 /**
- * 格子 (col, row) 的左上角相对坐标（未含布局原点偏移）
- *
- *   grid      x = col*W,           y = row*H
- *             → 正方形格，直接叠
- *
- *   staggered x = col*W + (row%2)*W/2, y = row*H/2
- *             → 每行半格错开，菱形上下咬合
- *
- *   iso       x = (col-row)*W/2,   y = (col+row)*H/2
- *             → 等距投影，菱形沿 45° 排开
+ * @param {String} layout   'grid' | 'staggered' | 'iso'
+ * @param {Number} col
+ * @param {Number} row
+ * @param {Number} tileW    单块显示宽
+ * @param {Number} tileH    单块显示高
+ * @param {Number} staggerX 横向错开比例（默认 0.5）
+ * @param {Number} staggerY 纵向前进比例（默认 0.5）
  */
-function getTilePosition(layout, col, row, tileW, tileH) {
+function getTilePosition(layout, col, row, tileW, tileH, staggerX, staggerY) {
+  var sx = typeof staggerX === 'number' ? staggerX : 0.5;
+  var sy = typeof staggerY === 'number' ? staggerY : 0.5;
+
   if (layout === 'staggered') {
     return {
-      x: col * tileW + (row % 2) * (tileW * 0.5),
-      y: row * tileH * 0.5
+      x: col * tileW + (row % 2) * tileW * sx,
+      y: row * tileH * sy
     };
   }
 
@@ -53,16 +52,10 @@ function getTilePosition(layout, col, row, tileW, tileH) {
     };
   }
 
-  // 默认：grid
   return { x: col * tileW, y: row * tileH };
 }
 
-/**
- * 布局原点偏移（把坐标整体推到非负区域）
- *
- * iso 模式下 x 可能为负（(col-row)*W/2 里 col-row 最小是 -(R-1)），
- * 需要整体右移 (R-1)*W/2，否则左上角的格子会跑到屏幕外。
- */
+/** 布局原点偏移（iso 需要整体右移，避免格子跑到屏幕外） */
 function getLayoutOrigin(layout, tileW, tileH, rows) {
   if (layout === 'iso') {
     return { x: Math.max(0, rows - 1) * tileW * 0.5, y: 0 };
@@ -73,12 +66,14 @@ function getLayoutOrigin(layout, tileW, tileH, rows) {
 /**
  * 整体内容尺寸（像素，已含 scale）
  *
- *   grid      W*C, H*R
- *   staggered W*C + W/2（有第二行时），(R-1)*H/2 + H
- *   iso       (C+R)*W/2, (C+R)*H/2
+ *   grid      C×W, R×H
+ *   staggered C×W + (R>1 ? W×staggerX : 0),  (R−1)×H×staggerY + H
+ *   iso       (C+R)×W/2, (C+R)×H/2
  */
-function computeContentSize(grid, layout) {
+function computeContentSize(grid, layout, staggerX, staggerY) {
   layout = layout || 'grid';
+  var sx = typeof staggerX === 'number' ? staggerX : 0.5;
+  var sy = typeof staggerY === 'number' ? staggerY : 0.5;
 
   var W = grid.tileWidth * grid.scale;
   var H = grid.tileHeight * grid.scale;
@@ -89,8 +84,8 @@ function computeContentSize(grid, layout) {
 
   if (layout === 'staggered') {
     return {
-      width: C * W + (R > 1 ? W * 0.5 : 0),
-      height: (R - 1) * H * 0.5 + H
+      width: C * W + (R > 1 ? W * sx : 0),
+      height: (R - 1) * H * sy + H
     };
   }
 
@@ -105,32 +100,11 @@ function computeContentSize(grid, layout) {
 }
 
 /* ============================================================
- * 计算格子数 / 缩放
+ * 格子数 / 缩放
  * ============================================================ */
-
-/**
- * 计算格子数、单块原始尺寸、渲染缩放。
- *
- * 缩放（scale）三档决策，顺序很重要：
- *
- *   ① tileDisplaySize > 0
- *        → scale = tileDisplaySize / tileWidth      你明确指定了每块多大
- *
- *   ② 有地图文件 或 grid.columns/rows 指定了
- *        → scale = 1                                 保持原始大小，超出屏幕就滚动
- *
- *   ③ 什么都没指定
- *        → 自适应铺满一屏（不能滚）
- *
- * @param {Object} viewport      { width, height, dpr }
- * @param {Object} config        floor-config
- * @param {Object} atlas         图集，可为 null
- * @param {Object} sizeOverride  { columns, rows } 可选，地图文件给的尺寸
- */
 function computeGrid(viewport, config, atlas, sizeOverride) {
   config = config || {};
   var grid = config.grid || {};
-
   viewport = viewport || { width: 375, height: 667 };
 
   var tileWidth = config.tileWidth || (atlas && atlas.tileWidth) || 32;
@@ -143,7 +117,6 @@ function computeGrid(viewport, config, atlas, sizeOverride) {
   var wantedColumns = overrideColumns || (grid.columns > 0 ? Math.floor(grid.columns) : 0);
   var wantedRows = overrideRows || (grid.rows > 0 ? Math.floor(grid.rows) : 0);
 
-  // ---------------------------------------------------------- ① 定缩放
   var scale;
   if (displaySize > 0) {
     scale = displaySize / tileWidth;
@@ -154,7 +127,6 @@ function computeGrid(viewport, config, atlas, sizeOverride) {
     scale = autoColumns * tileWidth > 0 ? viewport.width / (autoColumns * tileWidth) : 1;
   }
 
-  // ---------------------------------------------------------- ② 定格子数
   var displayTileW = tileWidth * scale;
   var displayTileH = tileHeight * scale;
 
@@ -178,19 +150,8 @@ function computeGrid(viewport, config, atlas, sizeOverride) {
 }
 
 /* ============================================================
- * 生成 / 计算 map
+ * 生成 map
  * ============================================================ */
-
-/**
- * 生成 map[row][col] = 图集索引（靠 pattern + pool 生成，不用地图文件时走这里）
- *
- * options:
- *   columns, rows   格子数
- *   pool            索引数组（已归一化）
- *   pattern         'random' | 'sequence' | 'checker' | 'single'
- *   seed            随机种子
- *   atlas           图集（用于 count 越界兜底，可为 null）
- */
 function createMap(options) {
   options = options || {};
 
