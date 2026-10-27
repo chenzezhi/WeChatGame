@@ -1,15 +1,21 @@
 /**
  * 地板系统（features/floor）—— 业务编排层
  *
- * 流程：加载大图 → 注册图集 → 算布局 → 写入状态 → 每帧按状态绘制
- * init() 返回 Promise，方便启动流程知道「贴图到底好没好」，
- * 失败也会先退回纯色地板，保证能进游戏。
+ * 地图数据有三条路，优先级从高到低：
+ *   1. mapFile   纯文本地图（assets/maps/*.txt），运行时读进内存解析 ← 推荐
+ *   2. mapName   JS 地图（assets/maps/index.js 注册）
+ *   3. pattern   按 tilePool 随机生成
  *
- * ⚠️ 导出约定（踩过两次坑，务必看清）：
- *   ./config/floor-config.js  →  { create, DEFAULTS }
- *   ./render/floor-renderer.js→  { create }
- *   ./layout/floor-layout.js  →  { createRng, computeGrid, createMap }
- *   以上都是「对象」，不是函数，必须 .create(...) 调用。
+ * 流程图：加载大图 → 注册图集 → 取地图数据 → 算布局 → 写入状态 → 每帧绘制
+ *
+ * ⚠️ 导出约定（踩过坑，务必看清）：
+ *   ./config/floor-config.js   →  { create, DEFAULTS }
+ *   ./render/floor-renderer.js →  { create }
+ *   ./scroll/floor-scroll.js   →  { create }
+ *   ./layout/floor-layout.js   →  { createRng, computeGrid, createMap, computeContentSize }
+ *   ./data/map-data.js         →  { EMPTY, resolve, normalize, fit, toIndex }
+ *   ./data/map-text.js         →  { EMPTY, load, clearCache, parse, loadAndParse }
+ *   以上都是「对象」，不是函数，必须 .create(...) / .parse(...) 调用。
  */
 'use strict';
 
@@ -20,6 +26,9 @@ var layout = require('./layout/floor-layout.js');
 
 var floorConfigModule = require('./config/floor-config.js');
 var floorRendererModule = require('./render/floor-renderer.js');
+var floorScrollModule = require('./scroll/floor-scroll.js');
+var mapDataModule = require('./data/map-data.js');
+var mapTextModule = require('./data/map-text.js');
 
 var ATLAS_KEY = 'floor-atlas';
 
@@ -30,37 +39,116 @@ function createFloorSystem(ctx) {
   var config = ctx.config || floorConfigModule.create();
   var report = ctx.report || function () {};
   var painter = floorRendererModule.create(renderer);
+  var scroll = null;
   var atlas = null;
+  var activeMap = null;   // 归一化后的地图数据（null = 走随机生成）
 
   function getViewport() {
     return store.getState().viewport;
   }
 
-  /** 重新计算地板大小与每格贴图，并写入状态 */
+  function warnToScreen(text) {
+    console.error('[floor] ' + text);
+    if (ctx.screen && ctx.screen.push) ctx.screen.push(text, 'error');
+  }
+
+  /** 把配置里的地板池转成索引数组 */
+  function resolvePool() {
+    var pool = [];
+
+    if (atlas && atlas.normalizePool) {
+      pool = atlas.normalizePool(config.tilePool);
+    } else if (config.tilePool instanceof Array) {
+      for (var i = 0; i < config.tilePool.length; i++) {
+        if (typeof config.tilePool[i] === 'number') pool.push(config.tilePool[i]);
+      }
+    }
+
+    if (!pool.length) pool = [0];
+    return pool;
+  }
+
+  /**
+   * 取地图数据，返回归一化结果或 null
+   * 顺序：文本地图 → JS 地图 → null（随机生成）
+   */
+  function loadMapData() {
+    // ---------- ① 纯文本地图 ----------
+    if (config.mapFile) {
+      var result = mapTextModule.loadAndParse(config.mapFile, atlas);
+      if (result.ok) {
+        console.log('[floor] 已读取地图文件 ' + config.mapFile +
+          '（' + result.data.columns + 'x' + result.data.rows + '）');
+        return result.data;
+      }
+      warnToScreen('地图文件读取失败：' + config.mapFile + ' —— ' + result.error + '，已退回自动生成');
+    }
+
+    // ---------- ② JS 地图 ----------
+    if (config.mapName) {
+      var registry = config.maps || floorConfigModule.DEFAULTS.maps;
+      var raw = mapDataModule.resolve(config.mapName, registry);
+
+      if (!raw) {
+        warnToScreen('找不到地图 ' + config.mapName + '，已退回自动生成');
+        return null;
+      }
+
+      var normalized = mapDataModule.normalize(raw, atlas);
+      if (!normalized) {
+        warnToScreen('地图数据为空或格式不对：' + config.mapName);
+        return null;
+      }
+      return normalized;
+    }
+
+    // ---------- ③ 随机生成 ----------
+    return null;
+  }
+
+  /** 重新计算地板大小、每格贴图、滚动范围，并写入状态 */
   function relayout() {
     var view = getViewport();
-    var grid = layout.computeGrid(view, config, atlas);
-    var map = layout.createMap({
-      columns: grid.columns,
-      rows: grid.rows,
-      pattern: config.pattern,
-      pool: config.tilePool,
-      seed: config.seed,
-      atlas: atlas
-    });
 
-    var boardWidth = grid.columns * grid.tileWidth;
-    var scale = boardWidth > 0 ? view.width / boardWidth : 1;
+    // 地图的尺寸优先；没有地图就按 grid / 屏幕推算
+    activeMap = loadMapData();
+
+    var sizeOverride = activeMap
+      ? { columns: activeMap.columns, rows: activeMap.rows }
+      : null;
+
+    var grid = layout.computeGrid(view, config, atlas, sizeOverride);
+
+    var map;
+    if (activeMap) {
+      // 地图尺寸已经和 grid.columns/rows 一致，这里 fit 只是安全兜底
+      map = mapDataModule.fit(activeMap.map, grid.columns, grid.rows);
+    } else {
+      map = layout.createMap({
+        columns: grid.columns,
+        rows: grid.rows,
+        pattern: config.pattern,
+        pool: resolvePool(),
+        seed: config.seed,
+        atlas: atlas
+      });
+    }
+
+    var content = layout.computeContentSize(grid);
 
     floorActions.applyLayout(store, {
       columns: grid.columns,
       rows: grid.rows,
       tileWidth: grid.tileWidth,
       tileHeight: grid.tileHeight,
-      originX: config.originX,
-      originY: config.originY,
-      scale: scale,
-      map: map
+      scale: grid.scale,
+      map: map,
+      mapSource: activeMap ? 'file' : 'generated',
+      mapName: activeMap ? activeMap.name : null,
+      contentWidth: content.width,
+      contentHeight: content.height,
+      viewportWidth: view.width,
+      viewportHeight: view.height
     });
   }
 
@@ -86,8 +174,18 @@ function createFloorSystem(ctx) {
         assetsActions.setAtlasReady(store, ATLAS_KEY, img.width, img.height, atlas.count);
         relayout();
 
+        var floorState = floorSelectors.getFloor(store);
+        var source;
+        if (floorState.mapSource === 'file') {
+          source = '地图 ' + floorState.mapName + '（' + floorState.columns + 'x' + floorState.rows + '）';
+        } else {
+          var pool = resolvePool();
+          source = '自动生成，地板池 ' + pool.length + ' 块 [' + pool.join(',') + ']';
+        }
+
         console.log('[floor] 贴图就绪：' + img.width + 'x' + img.height +
-          '，切出 ' + atlas.columns + 'x' + atlas.rows + ' = ' + atlas.count + ' 块');
+          '，切出 ' + atlas.columns + 'x' + atlas.rows + ' = ' + atlas.count + ' 块' +
+          '，' + source);
 
         return {
           columns: atlas.columns,
@@ -109,8 +207,22 @@ function createFloorSystem(ctx) {
       });
   }
 
+  /** 建立滑动控制器（需要 touch 管理器；没有就退化成一个空壳） */
+  function createScroll() {
+    try {
+      scroll = floorScrollModule.create({
+        store: store,
+        touch: ctx.touch || null,
+        config: config.scroll
+      });
+    } catch (e) {
+      console.error('[floor] 滑动模块初始化失败：' + ((e && e.message) || e));
+      scroll = null;
+    }
+  }
+
   function update(dt) {
-    // 地板目前是静态的；后续滚动 / 动画在这里扩展（只改状态）
+    if (scroll) scroll.update(dt);
   }
 
   function render() {
@@ -120,12 +232,23 @@ function createFloorSystem(ctx) {
     painter.draw(floor, getViewport(), atlas || assets.getAtlas(ATLAS_KEY));
   }
 
+  /** 重新读取地图文件并重排（改完地图想热重载时调这个） */
+  function reloadMap() {
+    if (config.mapFile) mapTextModule.clearCache(config.mapFile);
+    relayout();
+  }
+
+  createScroll();
+
   return {
     init: init,
     update: update,
     render: render,
     relayout: relayout,
-    getAtlas: function () { return atlas; }
+    reloadMap: reloadMap,
+    getAtlas: function () { return atlas; },
+    getScroll: function () { return scroll; },
+    getMap: function () { return activeMap; }
   };
 }
 

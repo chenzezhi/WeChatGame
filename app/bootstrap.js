@@ -65,6 +65,7 @@ function start(options) {
     store: store,
     assets: assets,
     renderer: renderer,
+    touch: touch,
     config: floorConfigModule.create(config.floor),
     report: report
   });

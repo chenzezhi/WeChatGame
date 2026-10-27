@@ -1,9 +1,13 @@
 /**
  * 图集 / 位图大图（core/assets/atlas）
  *
- * 你把「一张包含很多位图的大图」交给本模块，它会按 JSON 描述里的
- * tileWidth / tileHeight / margin / spacing / columns 自动切块，
- * 用索引（0 表示左上角第一块）就能取到任意一块的源区域。
+ * 把「一张包含很多位图的大图」交给本模块，按 tileWidth / tileHeight /
+ * margin / spacing / columns 自动切块。
+ *
+ * 取块有三种方式：
+ *   getTileRect(index)              用扁平索引（0 = 左上角第一块）
+ *   getTileRectByCell(row, col)     用「第几行第几列」（从 0 开始）
+ *   normalizePool(pool)             把各种写法统一成索引数组
  */
 'use strict';
 
@@ -27,9 +31,28 @@ function create(descriptor, image) {
   var count = columns * rows;
   var named = descriptor.tiles || {};
 
+  function clampIndex(i) {
+    if (typeof i !== 'number' || isNaN(i)) return 0;
+    if (i < 0) return 0;
+    if (i >= count) return count - 1;
+    return Math.floor(i);
+  }
+
+  /** 「第几行第几列」→ 扁平索引（越界返回 0） */
+  function cellToIndex(row, col) {
+    if (typeof row !== 'number' || typeof col !== 'number') return 0;
+    if (row < 0 || col < 0 || row >= rows || col >= columns) return 0;
+    return Math.floor(row) * columns + Math.floor(col);
+  }
+
+  /** 扁平索引 → { row, col } */
+  function indexToCell(index) {
+    var i = clampIndex(index);
+    return { row: Math.floor(i / columns), col: i % columns };
+  }
+
   function getTileRect(index) {
-    var i = index;
-    if (typeof i !== 'number' || isNaN(i) || i < 0 || i >= count) i = 0; // 越界兜底
+    var i = clampIndex(index);
     var col = i % columns;
     var row = Math.floor(i / columns);
     return {
@@ -40,20 +63,72 @@ function create(descriptor, image) {
     };
   }
 
+  function getTileRectByCell(row, col) {
+    return getTileRect(cellToIndex(row, col));
+  }
+
   /** 支持用名字取块，例如 tiles: { "grass": 0, "stone": 3 } */
   function indexOf(name) {
-    return typeof named[name] === 'number' ? named[name] : 0;
+    return typeof named[name] === 'number' ? clampIndex(named[name]) : 0;
+  }
+
+  /**
+   * 把「地板池」的各种写法统一成索引数组。
+   *
+   * 支持：
+   *   0                     扁平索引
+   *   [2, 1]                [行, 列]
+   *   { row: 2, col: 1 }    行/列对象
+   *   { index: 9 }          显式索引
+   *   'floor_0'             tileset.tiles 里的名字
+   */
+  function normalizePool(pool) {
+    var out = [];
+    if (!pool) return out;
+    if (!(pool instanceof Array)) pool = [pool];
+
+    for (var i = 0; i < pool.length; i++) {
+      var item = pool[i];
+      var idx = null;
+
+      if (typeof item === 'number') {
+        idx = item;
+      } else if (typeof item === 'string') {
+        idx = typeof named[item] === 'number' ? named[item] : null;
+      } else if (item instanceof Array) {
+        idx = cellToIndex(item[0], item[1]);
+      } else if (item && typeof item === 'object') {
+        if (typeof item.row === 'number' && typeof item.col === 'number') {
+          idx = cellToIndex(item.row, item.col);
+        } else if (typeof item.index === 'number') {
+          idx = item.index;
+        } else if (typeof item.name === 'string' && typeof named[item.name] === 'number') {
+          idx = named[item.name];
+        }
+      }
+
+      if (typeof idx === 'number' && !isNaN(idx)) out.push(clampIndex(idx));
+    }
+
+    return out;
   }
 
   return {
     image: image,
     tileWidth: tileWidth,
     tileHeight: tileHeight,
+    margin: margin,
+    spacing: spacing,
     columns: columns,
     rows: rows,
     count: count,
+
     getTileRect: getTileRect,
-    indexOf: indexOf
+    getTileRectByCell: getTileRectByCell,
+    cellToIndex: cellToIndex,
+    indexToCell: indexToCell,
+    indexOf: indexOf,
+    normalizePool: normalizePool
   };
 }
 

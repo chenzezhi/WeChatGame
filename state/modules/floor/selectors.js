@@ -24,10 +24,9 @@ function getTileRenderSize(store) {
 /** 整块地板的屏幕尺寸 */
 function getFloorSize(store) {
   var floor = getFloor(store);
-  var tile = getTileRenderSize(store);
   return {
-    width: floor.columns * tile.width,
-    height: floor.rows * tile.height
+    width: floor.contentWidth,
+    height: floor.contentHeight
   };
 }
 
@@ -35,10 +34,34 @@ function getMap(store) {
   return getFloor(store).map;
 }
 
+/** 当前滚动偏移 { x, y }（恒 <= 0） */
+function getOffset(store) {
+  var floor = getFloor(store);
+  return { x: floor.offsetX || 0, y: floor.offsetY || 0 };
+}
+
+/** 可滚动上限 { maxX, maxY }（正数，0 表示该方向不能滚） */
+function getScrollBounds(store) {
+  var floor = getFloor(store);
+  return {
+    maxX: floor.maxScrollX || 0,
+    maxY: floor.maxScrollY || 0
+  };
+}
+
+/** 这个方向能不能滚 */
+function canScroll(store) {
+  var b = getScrollBounds(store);
+  return b.maxX > 0 || b.maxY > 0;
+}
+
 module.exports = {
   getFloor: getFloor,
   isReady: isReady,
   getTileRenderSize: getTileRenderSize,
   getFloorSize: getFloorSize,
-  getMap: getMap
+  getMap: getMap,
+  getOffset: getOffset,
+  getScrollBounds: getScrollBounds,
+  canScroll: canScroll
 };
