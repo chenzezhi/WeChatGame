@@ -20,8 +20,8 @@ module.exports = {
   tileWidth: 56,
   tileHeight: 56,
 
-  margin: 20,
-  spacing: 20,
+  margin: 18,
+  spacing: 18,
 
   columns: 0,
   rows: 0,
