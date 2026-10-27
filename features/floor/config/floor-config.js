@@ -31,7 +31,10 @@ var DEFAULTS = {
   originX: 0,
   originY: 0,
 
-  background: '#0d1117'
+  background: '#0d1117',
+
+  // 贴图加载超时（毫秒），超时就先用纯色地板进游戏
+  loadTimeout: 8000
 };
 
 function create(overrides) {

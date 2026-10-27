@@ -2,7 +2,8 @@
  * 地板系统（features/floor）—— 业务编排层
  *
  * 流程：加载大图 → 注册图集 → 算布局 → 写入状态 → 每帧按状态绘制
- * 任何一步失败都会退回纯色地板，不会白屏。
+ * init() 返回 Promise，方便启动流程知道「贴图到底好没好」，
+ * 失败也会先退回纯色地板，保证能进游戏。
  */
 'use strict';
 
@@ -20,6 +21,7 @@ function createFloorSystem(ctx) {
   var assets = ctx.assets;
   var renderer = ctx.renderer;
   var config = ctx.config || createFloorConfig();
+  var report = ctx.report || function () {};
   var painter = createFloorRenderer(renderer);
   var atlas = null;
 
@@ -40,6 +42,9 @@ function createFloorSystem(ctx) {
       atlas: atlas
     });
 
+    var boardWidth = grid.columns * grid.tileWidth;
+    var scale = boardWidth > 0 ? view.width / boardWidth : 1;
+
     floorActions.applyLayout(store, {
       columns: grid.columns,
       rows: grid.rows,
@@ -47,29 +52,45 @@ function createFloorSystem(ctx) {
       tileHeight: grid.tileHeight,
       originX: config.originX,
       originY: config.originY,
-      scale: grid.columns * grid.tileWidth > 0 ? view.width / (grid.columns * grid.tileWidth) : 1,
+      scale: scale,
       map: map
     });
   }
 
+  /** 加载贴图并布局，返回 Promise<{columns, rows, count, width, height}> */
   function init() {
     floorActions.setStatus(store, 'loading');
     assetsActions.setAtlasLoading(store, ATLAS_KEY);
 
-    assets.loadImage(ATLAS_KEY, config.tileset.image)
-      .then(function (image) {
-        atlas = assets.registerAtlas(ATLAS_KEY, config.tileset, image);
-        assetsActions.setAtlasReady(store, ATLAS_KEY, image.width, image.height, atlas.count);
+    var image = config.tileset && config.tileset.image;
+    report('加载贴图 ' + image, 0.65);
+
+    return assets.loadImage(ATLAS_KEY, image, { timeout: config.loadTimeout || 8000 })
+      .then(function (img) {
+        atlas = assets.registerAtlas(ATLAS_KEY, config.tileset, img);
+        assetsActions.setAtlasReady(store, ATLAS_KEY, img.width, img.height, atlas.count);
         relayout();
-        console.log('[floor] 贴图就绪：' + image.width + 'x' + image.height +
+
+        console.log('[floor] 贴图就绪：' + img.width + 'x' + img.height +
           '，切出 ' + atlas.columns + 'x' + atlas.rows + ' = ' + atlas.count + ' 块');
+
+        return {
+          columns: atlas.columns,
+          rows: atlas.rows,
+          count: atlas.count,
+          width: img.width,
+          height: img.height
+        };
       })
       ['catch'](function (err) {
         var msg = (err && err.message) || String(err);
         console.error('[floor] 贴图加载失败，改用纯色地板：' + msg);
+
         assetsActions.setAtlasError(store, msg);
         floorActions.setError(store, msg);
         relayout();
+
+        throw err;
       });
   }
 
