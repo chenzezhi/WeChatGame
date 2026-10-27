@@ -20,39 +20,56 @@ function createRng(seed) {
 /**
  * 计算格子数、单块原始尺寸、渲染缩放。
  *
- * 优先顺序：
- *   格子数    sizeOverride（地图文件给的）> grid.columns/rows > 按屏幕推算
- *   单块缩放  tileDisplaySize > 0 就用它，否则按「铺满屏幕宽度」推算
+ * 缩放（scale）三档决策，顺序很重要：
  *
- * @param {Object} viewport     { width, height, dpr }
- * @param {Object} config       floor-config
- * @param {Object} atlas        图集，可为 null
- * @param {Object} sizeOverride { columns, rows } 可选，地图文件尺寸
+ *   ① tileDisplaySize > 0
+ *        → scale = tileDisplaySize / tileWidth      你明确指定了每块多大
+ *
+ *   ② 有地图文件 或 grid.columns/rows 指定了
+ *        → scale = 1                                 保持原始大小，超出屏幕就滚动
+ *        （这一档是为了修「地图变大 → 每块变小」的 bug）
+ *
+ *   ③ 什么都没指定
+ *        → 自适应铺满一屏（不能滚）                    旧行为，仅用于「随便铺满一屏」
+ *
+ * @param {Object} viewport      { width, height, dpr }
+ * @param {Object} config        floor-config
+ * @param {Object} atlas         图集，可为 null
+ * @param {Object} sizeOverride  { columns, rows } 可选，地图文件给的尺寸
  */
 function computeGrid(viewport, config, atlas, sizeOverride) {
   config = config || {};
   var grid = config.grid || {};
 
+  viewport = viewport || { width: 375, height: 667 };
+
   var tileWidth = config.tileWidth || (atlas && atlas.tileWidth) || 32;
   var tileHeight = config.tileHeight || (atlas && atlas.tileHeight) || 32;
   var displaySize = config.tileDisplaySize > 0 ? config.tileDisplaySize : 0;
 
-  var overrideColumns = (sizeOverride && sizeOverride.columns > 0) ? Math.floor(sizeOverride.columns) : 0;
+  var isMapMode = !!(sizeOverride && sizeOverride.columns > 0);
+
+  var overrideColumns = isMapMode ? Math.floor(sizeOverride.columns) : 0;
   var overrideRows = (sizeOverride && sizeOverride.rows > 0) ? Math.floor(sizeOverride.rows) : 0;
 
   var wantedColumns = overrideColumns || (grid.columns > 0 ? Math.floor(grid.columns) : 0);
   var wantedRows = overrideRows || (grid.rows > 0 ? Math.floor(grid.rows) : 0);
 
-  // 1. 先定每块显示多大（scale）
+  // ---------------------------------------------------------- ① 定缩放
   var scale;
   if (displaySize > 0) {
+    // 用户明确指定了每块显示多大
     scale = displaySize / tileWidth;
+  } else if (wantedColumns > 0 || wantedRows > 0) {
+    // 地图模式 / 指定了格子数 → 保持原始大小，让内容超出屏幕去滚动
+    scale = 1;
   } else {
-    var refColumns = wantedColumns > 0 ? wantedColumns : Math.max(1, Math.ceil(viewport.width / tileWidth));
-    scale = refColumns * tileWidth > 0 ? viewport.width / (refColumns * tileWidth) : 1;
+    // 完全没指定 → 自适应铺满一屏
+    var autoColumns = Math.max(1, Math.ceil(viewport.width / tileWidth));
+    scale = autoColumns * tileWidth > 0 ? viewport.width / (autoColumns * tileWidth) : 1;
   }
 
-  // 2. 再定格子数
+  // ---------------------------------------------------------- ② 定格子数
   var displayTileW = tileWidth * scale;
   var displayTileH = tileHeight * scale;
 
@@ -124,7 +141,7 @@ function createMap(options) {
   return map;
 }
 
-/** 内容尺寸（像素） */
+/** 内容尺寸（像素，已含 scale） */
 function computeContentSize(grid) {
   return {
     width: grid.columns * grid.tileWidth * grid.scale,
