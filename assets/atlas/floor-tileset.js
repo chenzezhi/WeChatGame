@@ -17,11 +17,11 @@ module.exports = {
   // 相对项目根目录的包内路径（注意你的实际文件是 .jpg）
   image: 'assets/atlas/floor-tileset.jpg',
 
-  tileWidth: 32,
-  tileHeight: 32,
+  tileWidth: 56,
+  tileHeight: 56,
 
-  margin: 0,
-  spacing: 0,
+  margin: 20,
+  spacing: 20,
 
   columns: 0,
   rows: 0,
