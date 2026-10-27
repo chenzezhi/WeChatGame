@@ -12,7 +12,9 @@ var floorSelectors = require('../../state/modules/floor/selectors.js');
 var assetsActions = require('../../state/modules/assets/actions.js');
 var layout = require('./layout/floor-layout.js');
 var createFloorRenderer = require('./render/floor-renderer.js');
-var createFloorConfig = require('./config/floor-config.js');
+
+// ⚠️ floor-config.js 导出的是 { create, DEFAULTS }，不是函数
+var floorConfigModule = require('./config/floor-config.js');
 
 var ATLAS_KEY = 'floor-atlas';
 
@@ -20,7 +22,7 @@ function createFloorSystem(ctx) {
   var store = ctx.store;
   var assets = ctx.assets;
   var renderer = ctx.renderer;
-  var config = ctx.config || createFloorConfig();
+  var config = ctx.config || floorConfigModule.create();
   var report = ctx.report || function () {};
   var painter = createFloorRenderer(renderer);
   var atlas = null;
@@ -63,6 +65,14 @@ function createFloorSystem(ctx) {
     assetsActions.setAtlasLoading(store, ATLAS_KEY);
 
     var image = config.tileset && config.tileset.image;
+    if (!image) {
+      var missing = new Error('图集描述里缺少 image 字段（assets/atlas/floor-tileset.js）');
+      assetsActions.setAtlasError(store, missing.message);
+      floorActions.setError(store, missing.message);
+      relayout();
+      return Promise.reject(missing);
+    }
+
     report('加载贴图 ' + image, 0.65);
 
     return assets.loadImage(ATLAS_KEY, image, { timeout: config.loadTimeout || 8000 })

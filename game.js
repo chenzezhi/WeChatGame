@@ -8,8 +8,10 @@
  * ⚠️ 两条铁律（踩过坑）：
  *   1. 第一次 wx.createCanvas() 才是「上屏画布」，必须由本文件创建并一路传下去。
  *      其它地方再调 createCanvas() 拿到的是离屏画布，画了也看不见（表现为卡启动页）。
- *   2. 先画一帧再 require 业务模块。只要画了，微信启动页立刻消失，
- *      后面卡在哪一步、报什么错，屏幕上都能看到，而不是干转圈。
+ *   2. 先画一帧再 require 业务模块。只要画了，微信启动页立刻消失。
+ *
+ * 启动失败时会把「诊断信息」逐条打在屏幕上（app/diagnostics.js），
+ * 方便不看截图也能定位问题。
  */
 'use strict';
 
@@ -51,7 +53,6 @@ function createStage() {
   var ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  // 先把背景铺上，微信启动页会马上消失
   ctx.fillStyle = '#0d1117';
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = '#8b98a5';
@@ -68,19 +69,52 @@ function createStage() {
   };
 }
 
-var stage;
+var stage = null;
 try {
   stage = createStage();
+  console.log('[game] 上屏画布已创建 ' + stage.width + 'x' + stage.height + ' @' + stage.dpr + 'x');
 } catch (e) {
   console.error('[game] 创建画布失败：' + (e && (e.stack || e.message)));
 }
 
-/* ================= 加载画面（可选，失败也不影响启动） ================= */
+/* ================= 加载画面 ================= */
 var screen = null;
 try {
   if (stage) screen = require('./app/loading-screen.js').create(stage);
 } catch (e) {
   console.error('[game] 加载画面不可用：' + (e && (e.stack || e.message)));
+}
+
+/* ================= 图集描述（诊断用，可选） ================= */
+var tileset = null;
+try {
+  tileset = require('./assets/atlas/floor-tileset.js');
+} catch (e) {
+  console.error('[game] 图集描述加载失败：' + (e && (e.stack || e.message)));
+}
+
+/* ================= 诊断输出 ================= */
+function diagnostics() {
+  try {
+    return require('./app/diagnostics.js').collect({
+      tileset: tileset,
+      canvas: stage ? stage.canvas : null
+    });
+  } catch (e) {
+    return [{ text: '诊断模块本身出错：' + ((e && e.message) || e), level: 'error' }];
+  }
+}
+
+function dumpDiagnostics() {
+  var lines = diagnostics();
+  for (var i = 0; i < lines.length; i++) {
+    if (screen && screen.push) screen.push(lines[i].text, lines[i].level);
+  }
+  console.log('[game] ===== 诊断 =====');
+  for (var j = 0; j < lines.length; j++) {
+    console.log('[game] ' + lines[j].text);
+  }
+  return lines;
 }
 
 function fatal(where, error) {
@@ -89,24 +123,23 @@ function fatal(where, error) {
 
   if (screen) {
     screen.showError(where + '\n' + message);
-    return;
+  } else if (stage) {
+    try {
+      stage.ctx.fillStyle = '#1a0000';
+      stage.ctx.fillRect(0, 0, stage.width, stage.height);
+      stage.ctx.fillStyle = '#ff6b6b';
+      stage.ctx.font = '12px monospace';
+      stage.ctx.textAlign = 'left';
+      var lines = String(message).split('\n');
+      for (var i = 0; i < lines.length && i < 18; i++) {
+        stage.ctx.fillText(lines[i].slice(0, 60), 16, 40 + i * 18);
+      }
+    } catch (e2) {
+      console.error('[game] 错误信息都画不出来：' + (e2 && e2.message));
+    }
   }
 
-  // 连加载画面都没有，就退回到最裸的画布上写错误
-  try {
-    if (!stage) return;
-    stage.ctx.fillStyle = '#1a0000';
-    stage.ctx.fillRect(0, 0, stage.width, stage.height);
-    stage.ctx.fillStyle = '#ff6b6b';
-    stage.ctx.font = '12px monospace';
-    stage.ctx.textAlign = 'left';
-    var lines = String(message).split('\n');
-    for (var i = 0; i < lines.length && i < 18; i++) {
-      stage.ctx.fillText(lines[i].slice(0, 60), 16, 40 + i * 18);
-    }
-  } catch (e2) {
-    console.error('[game] 错误信息都画不出来：' + (e2 && e2.message));
-  }
+  dumpDiagnostics();
 }
 
 /* ================= 阶段 1：延迟一拍再启动，让画面先刷新 ================= */
@@ -114,6 +147,9 @@ var result = { engine: 'pending', entry: null, app: null };
 
 setTimeout(function () {
   try {
+    // 启动前先打一遍诊断，正常情况也能看出图集有没有进包
+    dumpDiagnostics();
+
     var started = require('./engine/index.js').start({
       engine: ENGINE,
       config: GAME_CONFIG,

@@ -3,6 +3,11 @@
  * 负责：选择 / 加载 / 失败回退
  *
  * 注意：本文件不创建画布，画布由 game.js 创建后一路传下去。
+ *
+ * 关于「未检测到 Cocos 产物」：
+ *   这不是错误。ENGINE='auto' 的设计就是「有 cocos/ 就用 Cocos，没有就用内置引擎」。
+ *   内置引擎是本项目自带的完整运行时，走它就是正常工作。
+ *   想用 Cocos Creator，把构建产物放进 cocos/ 即可（见 docs/cocos.md）。
  */
 'use strict';
 
@@ -11,8 +16,11 @@ var BUILTIN = 'builtin';
 
 function makeLogger(screen) {
   return function (text, level) {
-    console.log('[engine] ' + text);
-    if (screen && screen.push) screen.push(text, level);
+    var tag = level === 'error' ? 'error' : 'info';
+    if (tag === 'error') console.error('[engine] ' + text);
+    else console.log('[engine] ' + text);
+
+    if (screen && screen.push) screen.push(text, tag);
   };
 }
 
@@ -47,11 +55,12 @@ function start(options) {
         console.error('[engine] Cocos 引擎启动失败，回退到内置引擎');
         console.error(e && (e.stack || e.message || e));
         if (options.screen && options.screen.push) {
-          options.screen.push('[警告] Cocos 启动失败，回退内置引擎', 'error');
+          options.screen.push('Cocos 启动失败，已回退内置引擎', 'error');
         }
       }
     } else {
-      log('未检测到 Cocos 产物，使用内置引擎');
+      // 正常路径：还没接入 Cocos，用项目自带的内置引擎
+      log('使用内置引擎（正常：当前未接入 Cocos Creator）');
     }
   }
 

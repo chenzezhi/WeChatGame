@@ -4,7 +4,7 @@
  * 只负责「装配」：把 platform / core / state / features 拼起来，
  * 不写任何具体玩法逻辑。
  *
- * 关键改动：
+ * 关键点：
  *   1. 画布由 game.js 创建并传进来，这里绝不再调 wx.createCanvas()；
  *   2. 主循环等「地板贴图加载完」再启动，避免加载画面被立刻擦掉；
  *   3. 无论如何 8 秒后强制进游戏，绝不无限卡在加载画面。
@@ -19,7 +19,9 @@ var createAssetManager = require('../core/assets/asset-manager.js');
 var createTouchManager = require('../core/input/touch-manager.js');
 var viewportActions = require('../state/modules/viewport/actions.js');
 var floorFeature = require('../features/floor/index.js');
-var createFloorConfig = require('../features/floor/config/floor-config.js');
+
+// ⚠️ floor-config.js 导出的是 { create, DEFAULTS }，不是函数
+var floorConfigModule = require('../features/floor/config/floor-config.js');
 
 var LOOP_START_TIMEOUT = 8000;
 
@@ -63,7 +65,7 @@ function start(options) {
     store: store,
     assets: assets,
     renderer: renderer,
-    config: createFloorConfig(config.floor),
+    config: floorConfigModule.create(config.floor),
     report: report
   });
 
