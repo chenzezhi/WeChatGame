@@ -4,11 +4,12 @@
  */
 'use strict';
 
-// 静态 require：小游戏编译期需要能静态分析到资源
-var TILESET = require('../../../assets/atlas/floor-tileset.json');
+// 静态 require：小游戏编译期需要能静态分析到资源。
+// ⚠️ 只能 require .js，require .json 会让小游戏启动即崩（卡在启动页）。
+var TILESET = require('../../../assets/atlas/floor-tileset.js');
 
 var DEFAULTS = {
-  // 位图大图描述（见 assets/atlas/floor-tileset.json）
+  // 位图大图描述（见 assets/atlas/floor-tileset.js）
   tileset: TILESET,
 
   // 单块尺寸，0 表示用 tileset 里的定义
@@ -47,6 +48,14 @@ function create(overrides) {
 
   if (!config.tileset) config.tileset = TILESET;
   if (!config.grid) config.grid = { columns: 0, rows: 0 };
+
+  // 防止外部传入半截 tileset（例如只写了 tileWidth）导致 image 丢失
+  if (!config.tileset.image) {
+    var merged = {};
+    for (key in TILESET) merged[key] = TILESET[key];
+    for (key in config.tileset) merged[key] = config.tileset[key];
+    config.tileset = merged;
+  }
 
   return config;
 }

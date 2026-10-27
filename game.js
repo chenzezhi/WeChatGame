@@ -1,12 +1,13 @@
 /**
  * 微信小游戏入口（微信运行时自动执行本文件）
  *
- * 本文件只做一件事：选择引擎并启动。
- * 具体业务全部在 app/ → features/ 里，按模块分层。
- *
- *   ENGINE = 'auto'    自动：有 cocos/ 构建产物就用 Cocos，否则用内置引擎
+ *   ENGINE = 'auto'    存在 cocos/ 构建产物就用 Cocos，否则用内置引擎
  *   ENGINE = 'cocos'   强制 Cocos Creator
- *   ENGINE = 'builtin' 强制内置引擎（本项目的模块化运行时）
+ *   ENGINE = 'builtin' 强制内置引擎
+ *
+ * 本文件额外做两件事，避免「卡在微信启动页什么都看不到」：
+ *   1. 全局 onError 监听，把错误打到控制台；
+ *   2. 启动异常时直接把错误画在画布上（同时启动页也会立刻消失）。
  */
 'use strict';
 
@@ -21,17 +22,62 @@ var GAME_CONFIG = {
   // 地板模块配置（覆盖 features/floor/config/floor-config.js 的默认值）
   floor: {
     // pattern: 'random' | 'checker' | 'single'
-    // tilePool: [0, 1, 2, 3]   // 用大图里的第几块位图来铺地板
-    // grid: { columns: 0, rows: 0 }  // 0 = 按屏幕自适应
+    // tilePool: [0, 1, 2, 3]
+    // grid: { columns: 0, rows: 0 }
   }
 };
 
-var result = require('./engine/index.js').start({
-  engine: ENGINE,
-  config: GAME_CONFIG,
-  debug: GAME_CONFIG.debug
-});
+/* ---------------- 全局错误捕获 ---------------- */
+if (typeof wx.onError === 'function') {
+  wx.onError(function (err) {
+    console.error('[game] 未捕获错误：' + (err && (err.stack || err.message || err)));
+  });
+}
 
-console.log('[game] 启动完成，引擎：' + result.engine + (result.entry ? ' (' + result.entry + ')' : ''));
+/** 在屏幕上画出错误信息，确保启动页不会一直挂着 */
+function showFatalError(error) {
+  var message = (error && (error.stack || error.message)) || String(error);
+  console.error('[game] 启动失败：\n' + message);
+
+  try {
+    // 第一次 createCanvas 得到的是上屏画布
+    var canvas = wx.createCanvas();
+    var width = canvas.width;
+    var height = canvas.height;
+    var ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#1a0000';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#ff5555';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('启动失败', 20, 60);
+
+    ctx.fillStyle = '#ffdddd';
+    ctx.font = '12px sans-serif';
+    var lines = String(message).split('\n');
+    for (var i = 0; i < lines.length && i < 20; i++) {
+      ctx.fillText(lines[i].slice(0, 80), 20, 90 + i * 18);
+    }
+  } catch (e) {
+    console.error('[game] 连错误信息都画不出来：' + (e && e.message));
+  }
+}
+
+/* ---------------- 启动 ---------------- */
+var result = { engine: 'unknown', entry: null };
+
+try {
+  result = require('./engine/index.js').start({
+    engine: ENGINE,
+    config: GAME_CONFIG,
+    debug: GAME_CONFIG.debug
+  });
+
+  console.log('[game] 启动完成，引擎：' + result.engine + (result.entry ? ' (' + result.entry + ')' : ''));
+} catch (e) {
+  showFatalError(e);
+}
 
 module.exports = result;
