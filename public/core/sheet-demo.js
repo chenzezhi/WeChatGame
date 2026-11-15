@@ -17,7 +17,7 @@ function start(env) {
     // 左：整身走动的循环动画，固定在原地播
     var hero = atlas.sprite('walk');
     hero.scale = (h * 0.1) / atlas.size('walk').h;
-    hero.x = w * 0;
+    hero.x = w * 0.2;
     hero.y = h * 0.2;
     stage.add(hero);
 
