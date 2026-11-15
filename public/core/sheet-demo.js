@@ -24,7 +24,7 @@ function start(env) {
     // 右：头像抖动，同样是原地循环
     var head = atlas.sprite('head');
     head.scale = (h * 0.3) / atlas.size('head').h;
-    head.x = w * 0.7 - (head.width * head.scale) / 2;
+    head.x = w * 0;
     head.y = h * 0.45;
     stage.add(head);
 
