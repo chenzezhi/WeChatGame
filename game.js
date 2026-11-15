@@ -21,21 +21,21 @@ function main() {
     // 3. 铺底色，后面所有内容都画在它上面
     paintBackground(cax, stage);
 
-    // 4. cocos 图集示例：asset-manager 传名称加载 gameMap，按名字取图渲染
-    //    cax 渲染顺序 = 添加顺序，所以图集挂完再挂动画，人物才会画在背景上层
-    require('./public/core/image-demo.js').start({
+    // 4. 背景：单图平铺铺满整屏（bottom: true，自己压到最底层）
+    require('./public/core/image-demo.js').start({ cax: cax, stage: stage });
+
+    // 5. cocos 图集示例：asset-manager 传名称加载 gameMap，按名字取图渲染
+    //    图集挂完再挂动画，保证人物画在背景上层
+    require('./public/core/cocos-demo.js').start({
       cax: cax,
       stage: stage,
       onReady: function () {
-        // 4b. 精灵图动画示例：加载 src/assets/roll.png 播走路动画
+        // 5b. 精灵图动画示例：加载 src/assets/roll.png 播走路动画
         require('./public/core/sheet-demo.js').start({ cax: cax, stage: stage });
-
-        // 4c. 单张图片示例：把 roll.png 当「普通图片」整张渲染一次
-        require('./public/core/cocos-demo.js').start({ cax: cax, stage: stage });
       },
     });
 
-    // 5. 主循环
+    // 6. 主循环
     startLoop(stage);
 
     // 打印启动成功，带上画布的物理像素尺寸
