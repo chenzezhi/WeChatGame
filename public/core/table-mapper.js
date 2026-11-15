@@ -3,26 +3,31 @@
 /* ==================== 功能 ====================
  * TableMapper —— 表格形式的数据映射器
  *
- * 在 string-mapper 之上再加一层：把「字段头」和「数据行」
- * 统一放进一个数组，像表格一样，一眼看清每列是什么。
- * 内部组合 StringMapper（字符串 → 对象）+ Mapper（对象 → 完整对象）。
+ * 表格 = 一个字符串数组：
+ *   第 0 个元素是「字段头」（有哪些列、什么顺序）
+ *   后面每个元素是一条数据行
+ * 内部组合 StringMapper（字符串 → 对象）+ Mapper（补全默认值）。
  * ==============================================*/
 
 /* ==================== 用法 ====================
  * const TableMapper = require('./table-mapper.js');
+ * const TEMPLATE = require('../config/render.js').template;
  *
- * const template = { name: '', x: 0, y: 0, scale: 1 };
  * const table = [
- *   'name x y scale',     // 第 0 行：字段头（要改哪些字段）
- *   'icon 100 200 2',     // 下面每行：一条数据
- *   'bg 0 0',             // 字段可省略，省略的用模板默认值
+ *   'renderer name x y scale',      // 第 0 行：字段头
+ *   'image logo.png 100 200 2',     // 数据行
+ *   'sprite hpBar 10 20',           // 后面可省略，省略的用模板默认值
  * ];
  *
- * const full = TableMapper.fill(template, table);
+ * const list = TableMapper.fill(TEMPLATE, table);
  * ==============================================*/
 
 /* ==================== 注意 ====================
- * 解析出的值统一是字符串，需要数字/布尔时由使用层转换。
+ * 字段顺序只由表格第 0 行决定，不放到别的地方，
+ * 这样写数据时一眼就能看出第几个值对应哪个字段。
+ *
+ * 解析出的值统一是字符串，需要数字时由渲染器转换。
+ * 行尾字段可以不写，不写 = 保持模板默认值。
  * ==============================================*/
 
 const StringMapper = require('./string-mapper.js');
@@ -37,13 +42,13 @@ class TableMapper {
 
   /**
    * 解析表格 → 完整对象数组
-   * @param {string[]} table - 第 0 个是字段头，其余是数据行
+   * @param {string[]} table - [0] 是字段头，其余是数据行
    * @returns {Object[]}
    */
   build(table) {
-    const fieldOrder = table[0];
-    const strings = table.slice(1);
-    return StringMapper.fill(this._template, strings, fieldOrder);
+    const fields = table[0];
+    const rows = table.slice(1);
+    return StringMapper.fill(this._template, rows, fields);
   }
 }
 

@@ -4,7 +4,7 @@
  * AnimMap —— 精灵图动画的渲染连接器
  *
  * 把 atlas.js 加载好的精灵图接到 cax 舞台。
- * 单个动画一行调用；平铺（影分身）交给 tile()，共用同一套矩阵计算。
+ * 统一入口：render(stage, cfg)，配置里带平铺区域就影分身，不带就放一个。
  * ==============================================*/
 
 /* ==================== 用法 ====================
@@ -12,24 +12,19 @@
  * const SHEET = require('../config/assets.js');
  *
  * AnimMap.load(SHEET, (am) => {
- *   // 单个：目标高度 300，自动算等比缩放
- *   am.add(stage, 'walk', 100, 200, 300);
+ *   am.render(stage, { name: 'walk', x: 100, y: 200, scale: 2 });
+ *   am.render(stage, { name: 'walk', right: 1080, bottom: 800, scale: 1, gap: 20 });
  *
- *   // 平铺（影分身）：左上 + 右下 定区域，每个格子放一个动画
- *   am.tile(stage, 'walk', {
- *     x: 0, y: 0, right: 1080, bottom: 800,
- *     height: 120,   // 每个影分身的目标高度
- *     gap: 20,       // 间距
- *     margin: 10,    // 四周留白
- *   });
+ *   // 低层方法：height = 目标高度（绝对值）
+ *   am.add(stage, 'walk', 100, 200, 300);
  * });
  * ==============================================*/
 
 /* ==================== 注意 ====================
- * 精灵图动画走 atlas.js（真动画）；
- * 单张静态图走 cocos-atlas.js + sprite-map.js / image-map.js。
+ * scale 是「相对单帧尺寸的倍数」；低层 add/tile 也支持 height（目标高度）。
+ * render() 会自动把字符串数值转成数字。
  *
- * tile() 是「复制对象」：每个格子都创建一个独立 Sprite，
+ * 平铺是「复制对象」：每个格子创建一个独立 Sprite，
  * 因为动画每帧都在变，没法像静态图那样烘焙成一张。
  * ==============================================*/
 
@@ -110,7 +105,7 @@ class AnimMap {
    * @returns {Object[]} cax.Sprite[]
    */
   addAll(stage, rows = []) {
-    return rows.map((r) => this.add(stage, r.name, r.x, r.y, r.height));
+    return rows.map((r) => this.add(stage, r.name, num(r.x), num(r.y), num(r.height)));
   }
 
   /**
@@ -125,23 +120,59 @@ class AnimMap {
     const frame = this.size(name);
 
     // 每个影分身的显示高度：优先 height（绝对值），否则用 scale（倍数）
-    const displayH = opt.height || frame.h * (opt.scale || 1);
-    const cellH = displayH;
+    const displayH = num(opt.height) || frame.h * (num(opt.scale) || 1);
     const cellW = (frame.w * displayH) / frame.h;
 
     const grid = Tile.grid({
-      x: opt.x,
-      y: opt.y,
-      right: opt.right,
-      bottom: opt.bottom,
+      x: num(opt.x),
+      y: num(opt.y),
+      right: num(opt.right),
+      bottom: num(opt.bottom),
       cellW,
-      cellH,
-      gap: opt.gap,
-      margin: opt.margin,
+      cellH: displayH,
+      gap: num(opt.gap),
+      margin: num(opt.margin),
     });
 
     return grid.cells.map((cell) => this.add(stage, name, cell.x, cell.y, displayH));
   }
+
+  /**
+   * 统一入口：按一份配置渲染（带平铺区域就影分身，否则放一个）
+   * @param {Object} stage
+   * @param {Object} cfg - { name, x, y, scale, height, gap, margin, right, bottom }
+   * @returns {Object|Object[]} 单个 Sprite 或 Sprite 数组
+   */
+  render(stage, cfg) {
+    const c = cfg || {};
+    const frame = this.size(c.name);
+
+    // 显示高度：优先 height，否则 scale 倍数
+    const displayH = num(c.height) || frame.h * (num(c.scale) || 1);
+
+    // 有面积就是平铺
+    if (num(c.right) > 0 && num(c.bottom) > 0) {
+      return this.tile(stage, c.name, {
+        x: num(c.x),
+        y: num(c.y),
+        right: num(c.right),
+        bottom: num(c.bottom),
+        height: displayH,
+        gap: num(c.gap),
+        margin: num(c.margin),
+      });
+    }
+
+    return this.add(stage, c.name, num(c.x), num(c.y), displayH);
+  }
+}
+
+/* ==================== 小工具 ==================== */
+
+// 字符串 / 数字 → 数字（解析不了就当 0）
+function num(v) {
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
 }
 
 module.exports = AnimMap;
