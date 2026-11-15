@@ -4,7 +4,7 @@
  * AnimMap —— 精灵图动画的渲染连接器
  *
  * 把 atlas.js 加载好的精灵图接到 cax 舞台。
- * 把「取动画 + 算缩放 + 设坐标 + 挂舞台」这一串重复调用，收成一行。
+ * 单个动画一行调用；平铺（影分身）交给 tile()，共用同一套矩阵计算。
  * ==============================================*/
 
 /* ==================== 用法 ====================
@@ -12,17 +12,29 @@
  * const SHEET = require('../config/assets.js');
  *
  * AnimMap.load(SHEET, (am) => {
- *   am.add(stage, 'walk', 100, 200, 300);  // 目标高度 300，自动算等比缩放
- *   am.add(stage, 'walk', 100, 200);        // 不传高度 → 用原图尺寸
+ *   // 单个：目标高度 300，自动算等比缩放
+ *   am.add(stage, 'walk', 100, 200, 300);
+ *
+ *   // 平铺（影分身）：左上 + 右下 定区域，每个格子放一个动画
+ *   am.tile(stage, 'walk', {
+ *     x: 0, y: 0, right: 1080, bottom: 800,
+ *     height: 120,   // 每个影分身的目标高度
+ *     gap: 20,       // 间距
+ *     margin: 10,    // 四周留白
+ *   });
  * });
  * ==============================================*/
 
 /* ==================== 注意 ====================
  * 精灵图动画走 atlas.js（真动画）；
- * 单张静态图走 cocos-atlas.js + sprite-map.js。
+ * 单张静态图走 cocos-atlas.js + sprite-map.js / image-map.js。
+ *
+ * tile() 是「复制对象」：每个格子都创建一个独立 Sprite，
+ * 因为动画每帧都在变，没法像静态图那样烘焙成一张。
  * ==============================================*/
 
 const Atlas = require('./atlas.js');
+const Tile = require('./tile.js');
 
 class AnimMap {
   /**
@@ -99,6 +111,36 @@ class AnimMap {
    */
   addAll(stage, rows = []) {
     return rows.map((r) => this.add(stage, r.name, r.x, r.y, r.height));
+  }
+
+  /**
+   * 平铺（影分身）：在区域里铺满同一种动画
+   * @param {Object} stage
+   * @param {string} name - 动画名
+   * @param {Object} [options] - { x, y, right, bottom, height, scale, gap, margin }
+   * @returns {Object[]} 创建的 Sprite 列表
+   */
+  tile(stage, name, options = {}) {
+    const opt = options || {};
+    const frame = this.size(name);
+
+    // 每个影分身的显示高度：优先 height（绝对值），否则用 scale（倍数）
+    const displayH = opt.height || frame.h * (opt.scale || 1);
+    const cellH = displayH;
+    const cellW = (frame.w * displayH) / frame.h;
+
+    const grid = Tile.grid({
+      x: opt.x,
+      y: opt.y,
+      right: opt.right,
+      bottom: opt.bottom,
+      cellW,
+      cellH,
+      gap: opt.gap,
+      margin: opt.margin,
+    });
+
+    return grid.cells.map((cell) => this.add(stage, name, cell.x, cell.y, displayH));
   }
 }
 
