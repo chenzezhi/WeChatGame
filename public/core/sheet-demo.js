@@ -17,20 +17,18 @@ function start(env) {
     // 左：整身走动的循环动画，固定在原地播
     var hero = atlas.sprite('walk');
     hero.scale = (h * 0.3) / atlas.size('walk').h;
-    hero.x = w * 0.3 - (hero.width * hero.scale) / 2;
+    hero.x = w * 0;
     hero.y = h * 0.45;
     stage.add(hero);
 
-    // 右：头像抖动，同样是原地循环
-    var head = atlas.sprite('head');
-    head.scale = (h * 0.3) / atlas.size('head').h;
-    head.x = w * 0;
-    head.y = h * 0.45;
-    stage.add(head);
+    // // 右：头像抖动，同样是原地循环
+    // var head = atlas.sprite('head');
+    // head.scale = (h * 0.3) / atlas.size('head').h;
+    // head.x = w * 0.7 - (head.width * head.scale) / 2;
+    // head.y = h * 0.45;
+    // stage.add(head);
 
-    stage.add(info(cax, CONFIG.image + '  ' + atlas.width + 'x' + atlas.height, '#8b98a5', dpr));
-    stage.add(info(cax, 'walk ' + atlas.count('walk') + ' 帧 / head ' + atlas.count('head') + ' 帧', '#8b98a5', dpr, 52));
-  }, function (err) {
+    }, function (err) {
     console.error('[demo] ' + err.message);
     stage.add(info(cax, err.message, '#ff6b6b', dpr));
   });
