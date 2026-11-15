@@ -1,13 +1,17 @@
 'use strict';
 
 /* ==================== 功能 ====================
- * cocos 图集引擎调用 demo
- * 链路：asset-manager 传名称加载 → TableMapper 表格生成配置 → sprite-map 批量渲染。
+ * cocos 图集 demo
+ *
+ * 链路：asset-manager 按名称加载 → 配置模板（config/render.js）
+ *       → 表格 → sprite-map.render 统一渲染。
  * ==============================================*/
 
 /* ==================== 用法 ====================
- * 用「表格」描述布局：第 0 行是字段头，下面每行一张图。
- * 不再逐张手动 add + 设 x/y/scale。
+ * rows 里一行 = 一张小图，只写要改的值。
+ * 字段顺序：name x y scale gap margin right bottom
+ *
+ * name 可以写名字，也可以写序号（最左上角是 1）。
  * ==============================================*/
 
 /* ==================== 注意 ====================
@@ -18,6 +22,7 @@
 const TableMapper = require('./table-mapper.js');
 const SpriteMap = require('./sprite-map.js');
 const assets = require('./asset-manager.js');
+const Render = require('../config/render.js');
 
 function start(env) {
   const stage = env.stage;
@@ -33,32 +38,24 @@ function start(env) {
     const w = stage.canvas.width;   // 物理像素
     const h = stage.canvas.height;
 
-    // 布局基准：先算出几个关键位置（居中 / 对齐）
-    const bgScale = (h * 1) / 298;
-    const barScale = 2;
-    const barBgX = (w - 156 * barScale) / 2;
-    const barBgY = h * 0.62;
+    // 布局基准：先算出几个关键位置
+    const bgScale = h / 298;
 
-    // 默认值模板：没写到的字段用这里的默认值
-    const template = { name: '', x: 0, y: 0, scale: 1 };
+    // 默认配置模板（含字段顺序），只写一次，在 config/render.js 里
+    const def = Render.sprite(stage);
 
-    // 表格：第 0 行是字段头，下面每行一张图
-    const table = [
-      'name x y scale',
-      `30 ${w * 0.1} ${h * 0.1} ${bgScale * 0.1}`,
-    ];
+    // 数据行：只写要改的值（name x y scale）
+    const rows = [`30 ${w * 0.1} ${h * 0.1} ${bgScale * 0.1}`];
 
-    // 表格 → 完整配置
-    const full = TableMapper.fill(template, table);
+    // 表格 → 完整配置数组
+    const list = TableMapper.fill(def.template, rows, def.fields);
 
-    // 批量渲染（字符串解析出的值是字符串，这里转成数字）
-    const num = (v) => Number(v);
-    for (const cfg of full) {
-      const bmp = sm.add(stage, cfg.name, num(cfg.x), num(cfg.y));
-      bmp.scale = num(cfg.scale);
+    // 一行渲染
+    for (const cfg of list) {
+      sm.render(stage, cfg);
     }
 
-    console.log('[cocos-demo] 已渲染 ' + full.length + ' 张图');
+    console.log('[cocos-demo] 已渲染 ' + list.length + ' 张图');
     done();
   });
 }

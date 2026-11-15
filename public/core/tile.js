@@ -4,14 +4,13 @@
  * Tile —— 平铺矩阵计算（纯计算，不碰渲染）
  *
  * 给它一块区域 + 每个格子的尺寸 + 间距，算出所有格子的坐标。
- * 只算位置，不创建对象：拿到坐标后，
- * 静态图可以烘焙成一张大图，精灵 / 图集可以复制成 N 个对象。
+ * 只算位置，不创建对象：静态图可以烘焙成一张大图，
+ * 精灵 / 图集可以复制成 N 个对象。
  * ==============================================*/
 
 /* ==================== 用法 ====================
  * const Tile = require('./tile.js');
  *
- * // 用左上角 + 右下角定区域
  * const grid = Tile.grid({
  *   x: 0, y: 0, right: 1080, bottom: 2400,
  *   cellW: 256, cellH: 256,
@@ -19,14 +18,19 @@
  *   margin: 16,    // 区域四周留白
  * });
  *
- * grid.cols;   // 几列
- * grid.rows;   // 几行
- * grid.cells;  // [{x, y}, {x, y}, ...] 每个格子的左上角
+ * grid.x, grid.y;            // 实际区域左上角（已含 margin）
+ * grid.width, grid.height;   // 实际区域尺寸
+ * grid.cols, grid.rows;      // 几列几行
+ * grid.cells;                // [{x, y}, ...] 每个格子的左上角
  * ==============================================*/
 
 /* ==================== 注意 ====================
+ * 平铺的语义是「铺满」：区域除不尽格子时，补一格，
+ * 最后一格超出区域的部分由调用方裁掉（画布会自动裁）。
+ * 所以 cols/rows 用的是向上取整，不用向下取整。
+ *
  * right / bottom 优先；没给就用 x + width、y + height。
- * 区域比一个格子还小的时候，也会放 1 个（不会返回空数组）。
+ * 区域比一个格子还小的时候，也会放 1 个。
  * ==============================================*/
 
 class Tile {
@@ -39,7 +43,9 @@ class Tile {
    *   cellW, cellH    每个格子的尺寸（必填）
    *   gap             格子之间的间距
    *   margin          区域四周留白
-   * @returns {{cols: number, rows: number, cellW: number, cellH: number, cells: Array<{x: number, y: number}>}}
+   * @returns {{x: number, y: number, width: number, height: number,
+   *            cols: number, rows: number, cellW: number, cellH: number,
+   *            cells: Array<{x: number, y: number}>}}
    */
   static grid(options = {}) {
     const opt = options || {};
@@ -60,9 +66,9 @@ class Tile {
     const areaW = right - left;
     const areaH = bottom - top;
 
-    // 能放几列几行；区域不够一格时也放 1 个
-    const cols = areaW > 0 ? Math.max(1, Math.floor((areaW + gap) / (cellW + gap))) : 1;
-    const rows = areaH > 0 ? Math.max(1, Math.floor((areaH + gap) / (cellH + gap))) : 1;
+    // 向上取整：保证铺满，最后一格超出区域的部分会被裁掉
+    const cols = areaW > 0 ? Math.max(1, Math.ceil((areaW + gap) / (cellW + gap))) : 1;
+    const rows = areaH > 0 ? Math.max(1, Math.ceil((areaH + gap) / (cellH + gap))) : 1;
 
     const cells = [];
     for (let r = 0; r < rows; r++) {
@@ -74,7 +80,17 @@ class Tile {
       }
     }
 
-    return { cols, rows, cellW, cellH, cells };
+    return {
+      x: left,
+      y: top,
+      width: areaW > 0 ? areaW : cellW,
+      height: areaH > 0 ? areaH : cellH,
+      cols,
+      rows,
+      cellW,
+      cellH,
+      cells,
+    };
   }
 }
 

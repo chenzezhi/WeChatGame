@@ -10,35 +10,29 @@
 /* ==================== 用法 ====================
  * const ImageMap = require('./image-map.js');
  *
- * // 1. 直接挂舞台
+ * // 最简：一张图挂在 (100, 200)
  * ImageMap.add(stage, 'src/assets/logo.png', 100, 200);
  *
- * // 2. 只创建不挂
- * ImageMap.bitmap('src/assets/logo.png', 100, 200, (bmp) => {
- *   bmp.scale = 0.5;
- *   stage.add(bmp);
+ * // 平铺铺满整屏
+ * ImageMap.tile(stage, 'src/assets/mapBg/mb1.jpg', {
+ *   x: 0, y: 0, right: W, bottom: H,   // W/H = 屏幕物理像素
+ *   scale: 0.25,                       // 每个格子 = 原图 × 0.25（调小铺得更密）
+ *   gap: 8,                            // 格子间距
+ *   margin: 0,                         // 区域四周留白
+ *   bottomLayer: true,                 // 压到最底层（当背景）
  * });
  *
- * // 3. 先拿尺寸，用来算布局
+ * // 只要尺寸
  * ImageMap.size('src/assets/logo.png', (w, h) => console.log(w, h));
- *
- * // 4. 平铺（背景 / 花纹）：左上 + 右下 定区域，带间距
- * ImageMap.tile(stage, 'src/assets/mb1.png', {
- *   x: 0, y: 0, right: 1080, bottom: 2400,
- *   scale: 1,      // 每个格子 = 原图 × scale
- *   gap: 8,        // 格子间距
- *   margin: 16,    // 区域四周留白
- *   bottom: true,  // 压到最底层（背景）
- * });
  * ==============================================*/
 
 /* ==================== 注意 ====================
  * 加载是异步的：第一次调用要等图片读完，回调才触发。
  * 同一个 url 只读一次（texture.js 里有缓存），之后调用会立即回调。
  *
- * tile() 是「烘焙」：先铺到一张离屏画布，舞台上只挂 1 个对象，
- * 所以不会拖慢渲染——代价是只能用于静态图。
- * 需要「会动的平铺」（影分身）请用 anim-map.js 的 tile()。
+ * tile() 是「烘焙」：画布尺寸 = 平铺区域，一格一格画满，
+ * 舞台上只挂 1 个对象，所以铺满整块区域且不拖慢渲染。
+ * 只能用于静态图；会动的平铺（影分身）请用 anim-map.js 的 tile()。
  *
  * 图集里的图走 sprite-map.js；精灵图动画走 anim-map.js。
  * ==============================================*/
@@ -50,10 +44,10 @@ const Tile = require('./tile.js');
 class ImageMap {
   /**
    * 创建一张图片的 Bitmap（不挂舞台）
-   * @param {string} url - 图片路径
+   * @param {string} url
    * @param {number} [x=0]
    * @param {number} [y=0]
-   * @param {Function} [onReady] - (bmp) => void，加载完回调
+   * @param {Function} [onReady] - (bmp) => void
    * @param {Function} [onError] - (Error) => void
    */
   static bitmap(url, x = 0, y = 0, onReady, onError) {
@@ -72,7 +66,7 @@ class ImageMap {
   /**
    * 创建并挂到舞台
    * @param {Object} stage
-   * @param {string} url - 图片路径
+   * @param {string} url
    * @param {number} [x=0]
    * @param {number} [y=0]
    * @param {Function} [onReady] - (bmp) => void
@@ -92,7 +86,7 @@ class ImageMap {
   }
 
   /**
-   * 取图片原始尺寸（算布局用）
+   * 取图片原始尺寸
    * @param {string} url
    * @param {Function} onReady - (w, h) => void
    * @param {Function} [onError]
@@ -108,10 +102,16 @@ class ImageMap {
   }
 
   /**
-   * 平铺：把一张图重复铺满一块区域（背景常用），支持间距和外边距
+   * 平铺：把一张图重复铺满一块区域（背景常用）
    * @param {Object} stage
    * @param {string} url
-   * @param {Object} [options] - { x, y, right, bottom, width, height, scale, gap, margin, bottomLayer }
+   * @param {Object} [options]
+   *   x, y           区域左上角
+   *   right, bottom  区域右下角
+   *   scale          每个格子的倍数（默认 1）
+   *   gap            格子间距
+   *   margin         区域四周留白
+   *   bottomLayer    是否压到最底层（当背景）
    * @param {Function} [onReady] - (bmp) => void
    * @param {Function} [onError] - (Error) => void
    */
@@ -122,21 +122,18 @@ class ImageMap {
       url,
       (t) => {
         const scale = opt.scale || 1;
-        const cellW = t.width * scale;    // 一个格子的宽
-        const cellH = t.height * scale;   // 一个格子的高
+        const cellW = t.width * scale;
+        const cellH = t.height * scale;
 
-        // 兼容旧写法：bottom 原来表示「压到最底层」（布尔）
-        // 现在 bottom 表示区域右下角坐标，所以布尔值转成 bottomLayer
+        // 兼容旧写法：bottom 是布尔值时，当作「压到最底层」
         const isBoolBottom = typeof opt.bottom === 'boolean';
-        const bottomCoord = isBoolBottom ? undefined : opt.bottom;
         const wantBottomLayer = opt.bottomLayer || (isBoolBottom && opt.bottom);
 
-        // 算出平铺矩阵（格子坐标由 tile.js 统一算）
         const grid = Tile.grid({
           x: opt.x,
           y: opt.y,
           right: opt.right,
-          bottom: bottomCoord,
+          bottom: isBoolBottom ? undefined : opt.bottom,
           width: opt.width,
           height: opt.height,
           cellW,
@@ -145,20 +142,17 @@ class ImageMap {
           margin: opt.margin,
         });
 
-        // 画布从「第一个格子」开始铺，尺寸 = 矩阵占的范围
-        const originX = grid.cells[0].x;
-        const originY = grid.cells[0].y;
-        const areaW = Math.ceil(grid.cols * cellW + (grid.cols - 1) * (opt.gap || 0));
-        const areaH = Math.ceil(grid.rows * cellH + (grid.rows - 1) * (opt.gap || 0));
+        // 画布尺寸 = 平铺区域本身，保证铺满（不多不少）
+        const canvasW = Math.max(1, Math.ceil(grid.width));
+        const canvasH = Math.max(1, Math.ceil(grid.height));
 
-        // 先铺到一张离屏画布上，最终只往舞台挂一张图
         const canvas = createCanvas();
         if (!canvas) {
           if (onError) onError(new Error('[image] 当前环境拿不到可用的画布'));
           return;
         }
-        canvas.width = areaW;
-        canvas.height = areaH;
+        canvas.width = canvasW;
+        canvas.height = canvasH;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -166,14 +160,14 @@ class ImageMap {
           return;
         }
 
-        // 一格一格画；相对画布换算坐标
+        // 一格一格画满；超出画布的部分自动裁掉
         for (const cell of grid.cells) {
-          ctx.drawImage(t.image, cell.x - originX, cell.y - originY, cellW, cellH);
+          ctx.drawImage(t.image, cell.x - grid.x, cell.y - grid.y, cellW, cellH);
         }
 
         const bmp = new cax.Bitmap(canvas);
-        bmp.x = originX;
-        bmp.y = originY;
+        bmp.x = grid.x;
+        bmp.y = grid.y;
 
         stage.add(bmp);
         if (wantBottomLayer) moveToBottom(stage, bmp);
