@@ -24,7 +24,7 @@ function start(env) {
     const h = stage.canvas.height;
 
     // 布局基准：先算出几个关键位置（居中 / 对齐）
-    const bgScale = (h * 1.5) / 298;
+    const bgScale = (h * 1) / 298;
     const barScale = 2;
     const barBgX = (w - 156 * barScale) / 2;
     const barBgY = h * 0.62;
