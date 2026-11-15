@@ -29,7 +29,7 @@ function start(env) {
   // scale 列写 n（占位，不改默认值），尺寸交给 height
   const table = [
     'url x y scale height',
-    `src/assets/roll.png 0 ${h * 0.68} n ${h * 0.28}`,
+    `src/assets/mapBg/mb1.jpg 0 ${h * 0} n ${h * 1.1}`,
   ];
 
   // 表格 → 完整配置
