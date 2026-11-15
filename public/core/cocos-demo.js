@@ -20,7 +20,7 @@ function start(env) {
 
     // 1. 主体背景 dragonQuestBg2（236x298）：缩放到约 92% 高度，水平居中
     var bg = sm.add(stage, 'dragonQuestBg2', 0, 0);
-    var bgScale = (h * 0.92) / 298;
+    var bgScale = (h * 1.5) / 298;
     bg.scale = bgScale;
     bg.x = (w - 236 * bgScale) / 2;
     bg.y = h * 0.04;
