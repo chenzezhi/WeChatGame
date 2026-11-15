@@ -11,7 +11,7 @@ module.exports = {
   layouts: {
 
     // 整张图按 4 列 4 行均分
-    sheet: { cols: 8, rows: 8 }
+    sheet: { cols: 8, rows: 10 }
 
     // 需要另一种规格时，加一套即可（同一个 clip 只能用一套）：
     // 从大图 (0, 256) 开始，每格 64x64，格子之间留 2px
@@ -25,7 +25,7 @@ module.exports = {
   clips: {
 
     // 第 0~3 格：角色向前走
-    walk: { layout: 'sheet', from: 16, count: 8, framerate: 8 },
+    walk: { layout: 'sheet', from: 0, count: 8, framerate: 8 },
 
     // // 第 4~7 格：头像抖动
     // head: { layout: 'sheet', from: 4, count: 4, framerate: 10 }
