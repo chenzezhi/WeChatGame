@@ -18,7 +18,7 @@ function start(env) {
     var hero = atlas.sprite('walk');
     hero.scale = (h * 0.3) / atlas.size('walk').h;
     hero.x = w * 0;
-    hero.y = h * 0.45;
+    hero.y = h * 0.2;
     stage.add(hero);
 
     // // 右：头像抖动，同样是原地循环
