@@ -10,6 +10,11 @@
  * 不再逐张手动 add + 设 x/y/scale。
  * ==============================================*/
 
+/* ==================== 注意 ====================
+ * 图集加载（无论成功或失败）都会调 env.onReady，
+ * 方便调用方在背景挂完之后再挂上层内容。
+ * ==============================================*/
+
 const TableMapper = require('./table-mapper.js');
 const SpriteMap = require('./sprite-map.js');
 const assets = require('./asset-manager.js');
@@ -17,7 +22,12 @@ const assets = require('./asset-manager.js');
 function start(env) {
   const stage = env.stage;
   // 传名称即可：自动加载 src/assets/gameMap.png + gameMap.json
-  const sm = SpriteMap.of(assets.atlas('gameMap'));
+  const gameMap = assets.atlas('gameMap');
+  const sm = SpriteMap.of(gameMap);
+
+  // 成功、失败都要交接，否则加载出错时后面的内容永远不出来
+  const done = () => env.onReady && env.onReady();
+  gameMap.onError(() => done());
 
   sm.ready(() => {
     const w = stage.canvas.width;   // 物理像素
@@ -49,6 +59,7 @@ function start(env) {
     }
 
     console.log('[cocos-demo] 已渲染 ' + full.length + ' 张图');
+    done();
   });
 }
 
