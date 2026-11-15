@@ -11,7 +11,7 @@ module.exports = {
   layouts: {
 
     // 整张图按 4 列 4 行均分
-    sheet: { cols: 4, rows: 4 }
+    sheet: { cols: 8, rows: 8 }
 
     // 需要另一种规格时，加一套即可（同一个 clip 只能用一套）：
     // 从大图 (0, 256) 开始，每格 64x64，格子之间留 2px

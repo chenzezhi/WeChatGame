@@ -58,7 +58,7 @@ function createStage(cax) {
  * @param {Object} stage
  */
 function paintBackground(cax, stage) {
-  stage.add(new cax.Rect(stage.canvas.width, stage.canvas.height, { fillStyle: '#0d1117' }));
+  stage.add(new cax.Rect(stage.canvas.width, stage.canvas.height, { fillStyle: '#fefeff' }));
 }
 
 /**
