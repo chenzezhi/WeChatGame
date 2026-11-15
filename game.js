@@ -25,7 +25,7 @@ function main() {
     require('./public/core/cocos-demo.js').start({ cax: cax, stage: stage });
 
     // 4b.（可选）精灵图动画示例：加载 src/assets/roll.png 播走路动画
-     require('./public/core/sheet-demo.js').start({ cax: cax, stage: stage });
+    require('./public/core/sheet-demo.js').start({ cax: cax, stage: stage });
 
     // 5. 主循环
     startLoop(stage);
