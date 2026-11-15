@@ -25,7 +25,7 @@ function start(env) {
     var bgScale = (h * 1.5) / 298;
     bg.scale = bgScale;
     bg.x = (w - 236 * bgScale) / 2;
-    bg.y = h * 0.04;
+    bg.y = h * -0.1;
 
     // 2. 标题 dragonQuestTitleDi（139x41）：顶部居中
     var title = sm.add(stage, 'dragonQuestTitleDi', 0, 0);
