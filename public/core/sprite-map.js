@@ -7,7 +7,8 @@
  * 这里负责把数据变成 cax 能渲染的对象，并提供最简单的取图/挂舞台 API。
  *
  *   var spriteMap = require('./sprite-map.js');
- *   var gameMap   = require('../../src/assets/gameMap.js');  // 数据，require 即加载
+ *   var assets    = require('./asset-manager.js');
+ *   var gameMap   = assets.atlas('gameMap');   // 数据，传名称自动加载
  *
  *   var sm = spriteMap.of(gameMap);
  *   sm.ready(function () {              // 图片异步加载，必须先等这个

@@ -3,15 +3,17 @@
 /* ============================================================================
  * cocos 图集引擎调用 demo
  *
- * 链路：数据层 gameMap（require 即加载）→ 渲染层 sprite-map（接 cax 舞台）。
+ * 链路：asset-manager 传名称加载（数据）→ sprite-map（接 cax 舞台）。
  * 之后按名字取图即可，不用管 json、坐标、旋转帧。
  * ==========================================================================*/
 
 var SpriteMap = require('./sprite-map.js');
-var gameMap = require('../../src/assets/gameMap.js');
+var assets = require('./asset-manager.js');
 
 function start(env) {
   var stage = env.stage;
+  // 传名称即可：asset-manager 按协议自动加载 gameMap.png + gameMap.json
+  var gameMap = assets.atlas('gameMap');
   var sm = SpriteMap.of(gameMap);
 
   sm.ready(function () {

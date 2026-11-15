@@ -21,7 +21,7 @@ function main() {
     // 3. 铺底色，后面所有内容都画在它上面
     paintBackground(cax, stage);
 
-    // 4. cocos 图集示例：加载 src/assets/gameMap.png，按名字取图渲染
+    // 4. cocos 图集示例：asset-manager 传名称加载 gameMap，按名字取图渲染
     require('./public/core/cocos-demo.js').start({ cax: cax, stage: stage });
 
     // 4b.（可选）精灵图动画示例：加载 src/assets/roll.png 播走路动画

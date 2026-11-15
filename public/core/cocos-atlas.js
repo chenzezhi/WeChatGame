@@ -1,26 +1,35 @@
 'use strict';
 
-/* --------------------------------------------------------------------------
+/* ============================================================================
  * Cocos 图集小引擎：一份 *.json（小图信息） + 一张 *.png（大图）
  *
- * json 是 Cocos 导出的数组，每一项形如
- *   [ [ { name, rect:{x,y,width,height}, offset, originalSize, rotated, capInsets } ], [0], 0, ... ]
- * 本模块把它变成「名字 -> 小图」的映射，顺带把大图读进内存。
+ * 它处理的是「乱排的合图」：Cocos 自动打包，图块大小不一、位置乱塞，
+ * 必须靠 json 记录每块的位置和尺寸。本模块把它变成「名字 -> 小图」映射。
  *
- *   var gameMap = require('../../src/assets/gameMap.js');
+ * ── 和 atlas.js 的区别（别混用）──────────────────────────────────────────
+ *   atlas.js       处理「规整网格」的精灵图（cols×rows 均分），
+ *                  产出会循环播放的动画 Sprite（给「动作」用）。
+ *   本模块(cocos)  处理「乱排」的 Cocos 图集，按名字取一张静态 Bitmap，
+ *                  本身不播动画（给「单张素材」用）。
  *
- *   gameMap.onReady(function () {
+ * ── 三层分工 ─────────────────────────────────────────────────────────────
+ *   数据层   public/core/asset-manager.js  传名称自动加载图集（图片 + json）
+ *            规则在 public/config/rules/atlas.js
+ *   渲染层   public/core/sprite-map.js     把数据接到 cax 舞台，按名字取图/挂舞台
+ *   使用方   只跟 sprite-map 交互，不直接碰这里的细节
+ *
+ * ── 直接用法（不经过 sprite-map 也行）────────────────────────────────────
+ *   var gameMap = require('./asset-manager.js').atlas('gameMap');
+ *
+ *   gameMap.onReady(function () {           // 图片异步加载，必须先等这个
  *     stage.add(gameMap.columnSlotLightBg.bitmap(0, 0)); // 按名字直接拿图
  *     console.log(gameMap.columnSlotLightBg.rect);       // [x, y, w, h]
  *     console.log(gameMap.names);                        // 所有小图的名字
  *   });
  *
- * 换一套图集只要再写一行 js：
- *   module.exports = require('../../public/core/cocos-atlas.js').create({
- *     image: 'src/assets/xxx.png',
- *     jsonPath: 'src/assets/xxx.json'
- *   });
- * ------------------------------------------------------------------------ */
+ * 换一套图集不用再写文件，传名称即可：
+ *   var ui = require('./asset-manager.js').atlas('ui');   // ui.png + ui.json
+ * ==========================================================================*/
 
 var cax = require('../../libs/cax.js');
 var texture = require('./texture.js');
