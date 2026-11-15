@@ -1,57 +1,59 @@
 'use strict';
 
-/* ============================================================================
+/* ==================== 功能 ====================
  * cocos 图集引擎调用 demo
- *
- * 链路：asset-manager 传名称加载（数据）→ sprite-map（接 cax 舞台）。
- * 之后按名字取图即可，不用管 json、坐标、旋转帧。
- * ==========================================================================*/
+ * 链路：asset-manager 传名称加载 → Mapper 生成配置 → sprite-map 批量渲染。
+ * 演示「默认模板 + 简化数据」去重复的写法。
+ * ==============================================*/
 
-var SpriteMap = require('./sprite-map.js');
-var assets = require('./asset-manager.js');
+/* ==================== 用法 ====================
+ * 不再逐张手动 add + 设 x/y/scale，
+ * 而是：一份默认模板 + 一份只写差异的数据列表 → 一个循环渲染。
+ * scale 省略的图自动用模板默认值 1。
+ * ==============================================*/
+
+const Mapper = require('./mapper.js');
+const SpriteMap = require('./sprite-map.js');
+const assets = require('./asset-manager.js');
 
 function start(env) {
-  var stage = env.stage;
-  // 传名称即可：asset-manager 按协议自动加载 gameMap.png + gameMap.json
-  var gameMap = assets.atlas('gameMap');
-  var sm = SpriteMap.of(gameMap);
+  const stage = env.stage;
+  // 传名称即可：自动加载 src/assets/gameMap.png + gameMap.json
+  const sm = SpriteMap.of(assets.atlas('gameMap'));
 
-  sm.ready(function () {
-    var w = stage.canvas.width;   // 物理像素
-    var h = stage.canvas.height;
+  sm.ready(() => {
+    const w = stage.canvas.width;   // 物理像素
+    const h = stage.canvas.height;
 
-    // 1. 主体背景 dragonQuestBg2（236x298）：缩放到约 92% 高度，水平居中
-    var bg = sm.add(stage, 'dragonQuestBg2', 0, 0);
-    var bgScale = (h * 1.5) / 298;
-    bg.scale = bgScale;
-    bg.x = (w - 236 * bgScale) / 2;
-    bg.y = h * -0.1;
+    // 布局基准：先算出几个关键位置（居中 / 对齐）
+    const bgScale = (h * 1.5) / 298;
+    const barScale = 2;
+    const barBgX = (w - 156 * barScale) / 2;
+    const barBgY = h * 0.62;
 
-    // 2. 标题 dragonQuestTitleDi（139x41）：顶部居中
-    var title = sm.add(stage, 'dragonQuestTitleDi', 0, 0);
-    title.x = (w - 139) / 2;
-    title.y = h * 0.1;
+    // 默认模板：没写到的字段用这里的默认值
+    const template = { name: '', x: 0, y: 0, scale: 1 };
 
-    // 3. boss 头像 boss_icon（56x60，rotated）：验证旋转帧被自动转正
-    var icon = sm.add(stage, 'boss_icon', 0, 0);
-    icon.scale = 2;
-    icon.x = (w - 56 * 2) / 2;
-    icon.y = h * 0.36;
+    // 简化数据：只写「最特殊」的差异（scale 省略的自动用 1）
+    const items = [
+      { name: 'dragonQuestBg2',    x: (w - 236 * bgScale) / 2, y: h * -0.1, scale: bgScale },
+      { name: 'dragonQuestTitleDi', x: (w - 139) / 2,          y: h * 0.1 },
+      { name: 'boss_icon',         x: (w - 56 * 2) / 2,        y: h * 0.36, scale: 2 },
+      { name: 'blood_bg',          x: barBgX,                  y: barBgY,   scale: barScale },
+      { name: 'blood',             x: barBgX + 3 * barScale,   y: barBgY + 7 * barScale, scale: barScale },
+    ];
 
-    // 4. 血条：blood_bg（156x30，rotated）做底，blood（150x15）做填充
-    var barBg = sm.add(stage, 'blood_bg', 0, 0);
-    var barScale = 2;
-    barBg.scale = barScale;
-    barBg.x = (w - 156 * barScale) / 2;
-    barBg.y = h * 0.62;
+    // 模板 + 简化数据 → 完整配置
+    const full = Mapper.fill(template, items);
 
-    var bar = sm.add(stage, 'blood', 0, 0);
-    bar.scale = barScale;
-    bar.x = barBg.x + 3 * barScale;
-    bar.y = barBg.y + 7 * barScale;
+    // 批量渲染：一个循环，替代原来的 5 段手动 add
+    for (const cfg of full) {
+      const bmp = sm.add(stage, cfg.name, cfg.x, cfg.y);
+      bmp.scale = cfg.scale;
+    }
 
-    console.log('[cocos-demo] 已从 ' + gameMap.names.length + ' 张小图里挑出 5 张渲染');
+    console.log('[cocos-demo] 已渲染 ' + full.length + ' 张图');
   });
 }
 
-module.exports = { start: start };
+module.exports = { start };
