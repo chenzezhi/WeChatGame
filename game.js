@@ -22,10 +22,15 @@ function main() {
     paintBackground(cax, stage);
 
     // 4. cocos 图集示例：asset-manager 传名称加载 gameMap，按名字取图渲染
-    require('./public/core/cocos-demo.js').start({ cax: cax, stage: stage });
-
-    // 4b.（可选）精灵图动画示例：加载 src/assets/roll.png 播走路动画
-    require('./public/core/sheet-demo.js').start({ cax: cax, stage: stage });
+    //    cax 渲染顺序 = 添加顺序，所以图集挂完再挂动画，人物才会画在背景上层
+    require('./public/core/cocos-demo.js').start({
+      cax: cax,
+      stage: stage,
+      onReady: function () {
+        // 4b. 精灵图动画示例：加载 src/assets/roll.png 播走路动画
+        require('./public/core/sheet-demo.js').start({ cax: cax, stage: stage });
+      },
+    });
 
     // 5. 主循环
     startLoop(stage);

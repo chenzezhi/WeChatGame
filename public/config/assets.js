@@ -25,8 +25,8 @@ module.exports = {
   clips: {
 
     // 第 0~3 格：角色向前走
-    walk: { layout: 'sheet', from: 0, count: 8, framerate: 8 },
-
+    nf1: { layout: 'sheet', from: 0, count: 8, framerate: 8 },
+    nf2: { layout: 'sheet', from: 8, count: 8, framerate: 4 },
     // // 第 4~7 格：头像抖动
     // head: { layout: 'sheet', from: 4, count: 4, framerate: 10 }
   }

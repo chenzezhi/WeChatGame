@@ -27,7 +27,8 @@ function start(env) {
       const h = stage.canvas.height;
 
       // 走路动画：放在左侧，高度占屏幕 5%
-      am.add(stage, 'walk', w * 0.2, h * 0.8, h * 0.05);
+      am.add(stage, 'nf1', w * 0.1, h * 0.4, h * 0.05);
+      am.add(stage, 'nf2', w * 0.3, h * 0.4, h * 0.05);
     },
     (err) => {
       console.error('[demo] ' + err.message);
