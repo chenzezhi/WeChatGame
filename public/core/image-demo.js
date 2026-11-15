@@ -25,7 +25,7 @@ function start(env) {
   // 表格：第 0 行是字段头，下面每行一张图
   const table = [
     'url x y scale',
-    `src/assets/mapBg/mb1.png 0 ${h * 0} 10`,
+    `src/assets/mapBg/mb1.png 0 ${h * 0} 1000`,
   ];
 
   // 表格 → 完整配置
