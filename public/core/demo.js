@@ -24,6 +24,8 @@
 /* ==================== 注意 ====================
  * 图片、图集、精灵图都是异步加载的，这里先等它们全部就绪，
  * 再按表格顺序一次性渲染，保证层级和表格顺序一致。
+ *
+ * 动画名必须和 config/assets.js 里 clips 的 key 一致（现在是 nf1 / nf2）。
  * ==============================================*/
 
 const TableMapper = require('./table-mapper.js');
@@ -39,8 +41,93 @@ function start(env) {
   const w = stage.canvas.width;    // 物理像素
   const h = stage.canvas.height;
 
-  /* ---------- 1. 表格：第 0 行是字段头，下面是数据 ---------- */
-  const table = [
+  const sm = SpriteMap.of(assets.atlas('gameMap'));
+  let am = null;
+
+  /* ---------- 1. 先等图集和精灵图就绪（要知道尺寸才能算 scale）---------- */
+  whenReady(
+    [
+      (next) => sm.ready(next),
+      (next) =>
+        AnimMap.load(
+          SHEET,
+          (m) => {
+            am = m;
+            next();
+          },
+          (err) => {
+            console.error('[demo] 精灵图加载失败：' + err.message);
+            next();
+          }
+        ),
+    ],
+    () => {
+      /* ---------- 2. 表格：第 0 行是字段头，下面是数据 ---------- */
+      const table = buildTable(w, h, am);
+
+      /* ---------- 3. 表格 → 完整配置数组 ---------- */
+      const list = TableMapper.fill(TEMPLATE, table);
+
+      /* ---------- 4. 预热图片（预热后 render 就是同步的，顺序可控）---------- */
+      const imageUrls = list.filter((c) => c.renderer === 'image').map((c) => c.name);
+
+      whenReady(
+        imageUrls.map(
+          (url) => (next) =>
+            ImageMap.size(
+              url,
+              () => next(),
+              (err) => {
+                console.error('[demo] 图片加载失败：' + err.message);
+                next();
+              }
+            )
+        ),
+        () => {
+          /* ---------- 5. 按表格顺序逐行渲染 ---------- */
+          const renderers = {
+            image: (cfg) => ImageMap.render(stage, cfg),
+            sprite: (cfg) => sm.render(stage, cfg),
+            anim: (cfg) => (am ? am.render(stage, cfg) : null),
+          };
+
+          for (const cfg of list) {
+            const render = renderers[cfg.renderer];
+            if (!render) {
+              console.warn('[demo] 不认识的渲染器："' + cfg.renderer + '"');
+              continue;
+            }
+            try {
+              render(cfg);
+            } catch (err) {
+              // 某一行出错不影响其它行
+              console.error('[demo] 渲染 "' + cfg.name + '" 失败：' + err.message);
+            }
+          }
+
+          console.log('[demo] 已渲染 ' + list.length + ' 项');
+        }
+      );
+    }
+  );
+
+  if (env.onReady) env.onReady();
+}
+
+// 构造表格：只有这里需要改画面内容
+function buildTable(w, h, am) {
+  // 按「目标高度」反算 scale，素材尺寸未知时退回 1
+  const scaleFor = (name, targetH) => {
+    if (!am) return 1;
+    try {
+      return (targetH / am.size(name).h).toFixed(3);
+    } catch (err) {
+      console.error('[demo] 取动画尺寸失败：' + err.message);
+      return 1;
+    }
+  };
+
+  return [
     'renderer name x y scale gap margin right bottom',
 
     // 背景：整屏平铺一张图
@@ -49,73 +136,12 @@ function start(env) {
     // 图集小图：序号 30，放在左上角
     `sprite 30 ${w * 0.1} ${h * 0.1} ${(h / 298) * 0.1}`,
 
-    // 精灵动画：走路，放在左侧
-    `anim walk ${w * 0.2} ${h * 0.2} 2`,
+    // 精灵动画 1：nf1，放在左侧
+    `anim nf1 ${w * 0.2} ${h * 0.2} ${scaleFor('nf1', h * 0.12)}`,
+
+    // 精灵动画 2：nf2，放在右侧
+    `anim nf2 ${w * 0.6} ${h * 0.2} ${scaleFor('nf2', h * 0.12)}`,
   ];
-
-  /* ---------- 2. 表格 → 完整配置数组 ---------- */
-  const list = TableMapper.fill(TEMPLATE, table);
-
-  /* ---------- 3. 先把要用的资源准备好 ---------- */
-  const sm = SpriteMap.of(assets.atlas('gameMap'));
-  let am = null;
-
-  // 需要预热的图片（render 前先读进缓存，之后渲染就是同步的）
-  const imageUrls = list.filter((c) => c.renderer === 'image').map((c) => c.name);
-
-  const tasks = [
-    // 图集
-    (next) => sm.ready(next),
-    // 精灵图
-    (next) =>
-      AnimMap.load(
-        SHEET,
-        (m) => {
-          am = m;
-          next();
-        },
-        (err) => {
-          console.error('[demo] 精灵图加载失败：' + err.message);
-          next();
-        }
-      ),
-  ];
-
-  // 每张图片预热一个任务
-  for (const url of imageUrls) {
-    tasks.push((next) =>
-      ImageMap.size(
-        url,
-        () => next(),
-        (err) => {
-          console.error('[demo] 图片加载失败：' + err.message);
-          next();
-        }
-      )
-    );
-  }
-
-  /* ---------- 4. 全部就绪后，按表格顺序逐行渲染 ---------- */
-  whenReady(tasks, () => {
-    const renderers = {
-      image: (cfg) => ImageMap.render(stage, cfg),
-      sprite: (cfg) => sm.render(stage, cfg),
-      anim: (cfg) => (am ? am.render(stage, cfg) : null),
-    };
-
-    for (const cfg of list) {
-      const render = renderers[cfg.renderer];
-      if (!render) {
-        console.warn('[demo] 不认识的渲染器："' + cfg.renderer + '"');
-        continue;
-      }
-      render(cfg);
-    }
-
-    console.log('[demo] 已渲染 ' + list.length + ' 项');
-  });
-
-  if (env.onReady) env.onReady();
 }
 
 // 等所有任务完成后再执行（任务 = 一个接收 next 回调的函数）
