@@ -1,0 +1,1778 @@
+[
+  [
+    [
+      {
+        "name": "columnSlotLightBg",
+        "rect": {
+          "x": 741,
+          "y": 296,
+          "width": 130,
+          "height": 130
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 130,
+          "height": 130
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "bag_frame",
+        "rect": {
+          "x": 609,
+          "y": 406,
+          "width": 106,
+          "height": 22
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 106,
+          "height": 22
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "cdMask",
+        "rect": {
+          "x": 153,
+          "y": 831,
+          "width": 120,
+          "height": 120
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 120,
+          "height": 120
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "fight_start_70",
+        "rect": {
+          "x": 3,
+          "y": 533,
+          "width": 525,
+          "height": 292
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 525,
+          "height": 292
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "crit",
+        "rect": {
+          "x": 286,
+          "y": 957,
+          "width": 59,
+          "height": 58
+        },
+        "offset": {
+          "x": -0.5,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 60,
+          "height": 60
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "bossHpBarBg2",
+        "rect": {
+          "x": 657,
+          "y": 884,
+          "width": 47,
+          "height": 44
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 47,
+          "height": 44
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "shopItemBg2",
+        "rect": {
+          "x": 714,
+          "y": 434,
+          "width": 159,
+          "height": 158
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 159,
+          "height": 158
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "recycle_1",
+        "rect": {
+          "x": 714,
+          "y": 599,
+          "width": 67,
+          "height": 67
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 67,
+          "height": 67
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "bossHpBar",
+        "rect": {
+          "x": 721,
+          "y": 406,
+          "width": 15,
+          "height": 14
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 15,
+          "height": 14
+        },
+        "rotated": true,
+        "capInsets": [
+          4,
+          0,
+          4,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "blood",
+        "rect": {
+          "x": 695,
+          "y": 275,
+          "width": 150,
+          "height": 15
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 150,
+          "height": 15
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "countMask",
+        "rect": {
+          "x": 279,
+          "y": 831,
+          "width": 120,
+          "height": 120
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 120,
+          "height": 120
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "dragonQuestTitleDi",
+        "rect": {
+          "x": 453,
+          "y": 419,
+          "width": 139,
+          "height": 41
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 139,
+          "height": 41
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "bag_hit",
+        "rect": {
+          "x": 565,
+          "y": 466,
+          "width": 23,
+          "height": 22
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 23,
+          "height": 22
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "shopItemBg",
+        "rect": {
+          "x": 781,
+          "y": 3,
+          "width": 172,
+          "height": 64
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 172,
+          "height": 64
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          25,
+          0,
+          30
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "dotArrow",
+        "rect": {
+          "x": 153,
+          "y": 957,
+          "width": 52,
+          "height": 61
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 52,
+          "height": 61
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "eliteIcon",
+        "rect": {
+          "x": 657,
+          "y": 937,
+          "width": 44,
+          "height": 47
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 44,
+          "height": 47
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "drawMapAni",
+        "rect": {
+          "x": 3,
+          "y": 3,
+          "width": 524,
+          "height": 444
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 524,
+          "height": 444
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "gridBg1",
+        "rect": {
+          "x": 405,
+          "y": 831,
+          "width": 120,
+          "height": 120
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 120,
+          "height": 120
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "shopBgTitle",
+        "rect": {
+          "x": 453,
+          "y": 307,
+          "width": 282,
+          "height": 93
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 282,
+          "height": 93
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "gridLock_1",
+        "rect": {
+          "x": 708,
+          "y": 710,
+          "width": 165,
+          "height": 164
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 169,
+          "height": 168
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "blood_bg",
+        "rect": {
+          "x": 851,
+          "y": 3,
+          "width": 156,
+          "height": 30
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 156,
+          "height": 30
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          8,
+          0,
+          8
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "score",
+        "rect": {
+          "x": 3,
+          "y": 831,
+          "width": 144,
+          "height": 129
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 144,
+          "height": 129
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "recycle",
+        "rect": {
+          "x": 787,
+          "y": 599,
+          "width": 67,
+          "height": 67
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 67,
+          "height": 67
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "brn_refresh_m3",
+        "rect": {
+          "x": 695,
+          "y": 190,
+          "width": 153,
+          "height": 79
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 153,
+          "height": 79
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "gridBg2",
+        "rect": {
+          "x": 531,
+          "y": 884,
+          "width": 120,
+          "height": 120
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 120,
+          "height": 120
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "hpBarBg",
+        "rect": {
+          "x": 851,
+          "y": 275,
+          "width": 14,
+          "height": 12
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 14,
+          "height": 12
+        },
+        "rotated": false,
+        "capInsets": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "dragonQuestBg2",
+        "rect": {
+          "x": 453,
+          "y": 3,
+          "width": 236,
+          "height": 298
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 236,
+          "height": 298
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "boss_icon",
+        "rect": {
+          "x": 220,
+          "y": 957,
+          "width": 56,
+          "height": 60
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 56,
+          "height": 60
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "light",
+        "rect": {
+          "x": 534,
+          "y": 530,
+          "width": 174,
+          "height": 174
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 174,
+          "height": 174
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "recycle2",
+        "rect": {
+          "x": 598,
+          "y": 434,
+          "width": 87,
+          "height": 87
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 87,
+          "height": 87
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "bagArrow",
+        "rect": {
+          "x": 453,
+          "y": 466,
+          "width": 106,
+          "height": 58
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 106,
+          "height": 58
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "hpBar",
+        "rect": {
+          "x": 565,
+          "y": 495,
+          "width": 10,
+          "height": 8
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 10,
+          "height": 8
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "brn_refresh",
+        "rect": {
+          "x": 695,
+          "y": 3,
+          "width": 181,
+          "height": 80
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 181,
+          "height": 80
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "shopItemBgLuck",
+        "rect": {
+          "x": 708,
+          "y": 881,
+          "width": 130,
+          "height": 165
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 130,
+          "height": 165
+        },
+        "rotated": true,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "gridLock_2",
+        "rect": {
+          "x": 534,
+          "y": 710,
+          "width": 168,
+          "height": 168
+        },
+        "offset": {
+          "x": -0.5,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 169,
+          "height": 168
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "energy",
+        "rect": {
+          "x": 453,
+          "y": 406,
+          "width": 150,
+          "height": 7
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 150,
+          "height": 7
+        },
+        "rotated": false,
+        "capInsets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  [
+    [
+      {
+        "name": "bossHpBarBg",
+        "rect": {
+          "x": 851,
+          "y": 165,
+          "width": 19,
+          "height": 18
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "originalSize": {
+          "width": 19,
+          "height": 18
+        },
+        "rotated": false,
+        "capInsets": [
+          8,
+          0,
+          8,
+          0
+        ],
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivot": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "meshType": 0
+      }
+    ],
+    [
+      0
+    ],
+    0,
+    [
+      0
+    ],
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ]
+]
