@@ -45,7 +45,7 @@ function start(env) {
     // 表格：第 0 行是字段头，下面每行一张图
     const table = [
       'name x y scale',
-      `30 ${w * 0.1} ${h * 0.1} ${bgScale}`,
+      `30 ${w * 0.1} ${h * 0.1} ${bgScale * 0.5}`,
     ];
 
     // 表格 → 完整配置
