@@ -2,17 +2,15 @@
 
 /* ==================== 功能 ====================
  * cocos 图集引擎调用 demo
- * 链路：asset-manager 传名称加载 → Mapper 生成配置 → sprite-map 批量渲染。
- * 演示「默认模板 + 简化数据」去重复的写法。
+ * 链路：asset-manager 传名称加载 → TableMapper 表格生成配置 → sprite-map 批量渲染。
  * ==============================================*/
 
 /* ==================== 用法 ====================
- * 不再逐张手动 add + 设 x/y/scale，
- * 而是：一份默认模板 + 一份只写差异的数据列表 → 一个循环渲染。
- * scale 省略的图自动用模板默认值 1。
+ * 用「表格」描述布局：第 0 行是字段头，下面每行一张图。
+ * 不再逐张手动 add + 设 x/y/scale。
  * ==============================================*/
 
-const Mapper = require('./mapper.js');
+const TableMapper = require('./table-mapper.js');
 const SpriteMap = require('./sprite-map.js');
 const assets = require('./asset-manager.js');
 
@@ -31,25 +29,27 @@ function start(env) {
     const barBgX = (w - 156 * barScale) / 2;
     const barBgY = h * 0.62;
 
-    // 默认模板：没写到的字段用这里的默认值
+    // 默认值模板：没写到的字段用这里的默认值
     const template = { name: '', x: 0, y: 0, scale: 1 };
 
-    // 简化数据：只写「最特殊」的差异（scale 省略的自动用 1）
-    const items = [
-      { name: 'dragonQuestBg2',    x: (w - 236 * bgScale) / 2, y: h * -0.1, scale: bgScale },
-      { name: 'dragonQuestTitleDi', x: (w - 139) / 2,          y: h * 0.1 },
-      { name: 'boss_icon',         x: (w - 56 * 2) / 2,        y: h * 0.36, scale: 2 },
-      { name: 'blood_bg',          x: barBgX,                  y: barBgY,   scale: barScale },
-      { name: 'blood',             x: barBgX + 3 * barScale,   y: barBgY + 7 * barScale, scale: barScale },
+    // 表格：第 0 行是字段头，下面每行一张图
+    const table = [
+      'name x y scale',
+      `dragonQuestBg2 ${(w - 236 * bgScale) / 2} ${h * -0.1} ${bgScale}`,
+      `dragonQuestTitleDi ${(w - 139) / 2} ${h * 0.1}`,
+      `boss_icon ${(w - 56 * 2) / 2} ${h * 0.36} 2`,
+      `blood_bg ${barBgX} ${barBgY} ${barScale}`,
+      `blood ${barBgX + 3 * barScale} ${barBgY + 7 * barScale} ${barScale}`,
     ];
 
-    // 模板 + 简化数据 → 完整配置
-    const full = Mapper.fill(template, items);
+    // 表格 → 完整配置
+    const full = TableMapper.fill(template, table);
 
-    // 批量渲染：一个循环，替代原来的 5 段手动 add
+    // 批量渲染（字符串解析出的值是字符串，这里转成数字）
+    const num = (v) => Number(v);
     for (const cfg of full) {
-      const bmp = sm.add(stage, cfg.name, cfg.x, cfg.y);
-      bmp.scale = cfg.scale;
+      const bmp = sm.add(stage, cfg.name, num(cfg.x), num(cfg.y));
+      bmp.scale = num(cfg.scale);
     }
 
     console.log('[cocos-demo] 已渲染 ' + full.length + ' 张图');
