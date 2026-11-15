@@ -87,7 +87,40 @@ AtlasMap.prototype._init = function () {
   var list = parseFrames(data);
   for (var i = 0; i < list.length; i++) this._addFrame(list[i]);
 
+  // 建立「序号 → 名称」索引（从左到右、从上到下，最左上角是 1）
+  this._buildIndex();
+
   if (this._autoLoad) this.load();
+};
+
+
+/* --------------------------------------------------------------------------
+ * 序号索引：按「从左到右、从上到下」排出行优先顺序
+ * ------------------------------------------------------------------------ */
+
+AtlasMap.prototype._buildIndex = function () {
+  var entries = [];
+  for (var i = 0; i < this.names.length; i++) {
+    var name = this.names[i];
+    var f = this.frames[name];
+    entries.push({ name: name, x: f.x, y: f.y });
+  }
+
+  // 行优先：先从上到下（y 升序），同一行内从左到右（x 升序）
+  entries.sort(function (a, b) {
+    return (a.y - b.y) || (a.x - b.x);
+  });
+
+  this._index = entries;  // 1-based：this._index[序号 - 1]
+};
+
+// 序号 → 名称
+AtlasMap.prototype._nameByIndex = function (index) {
+  var e = this._index[index - 1];
+  if (!e) {
+    throw new Error('[atlas] 序号越界：' + index + '（共 ' + this._index.length + ' 张）');
+  }
+  return e.name;
 };
 
 
@@ -324,10 +357,18 @@ AtlasMap.prototype._bake = function () {
  * ------------------------------------------------------------------------ */
 
 AtlasMap.prototype.has = function (name) {
+  if (typeof name === 'number') {
+    return name >= 1 && name <= this._index.length;
+  }
   return !!this.frames[name];
 };
 
 AtlasMap.prototype.get = function (name) {
+  // 数字 → 序号；字符串 → 名称
+  if (typeof name === 'number') {
+    name = this._nameByIndex(name);
+  }
+
   var f = this.frames[name];
   if (!f) throw new Error('[atlas] 没有叫 "' + name + '" 的小图（' + this.imagePath + '）');
   return f;

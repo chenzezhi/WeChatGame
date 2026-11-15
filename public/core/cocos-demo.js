@@ -35,11 +35,7 @@ function start(env) {
     // 表格：第 0 行是字段头，下面每行一张图
     const table = [
       'name x y scale',
-      `dragonQuestBg2 ${(w - 236 * bgScale) / 2} ${h * -0.1} ${bgScale}`,
-      `dragonQuestTitleDi ${(w - 139) / 2} ${h * 0.1}`,
-      `boss_icon ${(w - 56 * 2) / 2} ${h * 0.36} 2`,
-      `blood_bg ${barBgX} ${barBgY} ${barScale}`,
-      `blood ${barBgX + 3 * barScale} ${barBgY + 7 * barScale} ${barScale}`,
+      `30 ${(w - 236 * bgScale) / 2} ${h * -0.1} ${bgScale}`,
     ];
 
     // 表格 → 完整配置
