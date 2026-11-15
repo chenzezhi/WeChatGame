@@ -30,7 +30,7 @@ function start(env) {
   // width / height 写 0 → 铺满整屏
   const table = [
     'url x y scale width height',
-    'src/assets/mapBg/mb1.png 0 0 1 0 0',
+    'src/assets/mapBg/mb1.jpg 0 0 1 0 0',
   ];
 
   // 表格 → 完整配置
