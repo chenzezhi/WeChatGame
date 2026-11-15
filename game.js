@@ -23,7 +23,7 @@ function main() {
 
     // 4. cocos 图集示例：asset-manager 传名称加载 gameMap，按名字取图渲染
     //    cax 渲染顺序 = 添加顺序，所以图集挂完再挂动画，人物才会画在背景上层
-    require('./public/core/cocos-demo.js').start({
+    require('./public/core/image-demo.js').start({
       cax: cax,
       stage: stage,
       onReady: function () {
@@ -31,7 +31,7 @@ function main() {
         require('./public/core/sheet-demo.js').start({ cax: cax, stage: stage });
 
         // 4c. 单张图片示例：把 roll.png 当「普通图片」整张渲染一次
-        require('./public/core/image-demo.js').start({ cax: cax, stage: stage });
+        require('./public/core/cocos-demo.js').start({ cax: cax, stage: stage });
       },
     });
 
