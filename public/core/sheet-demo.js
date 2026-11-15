@@ -28,7 +28,7 @@ function start(env) {
 
       // 走路动画：放在左侧，高度占屏幕 5%
       am.add(stage, 'nf1', w * 0.1, h * 0.4, h * 0.05);
-      am.add(stage, 'nf2', w * 0.3, h * 0.4, h * 0.05);
+      am.add(stage, 'nf2', w * 0.23, h * 0.4, h * 0.05);
     },
     (err) => {
       console.error('[demo] ' + err.message);

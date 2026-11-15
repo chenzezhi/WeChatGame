@@ -29,6 +29,18 @@ function main() {
       onReady: function () {
         // 4b. 精灵图动画示例：加载 src/assets/roll.png 播走路动画
         require('./public/core/sheet-demo.js').start({ cax: cax, stage: stage });
+
+        // 4c. 单张图片示例：把 roll.png 当「普通图片」整张渲染一次
+        //     走 ImageMap，不经过图集、也不做动画
+        require('./public/core/image-map.js').add(
+          stage,
+          'src/assets/mapBg/mb1.jpg',
+          0,
+          stage.canvas.height * 0.7,
+          function (bmp) {
+            bmp.scale = 0.3;
+          }
+        );
       },
     });
 
