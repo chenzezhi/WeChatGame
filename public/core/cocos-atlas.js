@@ -123,6 +123,11 @@ AtlasMap.prototype._nameByIndex = function (index) {
   return e.name;
 };
 
+// 是否是「序号」表示：数字类型，或纯数字字符串（如 '1'）
+function isIndexKey(key) {
+  return typeof key === 'number' || (typeof key === 'string' && /^\d+$/.test(key));
+}
+
 
 /* --------------------------------------------------------------------------
  * 帧：一个小图 = 大图上的一块矩形
@@ -357,16 +362,17 @@ AtlasMap.prototype._bake = function () {
  * ------------------------------------------------------------------------ */
 
 AtlasMap.prototype.has = function (name) {
-  if (typeof name === 'number') {
-    return name >= 1 && name <= this._index.length;
+  if (isIndexKey(name)) {
+    var idx = Number(name);
+    return idx >= 1 && idx <= this._index.length;
   }
   return !!this.frames[name];
 };
 
 AtlasMap.prototype.get = function (name) {
-  // 数字 → 序号；字符串 → 名称
-  if (typeof name === 'number') {
-    name = this._nameByIndex(name);
+  // 序号：数字类型，或「纯数字」字符串（如 '1'）；否则按名称
+  if (isIndexKey(name)) {
+    name = this._nameByIndex(Number(name));
   }
 
   var f = this.frames[name];
