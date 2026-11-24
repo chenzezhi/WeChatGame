@@ -137,10 +137,10 @@ function buildTable(w, h, am) {
     `sprite 30 ${w * 0.1} ${h * 0.1} ${(h / 298) * 0.1}`,
 
     // 精灵动画 1：nf1，放在左侧
-    `anim nf1 ${w * 0.2} ${h * 0.2} ${scaleFor('nf1', h * 0.12)}`,
+    `anim nf1 ${w * 0.2} ${h * 0.2} ${scaleFor('nf1', h * 0.2)}`,
 
     // 精灵动画 2：nf2，放在右侧
-    `anim nf2 ${w * 0.6} ${h * 0.2} ${scaleFor('nf2', h * 0.12)}`,
+    `anim nf2 ${w * 0.6} ${h * 0.2} ${scaleFor('nf2', h * 0.2)}`,
   ];
 }
 
