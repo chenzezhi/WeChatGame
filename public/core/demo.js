@@ -126,7 +126,7 @@ function buildTable(w, h, am) {
       return 1;
     }
   };
-
+ 
   return [
     'renderer name x y scale gap margin right bottom',
 
