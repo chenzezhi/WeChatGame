@@ -38,12 +38,16 @@ const Board = require('./board.js');
 const BoardText = require('./board-text.js');
 const Shop = require('./shop.js');
 const PlayerView = require('./player-view.js');
+const Battle = require('./battle.js');
+const BattleView = require('./battle-view.js');
+const Touch = require('./touch.js');
 const assets = require('./asset-manager.js');
 const TEMPLATE = require('../config/render.js').template;
 const SHEET = require('../config/assets.js');
 const BOARD = require('../config/board.js');
 const PLAYER = require('../config/player.js');
 const SHOP = require('../config/shop.js');
+const COMBAT = require('../config/combat.js');
 
 function start(env) {
   const stage = env.stage;
@@ -121,7 +125,32 @@ function start(env) {
           console.log('[demo] 已渲染 ' + list.length + ' 项');
 
           /* ---------- 7. 人物：会动的东西不走表格，单独挂 ---------- */
-          if (board) PlayerView.create({ stage: stage, am: am, board: board, config: PLAYER });
+          const playerView = board
+            ? PlayerView.create({ stage: stage, am: am, board: board, config: PLAYER })
+            : null;
+
+          /* ---------- 8. 战斗：武器 + 怪物 + 点击 ---------- */
+          if (board) {
+            const battle = Battle.create({
+              board: board,
+              player: playerView ? playerView.player : null,
+              width: w,
+              height: h,
+              config: COMBAT,
+            });
+
+            const view = BattleView.create({
+              stage: stage,
+              sm: sm,
+              board: board,
+              shop: shop,
+              battle: battle,
+              config: COMBAT,
+            });
+
+            // 点一下：面板按钮或格子
+            if (view) Touch.bind({ tap: view.handleTap });
+          }
         }
       );
     }
