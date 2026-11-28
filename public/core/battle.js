@@ -252,14 +252,11 @@ Battle.prototype.update = function (dt) {
   this._time += dt;
   if (this._fireTimer > 0) this._fireTimer -= dt;
 
-  // 人物进入新格子：看看这格有没有武器，有就开火
-  if (this.player) {
-    const i = this.player.i;
-    if (i !== this._lastCell) {
-      this._lastCell = i;
-      const cell = this.player.current;
-      if (cell && cell.card) this._fireFrom(cell);
-    }
+  // 人物所在格子上有武器就尝试开火，每格用自己的 cd 限制
+  // 不只看「刚走进来的那一刻」，站在格子上也会继续开火
+  if (this.player && this.player.current) {
+    const cell = this.player.current;
+    if (cell && cell.card) this._fireFrom(cell);
   }
 
   if (this.state !== 'battle') return;
