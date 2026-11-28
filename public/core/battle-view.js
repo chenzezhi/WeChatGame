@@ -4,11 +4,11 @@
  * BattleView —— 战斗的画面接线
  *
  * 每帧：推进 Battle 逻辑 → 把结果画出来。
- * 负责武器图标、子弹、怪物、HUD、开始按钮、商店遮罩，
+ * 负责篝火、武器图标、子弹、怪物、HUD、开始按钮、商店遮罩，
  * 并把一次点击派给按钮 / 槽位 / 格子。
  *
- * 现在所有图形都是画布直接画的简单形状（箭、圆点、圆块），不依赖素材。
- * 有美术后把这些 makeXxx 换成 sm.add(...) 即可，坐标一行都不用改。
+ * 所有图形都是画布直接画的（Polygon / Circle / Rect），不依赖素材。
+ * 有美术后把 makeXxx 换成 sm.add(...) 即可，坐标一行都不用改。
  * ==============================================*/
 
 /* ==================== 用法 ====================
@@ -28,27 +28,46 @@ const Ticker = require('./ticker.js');
 
 // 占位色板
 const COLOR = {
-  card: '#e8e0c0',      // 武器图标底色
-  arrow: '#38404f',     // 武器图标的箭头
-  bullet: '#f0c040',    // 子弹
-  monster: '#a03a3a',   // 怪物
-  button: '#8b2f2f',    // 按钮
-  mask: '#12121a',      // 商店遮罩
-  mark: '#ffffff',      // 点击标记
+  arrow: '#38404f',      // 武器箭头
+  arrowBg: '#e8e0c0',    // 武器图标底
+  bullet: '#f0c040',     // 子弹
+  monster: '#a03a3a',    // 怪物身体
+  monsterEye: '#ffe9a8', // 怪物眼睛
+  campStone: '#4a4a52',  // 篝火石圈
+  campFlame: '#e8622a',  // 火焰外圈
+  campInner: '#f6c33a',  // 火焰内芯
+  button: '#8b2f2f',     // 按钮
+  mask: '#12121a',       // 商店遮罩
+  mark: '#ffffff',       // 点击标记
 };
 
+// 把多个图形合成一个整体，方便一起移动、一起显隐
+// parts - [{ node, ox, oy }]，ox/oy 是相对整体左上角的偏移
+// 返回 { parts, setPos(x, y), setVisible(v) }
+function group(parts) {
+  return {
+    parts: parts,
+    // 把整体左上角摆到 x, y
+    setPos: function (x, y) {
+      for (let i = 0; i < parts.length; i++) {
+        parts[i].node.x = x + parts[i].ox;
+        parts[i].node.y = y + parts[i].oy;
+      }
+    },
+    // 整体显示 / 隐藏
+    setVisible: function (v) {
+      for (let i = 0; i < parts.length; i++) parts[i].node.visible = v;
+    },
+  };
+}
+
 // 画一块纯色方块
-// w, h - 尺寸，单位 px
-// color - 填充色
-// 返回 cax.Rect
 function makeRect(w, h, color) {
   return new cax.Rect(w, h, { fillStyle: color });
 }
 
-// 画一个向上的箭头，当武器图标用
-// size - 箭头边长，单位 px
-// color - 填充色
-// 返回 cax.Polygon，取不到 Polygon 时退回方块
+// 画一个向上的箭头，当武器图标
+// size - 边长，单位 px
 function makeArrow(size, color) {
   const s = size;
   const points = [
@@ -69,15 +88,98 @@ function makeArrow(size, color) {
   }
 }
 
-// 画一个圆点（子弹、怪物都用它）
+// 画一个小怪：三角身子 + 两只眼睛
+// size - 整体尺寸，单位 px
+// 返回 group(...)，setPos 传中心点
+function makeMonster(size) {
+  const s = size;
+  const parts = [];
+
+  // 身体：下宽上尖的三角，像个小怪
+  try {
+    const body = new cax.Polygon(
+      [
+        [s * 0.5, 0],
+        [s, s * 0.55],
+        [s * 0.82, s],
+        [s * 0.18, s],
+        [0, s * 0.55],
+      ],
+      { fillStyle: COLOR.monster }
+    );
+    parts.push({ node: body, ox: 0, oy: 0 });
+  } catch (err) {
+    parts.push({ node: makeRect(s, s, COLOR.monster), ox: 0, oy: 0 });
+  }
+
+  // 眼睛：两个小圆
+  const eyeR = Math.max(2, s * 0.09);
+  try {
+    const l = new cax.Circle(eyeR, { fillStyle: COLOR.monsterEye });
+    const r = new cax.Circle(eyeR, { fillStyle: COLOR.monsterEye });
+    parts.push({ node: l, ox: s * 0.3 - eyeR, oy: s * 0.3 - eyeR });
+    parts.push({ node: r, ox: s * 0.56 - eyeR, oy: s * 0.3 - eyeR });
+  } catch (err) {
+    /* 眼睛画不出来就算了，身子还在 */
+  }
+
+  return group(parts);
+}
+
+// 画一个篝火：石圈 + 两层火苗
+// size - 整体尺寸，单位 px
+// 返回 group(...)，setPos 传左上角
+function makeCampfire(size) {
+  const s = size;
+  const parts = [];
+
+  // 石圈：一个深色圆当底座
+  try {
+    const stone = new cax.Circle(s * 0.42, { fillStyle: COLOR.campStone });
+    parts.push({ node: stone, ox: s * 0.08, oy: s * 0.42 });
+  } catch (err) {
+    parts.push({ node: makeRect(s * 0.84, s * 0.4, COLOR.campStone), ox: s * 0.08, oy: s * 0.42 });
+  }
+
+  // 外圈火苗：一个竖三角
+  try {
+    const flame = new cax.Polygon(
+      [
+        [s * 0.5, 0],
+        [s * 0.86, s * 0.68],
+        [s * 0.14, s * 0.68],
+      ],
+      { fillStyle: COLOR.campFlame }
+    );
+    parts.push({ node: flame, ox: 0, oy: s * 0.06 });
+  } catch (err) {
+    parts.push({ node: makeRect(s * 0.7, s * 0.6, COLOR.campFlame), ox: s * 0.15, oy: s * 0.1 });
+  }
+
+  // 内芯：小一点的黄三角
+  try {
+    const inner = new cax.Polygon(
+      [
+        [s * 0.5, s * 0.28],
+        [s * 0.68, s * 0.66],
+        [s * 0.32, s * 0.66],
+      ],
+      { fillStyle: COLOR.campInner }
+    );
+    parts.push({ node: inner, ox: 0, oy: s * 0.06 });
+  } catch (err) {
+    /* 内芯画不出来就用单层火 */
+  }
+
+  return group(parts);
+}
+
+// 画一个圆点（子弹用）
 // r - 半径，单位 px
-// color - 填充色
-// 返回 cax.Circle，取不到时退回方块
 function makeDot(r, color) {
   try {
     return new cax.Circle(r, { fillStyle: color });
   } catch (err) {
-    console.warn('[battle-view] Circle 不可用，退回方块：' + err.message);
     return makeRect(r * 2, r * 2, color);
   }
 }
@@ -91,6 +193,8 @@ function create(options) {
   const board = o.board;
   const shop = o.shop;
   const battle = o.battle;
+  const cfg = o.config || {};
+  const tpl = cfg.template || {};
 
   if (!stage || !board || !battle) {
     console.warn('[battle-view] 缺少 stage / board / battle，战斗画面没有创建');
@@ -101,24 +205,25 @@ function create(options) {
   const cardSize = board.cellW * 0.42;
   const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.42;
   const bulletR = board.cellW * 0.06;
-  const monsterR = board.cellW * 0.22;
+  const monsterSize = board.cellW * 0.5;
+  const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 0.9 : tpl.campfireSizeRatio);
 
-  // 复用池
-  const cards = {};            // 格子序号 → 武器图标
-  const monsterSprites = [];
-  const bulletSprites = [];
+  /* ---------- 1. 篝火：摆在棋盘中间，是怪物的目标 ---------- */
+  const fire = makeCampfire(campfireSize);
+  fire.setPos(battle.campfire.x - campfireSize / 2, battle.campfire.y - campfireSize / 2);
+  for (let i = 0; i < fire.parts.length; i++) stage.add(fire.parts[i].node);
+
+  /* ---------- 2. 商店槽位里的武器图标 ---------- */
   const slotSprites = [];
-
-  /* ---------- 1. 商店槽位里的武器图标 ---------- */
   if (shop && shop.slots) {
     const weapon = battle.weapons[0] || null;
+
     for (let i = 0; i < shop.slots.length; i++) {
       const slot = shop.slots[i];
 
-      // 图标底下垫一块浅色底，让箭头看得清
-      const bg = makeRect(slotIconSize * 1.3, slotIconSize * 1.3, COLOR.card);
-      bg.x = slot.x + (slot.w - slotIconSize * 1.3) / 2;
-      bg.y = slot.y + (slot.h - slotIconSize * 1.3) / 2;
+      const bg = makeRect(slotIconSize * 1.4, slotIconSize * 1.4, COLOR.arrowBg);
+      bg.x = slot.x + (slot.w - slotIconSize * 1.4) / 2;
+      bg.y = slot.y + (slot.h - slotIconSize * 1.4) / 2;
       stage.add(bg);
 
       const icon = makeArrow(slotIconSize, COLOR.arrow);
@@ -131,7 +236,7 @@ function create(options) {
     }
   }
 
-  /* ---------- 2. 商店遮罩：战斗时盖住商店 ---------- */
+  /* ---------- 3. 商店遮罩：战斗时盖住商店 ---------- */
   let mask = null;
   if (shop && shop.shell) {
     mask = makeRect(shop.shell.w, shop.shell.h, COLOR.mask);
@@ -141,7 +246,7 @@ function create(options) {
     stage.add(mask);
   }
 
-  /* ---------- 3. 开始战斗按钮：卡牌槽下面 ---------- */
+  /* ---------- 4. 开始战斗按钮：卡牌槽下面 ---------- */
   const buttonW = board.cellW * 1.8;
   const buttonH = board.cellH * 0.5;
   const slot0 = shop && shop.slots && shop.slots[0] ? shop.slots[0] : null;
@@ -162,7 +267,7 @@ function create(options) {
         return;
       }
       const ok = battle.startWave();
-      lastLine = ok ? '开打：第 ' + battle.wave + ' 波' : '开不了（看控制台）';
+      lastLine = ok ? '开打：第 ' + battle.wave + ' 波' : '没有下一波了（加数据）';
     },
   };
 
@@ -171,7 +276,7 @@ function create(options) {
   buttonRect.y = button.y;
   stage.add(buttonRect);
 
-  /* ---------- 4. HUD + 点击标记 ---------- */
+  /* ---------- 5. HUD + 点击标记 ---------- */
   let hud = null;
   let lastLine = '等待点击';
   let lastTap = null;
@@ -214,8 +319,9 @@ function create(options) {
     }
   }
 
-  /* ---------- 5. 每帧同步 ---------- */
+  /* ---------- 6. 每帧同步 ---------- */
   // 格子上的武器图标
+  const cards = {};
   function syncCards() {
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
@@ -238,30 +344,31 @@ function create(options) {
   }
 
   // 怪物
+  const monsterSprites = [];
   function syncMonsters() {
     const list = battle.monsters;
 
     while (monsterSprites.length < list.length) {
-      const sp = makeDot(monsterR, COLOR.monster);
-      sp.visible = false;
-      monsterSprites.push(sp);
-      stage.add(sp);
+      const v = makeMonster(monsterSize);
+      for (let i = 0; i < v.parts.length; i++) stage.add(v.parts[i].node);
+      v.setVisible(false);
+      monsterSprites.push(v);
     }
 
     for (let i = 0; i < monsterSprites.length; i++) {
-      const sp = monsterSprites[i];
+      const v = monsterSprites[i];
       const m = list[i];
       if (!m) {
-        sp.visible = false;
+        v.setVisible(false);
         continue;
       }
-      sp.visible = true;
-      sp.x = m.x - monsterR;
-      sp.y = m.y - monsterR;
+      v.setVisible(true);
+      v.setPos(m.x - monsterSize / 2, m.y - monsterSize / 2);
     }
   }
 
   // 子弹
+  const bulletSprites = [];
   function syncBullets() {
     const list = battle.bullets;
 
@@ -292,26 +399,22 @@ function create(options) {
     if (buttonRect) buttonRect.visible = !fighting;
   }
 
-  /* ---------- 6. 点击派活 ---------- */
+  /* ---------- 7. 点击派活 ---------- */
   // 点是否落在矩形里
   function inside(x, y, r) {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
   // 把一次点击派给按钮 / 槽位 / 格子
-  // x, y - 画布物理像素坐标
-  // 返回 true 表示有人接手了
   function handleTap(x, y) {
     lastTap = { x: x, y: y, at: Date.now() };
     lastLine = '未命中';
 
-    // 1. 按钮
     if (battle.state === 'build' && inside(x, y, button)) {
       button.onTap();
       return true;
     }
 
-    // 2. 商店槽位
     if (shop && shop.slots) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
@@ -323,7 +426,6 @@ function create(options) {
       }
     }
 
-    // 3. 棋盘格子
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (inside(x, y, cell)) {
@@ -336,7 +438,7 @@ function create(options) {
     return false;
   }
 
-  /* ---------- 7. 每帧：先推进逻辑，再同步画面 ---------- */
+  /* ---------- 8. 每帧：先推进逻辑，再同步画面 ---------- */
   Ticker.onFrame(function (dt) {
     battle.update(dt);      // ← 没有这一行，怪物永远不生成、人物永远不开火
     syncCards();
@@ -357,8 +459,9 @@ function create(options) {
     console.log('[battle] 耐久归零，本局结束');
   };
 
-  console.log('[battle-view] 按钮 ' + Math.round(button.x) + ',' + Math.round(button.y) +
-    ' 尺寸 ' + Math.round(button.w) + 'x' + Math.round(button.h));
+  console.log('[battle-view] 篝火 ' + Math.round(battle.campfire.x) + ',' + Math.round(battle.campfire.y) +
+    ' 判定半径 ' + Math.round(battle.campfire.r) +
+    '；按钮 ' + Math.round(button.x) + ',' + Math.round(button.y));
 
   return {
     handleTap: handleTap,
