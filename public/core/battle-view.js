@@ -566,6 +566,7 @@ function create(options) {
     if (Math.abs(targetZoom - worldZoom) < 0.002) worldZoom = targetZoom;
 
     World.set(worldZoom, battle.campfire.x, battle.campfire.y);
+    battle.viewZoom = worldZoom;   // 子弹回收按这个算屏幕边界
 
     // 棋盘与商店是 cax 对象，只能手改坐标和 scale 来跟着缩
     scaleSprites(board.sprites, worldZoom);
@@ -680,6 +681,9 @@ function create(options) {
         : Math.atan2(b.vy || 0, b.vx || 1);
       drawWeaponAimed(ctx, b.def, b.x, b.y, bulletSize, angle);
     }
+
+    // 外壳再画一遍：保证它在棋盘、子弹、怪物之上，不被任何东西盖住
+    if (battle.state === 'build' && shop && shop.shell) drawShell(ctx);
 
     // 世界内容画完，恢复屏幕坐标，按钮和 HUD 不跟着缩
     ctx.restore();

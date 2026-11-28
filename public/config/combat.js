@@ -40,7 +40,7 @@ module.exports = {
 
     spawnMargin: 220,    // 怪物出生点离屏幕边缘的距离，单位 px（大于 0 就在屏幕外）（负数在外，正数在内）
     hitRadius: 30,       // 子弹命中判定半径，单位 px
-    bulletLifeMs: 6000,  // 子弹最长存活时间，单位毫秒
+    bulletLifeMs: 12000,  // 子弹最长存活时间，单位毫秒
 
     /* ★ 波次机制：全部自动算，不用手写每一波
      * waveBase   - 第 1 波几只
