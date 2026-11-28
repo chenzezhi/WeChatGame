@@ -599,9 +599,6 @@ Battle.prototype._fireFrom = function (cell) {
 
   cell.lastFire = this._time;
 
-  // 一轮发射只叫一声，不会因为 8 发就连响 8 次
-  if (this.onShoot) this.onShoot();
-
   return shots;
 };
 
@@ -632,6 +629,9 @@ Battle.prototype._flushShots = function () {
 
     this.bullets.push(new Bullet(s.def, s.x + ox, s.y + oy, s.target, tx, ty));
     this.shotCount += 1;
+
+    // 每真正飞出一发就叫一声，多发就是连续响
+    if (this.onShoot) this.onShoot(s.def);
   }
 
   this._shotQueue = keep;
