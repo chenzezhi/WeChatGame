@@ -1300,8 +1300,8 @@ function create(options) {
   battle.onWaveStart = function (n, count) {
     console.log('[battle] 第 ' + n + ' 波开始，怪物 ' + count + ' 只');
   };
-  battle.onWaveEnd = function (n) {
-    console.log('[battle] 第 ' + n + ' 波结束，回到布阵');
+  battle.onWaveEnd = function (n, bonus) {
+    console.log('[battle] 第 ' + n + ' 波结束，回到布阵，奖励 +' + (bonus || 0) + ' 银币');
   };
   battle.onOver = function () {
     console.log('[battle] 篝火灭了，本局结束');
