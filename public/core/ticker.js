@@ -43,7 +43,7 @@ function tick() {
   last = now;
 
   // 乘上全局游戏速度：整个人物/怪物/子弹/冷却都一起加速
-  const dt = raw * Speed.get();
+  const dt = raw * Speed.effective();
 
   for (let i = 0; i < callbacks.length; i++) {
     try {

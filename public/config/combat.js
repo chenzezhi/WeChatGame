@@ -23,7 +23,7 @@ module.exports = {
   template: {
     coins: 80,           // 开局银币
     cellHp: 100,          // 篝火耐久（怪物走到篝火扣它的 damage）
-    maxLevel: 4,         // 武器最高等级，到顶就不能再合成
+    maxLevel: 5,         // 武器最高等级，到顶就不能再合成
 
     refreshCost: 15,     // 刷新商店的价格，单位银币
     refreshCostBase: 15, // 第一次刷新多少钱
@@ -35,7 +35,7 @@ module.exports = {
      * buyMarkup     - 直接买 2 级以上时相对合成价的倍率
      */
     weaponWeights: { arrow: 26, axe: 20, spear: 16, staff: 12, blade: 8, heart: 10, boost: 8 },
-    levelWeights: [70, 25, 5, 0],
+    levelWeights: [58, 27, 11, 3, 1],
     buyMarkup: 1.2,
 
     spawnMargin: 220,    // 怪物出生点离屏幕边缘的距离，单位 px（大于 0 就在屏幕外）（负数在外，正数在内）
@@ -85,9 +85,9 @@ module.exports = {
      * weights - 1~4 级的权重，决定抽到高等级的概率
      */
     chests: [
-      { label: '初级', price: 30, weights: [70, 25, 5, 0] },
-      { label: '中级', price: 60, weights: [40, 40, 18, 2] },
-      { label: '高级', price: 100, weights: [10, 35, 40, 15] },
+      { label: '初级', price: 30, weights: [66, 24, 8, 2, 0] },
+      { label: '中级', price: 60, weights: [38, 34, 20, 6, 2] },
+      { label: '高级', price: 100, weights: [10, 28, 34, 20, 8] },
     ],
     gachaRollMs: 1400,
 

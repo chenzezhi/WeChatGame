@@ -294,13 +294,24 @@ function drawWeapon(ctx, def, cx, cy, s) {
   const kind = def.kind || 'sword';
   const color = def.color || '#d8dee8';
 
-  if (kind === 'spin') return drawSpinShape(ctx, color, cx, cy, s);
-  if (kind === 'heal') return drawHeartShape(ctx, color, cx, cy, s * 0.9);
-  if (kind === 'speed') return drawBoltShape(ctx, color, cx, cy, s * 0.9);
-  if (kind === 'axe') return drawAxeShape(ctx, color, cx, cy, s);
-  if (kind === 'spear') return drawSpearShape(ctx, color, cx, cy, s);
-  if (kind === 'staff') return drawStaffShape(ctx, color, cx, cy, s);
-  return drawSwordShape(ctx, color, cx, cy, s);
+  // 满级（5 级）发光：用 shadow 在轮廓外打一层同色光晕
+  const isMax = Number(def.level) >= 5;
+
+  if (isMax) {
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = s * 0.45;
+  }
+
+  if (kind === 'spin') drawSpinShape(ctx, color, cx, cy, s);
+  else if (kind === 'heal') drawHeartShape(ctx, color, cx, cy, s * 0.9);
+  else if (kind === 'speed') drawBoltShape(ctx, color, cx, cy, s * 0.9);
+  else if (kind === 'axe') drawAxeShape(ctx, color, cx, cy, s);
+  else if (kind === 'spear') drawSpearShape(ctx, color, cx, cy, s);
+  else if (kind === 'staff') drawStaffShape(ctx, color, cx, cy, s);
+  else drawSwordShape(ctx, color, cx, cy, s);
+
+  if (isMax) ctx.restore();
 }
 
 // 带旋转的武器：绕自身中心转
@@ -1043,8 +1054,6 @@ function create(options) {
     ctx.clip();
     ctx.drawImage(shellImg.image, dx, dy, w, h);
     ctx.restore();
-
-  }
   }
 
   // 画垃圾桶；hover 时变红并掀盖子
@@ -1433,6 +1442,8 @@ function create(options) {
 
   /* ---------- 挂到两条流水线上 ---------- */
   Ticker.onFrame(function (dt) {
+    // 只有战斗阶段才吃速度倍率；备战永远是 1 倍
+    Speed.setActive(battle.state === 'battle');
     battle.update(dt);
   });
 

@@ -26,6 +26,20 @@ const STEPS = [1, 2, 4];
 // 当前是第几档
 let index = 0;
 
+// 是否让倍率生效（只有战斗阶段才生效，备战保持 1 倍）
+let active = false;
+
+// 设置是否生效
+// v - true 生效 / false 强制 1 倍
+function setActive(v) {
+  active = !!v;
+}
+
+// 实际生效的倍率：没启用时永远 1
+function effective() {
+  return active ? STEPS[index] : 1;
+}
+
 // 当前倍率
 function get() {
   return STEPS[index];
@@ -48,4 +62,4 @@ function label() {
   return '×' + STEPS[index];
 }
 
-module.exports = { get: get, cycle: cycle, reset: reset, label: label };
+module.exports = { get: get, cycle: cycle, reset: reset, label: label, setActive: setActive, effective: effective };
