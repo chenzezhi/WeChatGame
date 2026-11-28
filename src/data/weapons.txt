@@ -35,10 +35,10 @@ staff  weapon 2     13     2     760  320       0    0        0          44   #c
 staff  weapon 3     15     4     720  340       0    0        0          66   #a45fd8 staff
 staff  weapon 4     17     8     680  360       0    0        0          88   #7a2fc0 staff
 
-heart  heal   1     0      0     0    0         2    0        0          20   #ff6f91 heal
-heart  heal   2     0      0     0    0         4    0        0          40   #ff4d7a heal
-heart  heal   3     0      0     0    0         7    0        0          60   #ff2a63 heal
-heart  heal   4     0      0     0    0         11   0        0          80   #e6004c heal
+heart  heal   1     0      0     0    0         1    0        0          20   #ff6f91 heal
+heart  heal   2     0      0     0    0         2    0        0          40   #ff4d7a heal
+heart  heal   3     0      0     0    0         3    0        0          60   #ff2a63 heal
+heart  heal   4     0      0     0    0         5    0        0          80   #e6004c heal
 
 boost  speed  1     0      0     0    0         0    3        3000       20   #9fd0ff speed
 boost  speed  2     0      0     0    0         0    4.5      3500       40   #6fb0ff speed

@@ -702,23 +702,22 @@ function create(options) {
     return inside(p.x, p.y, trashRect);
   }
 
-  // 画商店外壳：有图就按比例塞进盒子，没图就画一块圆角底板
+  // 画商店外壳：图片按 cover 铺满盒子，超出部分裁掉
   function drawShell(ctx) {
     const s = shop && shop.shell ? shop.shell : null;
     if (!s) return;
 
     if (shellImg && shellImg.image) {
-      const ratio = shellImg.width / shellImg.height;
-      let w = s.w;
-      let h = s.w / ratio;
+      // cover：取两个方向里大的缩放，保证铺满整块盒子
+      const scale = Math.max(s.w / shellImg.width, s.h / shellImg.height);
+      const w = shellImg.width * scale;
+      const h = shellImg.height * scale;
 
-      // 超出盒子就按高度缩
-      if (h > s.h) {
-        h = s.h;
-        w = s.h * ratio;
-      }
-
+      ctx.save();
+      roundRectPath(ctx, s.x, s.y, s.w, s.h, Math.min(s.w, s.h) * 0.04);
+      ctx.clip();
       ctx.drawImage(shellImg.image, s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
+      ctx.restore();
       return;
     }
 
@@ -826,28 +825,37 @@ function create(options) {
     }
   }
 
-  // 画 HUD：银币 / 耐久 / 波次 / 剩余怪 / 发射计数
+  // 画 HUD：只剩银币图标 + 数量，左上角，字号放大
   function drawHud(ctxRef) {
-    const s = battle.status();
-    let text = '银币 ' + s.coins + '   耐久 ' + s.hp + '   第 ' + s.wave + ' 波   怪 ' + s.alive;
-    text += '   发射 ' + s.shots + ' 中 ' + s.hits;
-    if (s.note) text += '  ' + s.note;
-    if (lastLine) text += '   ' + lastLine;
+    const coins = battle.coins;
+    const size = Math.round(fontPx * 1.7);
+    const iconR = size * 0.5;
+    const numText = String(coins);
 
-    ctxRef.font = fontPx + 'px sans-serif';
+    ctxRef.font = 'bold ' + size + 'px sans-serif';
     ctxRef.textAlign = 'left';
-    ctxRef.textBaseline = 'top';
+    ctxRef.textBaseline = 'middle';
 
-    const padX = fontPx * 0.6;
-    const padY = fontPx * 0.4;
-    const tw = ctxRef.measureText(text).width;
+    const padX = size * 0.5;
+    const padY = size * 0.35;
+    const numW = ctxRef.measureText(numText).width;
+    const gap = size * 0.3;
+    const boxW = padX * 2 + iconR * 2 + gap + numW;
+    const boxH = size + padY * 2;
 
+    // 半透明底板，保证任何背景上都看得清
     ctxRef.fillStyle = COLOR.hudBg;
-    roundRectPath(ctxRef, 12, 12, tw + padX * 2, fontPx + padY * 2, fontPx * 0.3);
+    roundRectPath(ctxRef, 12, 12, boxW, boxH, boxH * 0.3);
     ctxRef.fill();
 
+    // 银币图标
+    const iconCx = 12 + padX + iconR;
+    const iconCy = 12 + boxH / 2;
+    drawCoin(ctxRef, iconCx, iconCy, iconR);
+
+    // 数量
     ctxRef.fillStyle = COLOR.hud;
-    ctxRef.fillText(text, 12 + padX, 12 + padY);
+    ctxRef.fillText(numText, iconCx + iconR + gap, iconCy);
   }
 
   // HUD 的文字在 drawHud 里画，不需要额外的上下文变量
