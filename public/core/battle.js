@@ -128,6 +128,8 @@ function Battle(deps) {
     tick: 0,            // 换图计时
     preview: [null, null, null],   // 滚动时显示的三张随机卡
     results: [null, null, null],   // 最终结果
+    reward: 0,                     // 豹子奖励的银币
+    jackpotT: 0,                   // 豹子提示还剩多少毫秒
   };
 
   // 外部回调
@@ -238,8 +240,8 @@ Battle.prototype.placeWeapon = function (cell, sel) {
   // 放牌音效
   if (this.onPlace) this.onPlace(cell);
 
-  // 抽奖拿了一张：剩下两张作废，恢复抽奖前的卡槽
-  if (this.gacha.phase === 'result') this._closeGacha();
+  // 抽奖拿了一张：剩下两张作废，回到宝箱界面
+  if (this.gacha.phase === 'result') this._backToChests();
 
   return true;
 };
@@ -490,6 +492,10 @@ Battle.prototype.sellCard = function (cell) {
   const price = this.sellPrice(cell.card.def);
   this.coins += price;
   cell.card = null;
+
+  // 抽奖结果里卖掉一张，同样算「拿走」，回到宝箱界面
+  if (this.gacha.phase === 'result') this._backToChests();
+
   return price;
 };
 
@@ -653,6 +659,16 @@ Battle.prototype.update = function (dt) {
     }
   }
   if (this.player) this.player.speedMul = this.speedBoost.mul;
+
+  // 豹子提示：停 2 秒后回到宝箱界面
+  if (this.gacha.phase === 'jackpot') {
+    this.gacha.jackpotT -= dt;
+    if (this.gacha.jackpotT <= 0) {
+      this.gacha.jackpotT = 0;
+      this.gacha.phase = 'chests';
+      this.gacha.results = [null, null, null];
+    }
+  }
 
   // 抽奖滚动：布阵阶段也在跑
   if (this.gacha.phase === 'rolling') {
@@ -997,6 +1013,35 @@ Battle.prototype._finishRoll = function () {
   const shop = this.shop;
   if (!shop || !shop.slots) return;
 
+  const r = this.gacha.results;
+
+  // 豹子：三张完全一样（同名同等级）→ 不给卡，直接返银币
+  const triple =
+    r[0] && r[1] && r[2] &&
+    r[0].name === r[1].name && r[0].name === r[2].name &&
+    Number(r[0].level) === Number(r[1].level) &&
+    Number(r[0].level) === Number(r[2].level);
+
+  if (triple) {
+    const chest = (this.tpl.chests || [])[this.gacha.tier] || {};
+    const reward = Math.round((chest.price || 0) * 2);
+
+    this.coins += reward;
+    this.gacha.reward = reward;
+    this.gacha.jackpotT = 2000;
+    this.gacha.phase = 'jackpot';
+
+    // 三张卡都不给，槽位清空
+    for (let i = 0; i < shop.slots.length; i++) {
+      const s = shop.slots[i];
+      s.weapon = null;
+      s.level = 0;
+      s.price = 0;
+      s.sold = false;
+    }
+    return;
+  }
+
   for (let i = 0; i < shop.slots.length; i++) {
     const s = shop.slots[i];
     const def = this.gacha.results[i] || null;
@@ -1011,9 +1056,23 @@ Battle.prototype._finishRoll = function () {
   this.gacha.phase = 'result';
 };
 
-// 抽完拿了一张：其余消失，恢复原来的卡槽
-Battle.prototype._closeGacha = function () {
-  this.exitGacha();
+// 拿走一张后：其余两张消失，回到宝箱界面继续抽
+Battle.prototype._backToChests = function () {
+  const shop = this.shop;
+
+  if (shop && shop.slots) {
+    for (let i = 0; i < shop.slots.length; i++) {
+      const s = shop.slots[i];
+      s.weapon = null;
+      s.level = 0;
+      s.price = 0;
+      s.sold = false;
+      s.chest = i;
+    }
+  }
+
+  this.gacha.results = [null, null, null];
+  this.gacha.phase = 'chests';   // 抽奖前的卡槽还留着，点返回才还原
 };
 
 // 当前状态快照，给 HUD 用
