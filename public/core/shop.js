@@ -82,19 +82,19 @@ class Shop {
     this._width = width;
     this._height = height;
 
-    // 外壳宽度：按比例，只缩不拉伸
-    const shellW = width * (c.shellWidthRatio == null ? 1 : c.shellWidthRatio);
+    // 外壳：以高度为准（占屏高比例），宽度按图片比例算，保证一定在屏幕内
     const shellFrame = e.shellFrame || null;
-    const shellScale = shellFrame && shellFrame.w ? shellW / shellFrame.w : 1;
+    const shellH = height * (c.shellHeightRatio == null ? 0.25 : c.shellHeightRatio);
+    const shellScale = shellFrame && shellFrame.h ? shellH / shellFrame.h : 1;
+    const shellW = shellFrame && shellFrame.w ? shellFrame.w * shellScale : width;
 
-    // 外壳高度由图片比例决定
-    const shellH = shellFrame && shellFrame.h ? shellFrame.h * shellScale : 0;
+    // 左上角：给了 x / y 就用它；没给就水平居中、贴着屏幕底部往上留 gap
+    const bottomGap = c.bottomGap || 0;
 
-    // 左上角：给了 x / y 就用它，没给就水平居中 + 用 topRatio
     this.shell = {
       asset: c.shellAsset,
       x: c.x == null ? (width - shellW) / 2 : c.x,
-      y: c.y == null ? height * (c.topRatio == null ? 0.8 : c.topRatio) : c.y,
+      y: c.y == null ? height - shellH - bottomGap : c.y,
       w: shellW,
       h: shellH,
       scale: shellScale,
