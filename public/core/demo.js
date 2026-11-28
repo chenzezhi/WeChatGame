@@ -1,10 +1,12 @@
 'use strict';
 
 /* ==================== 功能 ====================
- * 唯一 demo —— 所有渲染都走同一张表格
+ * 唯一 demo —— 所有静态渲染都走同一张表格
  *
  * 三种渲染器（image / sprite / anim）共用一套数据格式，
  * 表格第一个字段就是 renderer，指定用哪个渲染器。
+ *
+ * 会动的东西（人物）不走表格，由 player-view 单独挂到舞台上。
  * ==============================================*/
 
 /* ==================== 用法 ====================
@@ -33,10 +35,13 @@ const SpriteMap = require('./sprite-map.js');
 const AnimMap = require('./anim-map.js');
 const ImageMap = require('./image-map.js');
 const Board = require('./board.js');
+const BoardText = require('./board-text.js');
+const PlayerView = require('./player-view.js');
 const assets = require('./asset-manager.js');
 const TEMPLATE = require('../config/render.js').template;
 const SHEET = require('../config/assets.js');
 const BOARD = require('../config/board.js');
+const PLAYER = require('../config/player.js');
 
 function start(env) {
   const stage = env.stage;
@@ -64,13 +69,16 @@ function start(env) {
         ),
     ],
     () => {
-      /* ---------- 2. 表格：第 0 行是字段头，下面是数据 ---------- */
-      const table = buildTable(w, h, am, sm);
+      /* ---------- 2. 棋盘：读文本 → 建格子对象 ---------- */
+      const board = createBoard(w, h, sm);
 
-      /* ---------- 3. 表格 → 完整配置数组 ---------- */
+      /* ---------- 3. 表格：第 0 行是字段头，下面是数据 ---------- */
+      const table = buildTable(w, h, am, board);
+
+      /* ---------- 4. 表格 → 完整配置数组 ---------- */
       const list = TableMapper.fill(TEMPLATE, table);
 
-      /* ---------- 4. 预热图片（预热后 render 就是同步的，顺序可控）---------- */
+      /* ---------- 5. 预热图片（预热后 render 就是同步的，顺序可控）---------- */
       const imageUrls = list.filter((c) => c.renderer === 'image').map((c) => c.name);
 
       whenReady(
@@ -86,7 +94,7 @@ function start(env) {
             )
         ),
         () => {
-          /* ---------- 5. 按表格顺序逐行渲染 ---------- */
+          /* ---------- 6. 按表格顺序逐行渲染 ---------- */
           const renderers = {
             image: (cfg) => ImageMap.render(stage, cfg),
             sprite: (cfg) => sm.render(stage, cfg),
@@ -108,6 +116,9 @@ function start(env) {
           }
 
           console.log('[demo] 已渲染 ' + list.length + ' 项');
+
+          /* ---------- 7. 人物：会动的东西不走表格，单独挂 ---------- */
+          if (board) PlayerView.create({ stage: stage, am: am, board: board, config: PLAYER });
         }
       );
     }
@@ -116,8 +127,54 @@ function start(env) {
   if (env.onReady) env.onReady();
 }
 
+// 建立棋盘对象
+// w, h - 画布物理像素尺寸
+// sm - 图集连接器，用来取格子原图尺寸
+// 返回 Board 对象，读不到棋盘时返回 null
+function createBoard(w, h, sm) {
+  // 1. 读文本文件，拿到所有棋盘
+  let list;
+  try {
+    list = BoardText.load(BOARD.file);
+  } catch (err) {
+    console.error('[demo] 棋盘数据读取失败：' + err.message);
+    return null;
+  }
+
+  // 2. 按配置选一块
+  const data = BoardText.pick(list, BOARD.current);
+  if (!data) {
+    console.warn('[demo] 找不到棋盘：' + BOARD.current + '（文件里共 ' + list.length + ' 块）');
+    return null;
+  }
+
+  // 3. 模板补全：具体棋盘只写和模板不一样的部分
+  const cfg = Object.assign({}, BOARD.template, data);
+
+  // 4. 取格子原图尺寸；取不到就让 Board 用 scale 1
+  let frame = null;
+  try {
+    frame = sm.size(cfg.cellAsset);
+  } catch (err) {
+    console.warn('[demo] 取格子尺寸失败：' + err.message);
+  }
+
+  const board = new Board(cfg, { width: w, height: h, frame: frame });
+
+  // 打印棋盘规模，排查时一眼看出读的是哪一块、生成了几个格子
+  console.log(
+    '[demo] 棋盘「' + data.name + '」' + board.colCount + 'x' + board.rowCount +
+      '，格子 ' + board.cells.length + ' 个'
+  );
+
+  return board;
+}
+
 // 构造表格：只有这里需要改画面内容
-function buildTable(w, h, am, sm) {
+// w, h - 画布物理像素尺寸
+// am - 动画连接器，用来取动画尺寸算 scale
+// board - 棋盘对象，为 null 时不出格子
+function buildTable(w, h, am, board) {
   // 按「目标高度」反算 scale，素材尺寸未知时退回 1
   const scaleFor = (name, targetH) => {
     if (!am) return 1;
@@ -128,15 +185,15 @@ function buildTable(w, h, am, sm) {
       return 1;
     }
   };
- 
+
   return [
     'renderer name x y scale gap margin right bottom',
 
     // 背景：整屏平铺一张图
     `image src/assets/mapBg/mb1.jpg 0 0 0.25 n n ${w} ${h}`,
 
-    // 棋盘：格子由 config/board.js 的布局生成
-    ...boardRows(w, h, sm),
+    // 棋盘：格子由 boards.txt + config/board.js 生成
+    ...(board ? board.toTable() : []),
 
     // 精灵动画 1：nf1，放在左侧
     // `anim nf1 ${w * 0.2} ${h * 0.2} ${scaleFor('nf1', h * 0.12)}`,
@@ -144,27 +201,6 @@ function buildTable(w, h, am, sm) {
     // 精灵动画 2：nf2，放在右侧
     // `anim nf2 ${w * 0.6} ${h * 0.2} ${scaleFor('nf2', h * 0.12)}`,
   ];
-}
-
-// 生成棋盘的渲染行
-// w, h - 画布物理像素尺寸
-// sm - 图集连接器，用来取格子原图尺寸
-// 返回表格行数组
-function boardRows(w, h, sm) {
-  // 取格子原图尺寸；取不到就让 Board 用 scale 1
-  let frame = null;
-  try {
-    frame = sm.size(BOARD.cellSprite);
-  } catch (err) {
-    console.warn('[demo] 取格子尺寸失败：' + err.message);
-  }
-
-  const board = new Board(BOARD, { width: w, height: h, frame: frame });
-
-  // 打印棋盘规模，排查时一眼看出生成了几个格子
-  console.log('[demo] 棋盘 ' + board.colCount + 'x' + board.rowCount + '，格子 ' + board.cells.length + ' 个');
-
-  return board.toTable();
 }
 
 // 等所有任务完成后再执行（任务 = 一个接收 next 回调的函数）
