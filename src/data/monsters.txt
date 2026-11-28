@@ -1,0 +1,10 @@
+# 怪物表
+#
+# name   - 怪物名，波次表靠它引用
+# hp     - 血量
+# speed  - 移动速度，单位 px/秒
+# damage - 走到法阵时扣掉的耐久
+# asset  - 怪物素材：图集序号 / 图集名字 / 图片路径
+
+name  hp speed damage asset
+slime 30 70    1      30

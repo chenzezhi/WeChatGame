@@ -1,0 +1,11 @@
+# 波次表
+#
+# wave    - 第几波，从 1 开始
+# count   - 这一波生成多少只
+# gapMs   - 两只之间的间隔，单位毫秒
+# monster - 用怪物表里的哪个名字
+
+wave count gapMs monster
+1    3     1500  slime
+2    5     1200  slime
+3    8     900   slime
