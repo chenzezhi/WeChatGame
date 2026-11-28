@@ -372,26 +372,11 @@ function create(options) {
     // 1. 篝火
     drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
 
-    // 2. 人物位置，用来判断哪些格子的武器要让人物「压住」
-    const p = battle.player ? battle.player.position() : null;
-    const hideR = board.cellW * 0.55;
-
-    // 3. 格子上的武器
+    // 2. 格子上的武器（人物走覆盖层上层，所以这里不用管遮挡）
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (!cell.card || !cell.card.def) continue;
-
-      const ccx = cell.x + cell.w / 2;
-      const ccy = cell.y + cell.h / 2;
-
-      // 人物站在这格上：武器不画，视觉上就是人物在上面
-      if (p) {
-        const dx = p.x + board.cellW / 2 - ccx;
-        const dy = p.y + board.cellH / 2 - ccy;
-        if (Math.sqrt(dx * dx + dy * dy) < hideR) continue;
-      }
-
-      drawWeapon(ctx, cell.card.def, ccx, ccy, cardSize);
+      drawWeapon(ctx, cell.card.def, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
     }
 
     // 4. 商店槽位里的武器（卖掉的槽位不画）
@@ -421,10 +406,11 @@ function create(options) {
       ctx.fillRect(shop.shell.x, shop.shell.y, shop.shell.w, shop.shell.h);
     }
 
-    // 8. 两个按钮
+    // 8. 两个按钮（刷新价格每次会涨，实时读）
     if (battle.state === 'build') {
-      drawButton(ctx, refreshButton, COLOR.refreshBtn, battle.coins >= refreshButton.cost);
-      drawButton(ctx, fightButton, COLOR.fightBtn, true);
+      const rp = battle.refreshPrice();
+      drawButton(ctx, refreshButton, COLOR.refreshBtn, rp, battle.coins >= rp);
+      drawButton(ctx, fightButton, COLOR.fightBtn, null, true);
     }
 
     // 9. HUD
@@ -432,10 +418,11 @@ function create(options) {
   }
 
   // 画一个按钮：左边文字，右边「银币图标 + 价格」
-  // btn - { x, y, w, h, label, cost }
+  // btn - { x, y, w, h, label }
   // bg - 底色
+  // cost - 要显示的价格，null 表示不显示
   // affordable - 钱够不够，不够就把价格画成红色
-  function drawButton(ctx, btn, bg, affordable) {
+  function drawButton(ctx, btn, bg, cost, affordable) {
     roundRectPath(ctx, btn.x, btn.y, btn.w, btn.h, btn.h * 0.25);
     ctx.fillStyle = bg;
     ctx.fill();
@@ -452,8 +439,8 @@ function create(options) {
     ctx.fillText(btn.label, btn.x + pad, btn.y + btn.h / 2);
 
     // 右边：银币图标 + 数字
-    if (btn.cost) {
-      const numText = String(btn.cost);
+    if (cost) {
+      const numText = String(cost);
       ctx.font = fontSize + 'px sans-serif';
       const numW = ctx.measureText(numText).width;
 
@@ -523,8 +510,8 @@ function create(options) {
           lastLine = '槽位空了';
           return false;
         }
-        battle.selectedWeapon = slot.weapon.name;
-        lastLine = '选中 ' + slot.weapon.name;
+        battle.selectSlot(slot);
+        lastLine = '选中 ' + slot.weapon.name + ' ' + slot.level + ' 级（' + slot.price + '）';
         return true;
       }
     }
@@ -535,7 +522,7 @@ function create(options) {
       if (!inside(x, y, cell)) continue;
 
       const before = cell.card ? cell.card.level : 0;
-      const ok = battle.placeWeapon(cell, battle.selectedWeapon);
+      const ok = battle.placeWeapon(cell, battle.selected);
       if (!ok) {
         lastLine = cell.card ? '合不了（不同类/满级/没钱）' : '放不了（没钱）';
       } else if (before) {
