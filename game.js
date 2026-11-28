@@ -70,13 +70,18 @@ function paintBackground(cax, stage) {
 function startLoop(stage) {
   // 每帧回调的登记处，人物等会动的东西挂在这里
   var Ticker = require('./public/core/ticker.js');
+  // 原生画布覆盖层：篝火 / 怪物 / 子弹 / 武器 / HUD 都在这里画
+  var Overlay = require('./public/core/overlay.js');
 
   function frame() {
     // 先推进逻辑：会动的东西在这一步改坐标
     Ticker.tick();
 
-    // 再提交这一帧
+    // 再提交这一帧（cax 会清屏并重画静态内容）
     stage.update();
+
+    // 最后盖一层原生绘制，不会被 cax 清掉
+    Overlay.paint(stage);
 
     // 请求下一帧，形成循环
     requestAnimationFrame(frame);
