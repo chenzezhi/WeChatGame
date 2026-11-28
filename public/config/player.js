@@ -35,4 +35,11 @@ module.exports = {
   sizeRatio: 0.8,
   offsetX: 0,
   offsetY: 0,
+
+  /* ★ 插槽 3：跳跃动画
+   * jumpMs     - 一下跳多久，单位毫秒
+   * jumpHeight - 跳多高，占人物高度的比例
+   */
+  jumpMs: 220,
+  jumpHeight: 0.35,
 };

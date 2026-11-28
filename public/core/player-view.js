@@ -62,6 +62,9 @@ function create(options) {
     return null;
   }
 
+  // 跳跃时长从配置里补进去（player.txt 只放运动数据）
+  if (cfg.jumpMs) player.jumpMs = cfg.jumpMs;
+
   // 显示高度 = 格子高 × 比例，单位 px
   const showH = board.cellH * (cfg.sizeRatio == null ? 0.8 : cfg.sizeRatio);
 
@@ -121,7 +124,9 @@ function create(options) {
     const pos = player.position();
 
     const dx = pos.x + (board.cellW - w) / 2 + (cfg.offsetX || 0);
-    const dy = pos.y + (board.cellH - showH) + (cfg.offsetY || 0);
+    // 到格时往上抬一下，落回原位：jumpRatio 是 0~1~0 的正弦曲线
+    const jump = player.jumpRatio * showH * (cfg.jumpHeight == null ? 0.35 : cfg.jumpHeight);
+    const dy = pos.y + (board.cellH - showH) + (cfg.offsetY || 0) - jump;
 
     ctx.drawImage(atlas.image, r[0], r[1], r[2], r[3], dx, dy, w, showH);
   }, LAYER);

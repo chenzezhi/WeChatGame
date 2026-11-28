@@ -496,15 +496,16 @@ Battle.prototype._fireFrom = function (cell) {
 Battle.prototype.update = function (dt) {
   this._time += dt;
 
-  // 人物刚踏进一个格子：这格有武器就发一轮
+  // 只有战斗中才推进一切；布阵和结束都直接返回
+  if (this.state !== 'battle') return;
+
+  // 1. 人物刚踏进一个格子：这格有武器就发一轮
   // 只在「到格」这一瞬间触发，不会在格子之间重复开火
   if (this.player) {
     if (this.player.entered && this.player.current && this.player.current.card) {
       this._fireFrom(this.player.current);
     }
   }
-
-  if (this.state !== 'battle') return;
 
   // 1. 按间隔生成
   if (this._plan.length) {
@@ -594,6 +595,32 @@ Battle.prototype.update = function (dt) {
     this.bullets = [];
     if (this.onWaveEnd) this.onWaveEnd(this.wave);
   }
+};
+
+// 重新开始一局：清空棋盘上的武器，数值和波次全部回到开局
+Battle.prototype.restart = function () {
+  this.coins = this.tpl.coins || 0;
+  this.hp = this.tpl.cellHp || 0;
+  this.wave = 0;
+  this.state = 'build';
+
+  this.monsters = [];
+  this.bullets = [];
+  this._plan = [];
+  this._spawnTimer = 0;
+  this._time = 0;
+
+  this.refreshCount = 0;
+  this.selected = null;
+
+  // 棋盘上的武器全部清掉
+  if (this.board && this.board.cells) {
+    for (let i = 0; i < this.board.cells.length; i++) {
+      this.board.cells[i].card = null;
+    }
+  }
+
+  this.fillShop();
 };
 
 // 当前状态快照，给 HUD 用

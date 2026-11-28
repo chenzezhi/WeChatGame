@@ -95,6 +95,20 @@ class Player {
     this.i = 0;      // 当前在路线上的第几个格子
     this.t = 0;      // 段内进度，0 到 1
     this.pause = 0;  // 还要停留多少毫秒
+
+    // 刚踏进格子的标记：只在一帧为 true，battle 靠它决定何时开火
+    this.entered = false;
+
+    // 跳跃动画：计时（毫秒）与时长
+    this.jumpT = 99999;
+    this.jumpMs = cfg.jumpMs || 220;
+  }
+
+  // 跳跃动画的抬升比例 0~1：0 在地上，1 在最高点
+  get jumpRatio() {
+    const ms = this.jumpMs || 1;
+    if (this.jumpT >= ms) return 0;
+    return Math.sin(Math.PI * (this.jumpT / ms));
   }
 
   // 当前所在格子
@@ -116,6 +130,10 @@ class Player {
   // 推进时间
   // dt - 距上一帧的毫秒数
   update(dt) {
+    // 每帧先清标记，只有真到格时才重新置 true
+    this.entered = false;
+    this.jumpT += dt;
+
     if (!this.route.length) return;
 
     // 还在停留：先扣停留时间，扣完这一帧就不走了
@@ -132,6 +150,10 @@ class Player {
     while (this.t >= 1) {
       this.t -= 1;
       this.i = (this.i + 1) % this.route.length;
+
+      // 到格：标记一次，并开始跳一下
+      this.entered = true;
+      this.jumpT = 0;
 
       // 到站停留
       if (this.pauseMs > 0) {

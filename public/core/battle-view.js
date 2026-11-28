@@ -379,12 +379,13 @@ function create(options) {
       drawWeapon(ctx, cell.card.def, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
     }
 
-    // 4. 商店槽位里的武器（卖掉的槽位不画）
+    // 4. 商店槽位里的武器（卖掉的槽位不画），每格带一个价格
     if (shop && shop.slots && battle.state === 'build') {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
         if (slot.sold || !slot.weapon) continue;
-        drawWeapon(ctx, slot.weapon, slot.x + slot.w / 2, slot.y + slot.h / 2, slotIconSize);
+        drawWeapon(ctx, slot.weapon, slot.x + slot.w / 2, slot.y + slot.h * 0.42, slotIconSize);
+        drawSlotPrice(ctx, slot);
       }
     }
 
@@ -415,6 +416,32 @@ function create(options) {
 
     // 9. HUD
     drawHud(ctx);
+  }
+
+  // 画槽位下方的价格：银币图标 + 数字，钱不够变红
+  // slot - 商店槽位 { x, y, w, h, price }
+  function drawSlotPrice(ctx, slot) {
+    if (!slot.price) return;
+
+    const afford = battle.coins >= slot.price;
+    const fontSize = Math.max(10, Math.round(slot.h * 0.17));
+    const iconR = fontSize * 0.45;
+    const numText = String(slot.price);
+
+    ctx.font = 'bold ' + fontSize + 'px sans-serif';
+    ctx.textBaseline = 'middle';
+    const numW = ctx.measureText(numText).width;
+
+    const gap = fontSize * 0.3;
+    const totalW = iconR * 2 + gap + numW;
+    const startX = slot.x + (slot.w - totalW) / 2;
+    const y = slot.y + slot.h * 0.84;
+
+    drawCoin(ctx, startX + iconR, y, iconR);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = afford ? COLOR.btnText : COLOR.btnTextOff;
+    ctx.fillText(numText, startX + iconR * 2 + gap, y);
   }
 
   // 画一个按钮：左边文字，右边「银币图标 + 价格」
