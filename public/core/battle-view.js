@@ -601,7 +601,23 @@ function create(options) {
       drawBadge(ctx, badgeTextOf(cell.card.def), cell.x + cell.w * 0.86, cell.y + cell.h * 0.9, board.cellW * 0.13);
     }
 
-    // 4. 商店：外壳 → 槽位底图 → 卡牌图标 → 价格 → 垃圾桶
+    // 5. 怪物
+    for (let i = 0; i < battle.monsters.length; i++) {
+      const m = battle.monsters[i];
+      drawMonster(ctx, m.x, m.y, monsterSize, m.maxHp ? m.hp / m.maxHp : 1, m.rec.kind);
+    }
+
+    // 6. 子弹：长得跟武器一样；瞄着目标时朝目标，目标没了就按飞行方向
+    for (let i = 0; i < battle.bullets.length; i++) {
+      const b = battle.bullets[i];
+      const angle = b.target && b.target.alive
+        ? Math.atan2(b.target.y + (b.oy || 0) - b.y, b.target.x + (b.ox || 0) - b.x)
+        : Math.atan2(b.vy || 0, b.vx || 1);
+      drawWeaponAimed(ctx, b.def, b.x, b.y, bulletSize, angle);
+    }
+
+    // 12. 商店最后画：外壳 → 槽位 → 卡牌 → 垃圾桶（保证在最上层）
+    // 商店：外壳 → 槽位底图 → 卡牌图标 → 价格 → 垃圾桶
     if (shop && shop.shell) {
       const build = battle.state === 'build';
 
@@ -667,23 +683,6 @@ function create(options) {
       }
     }
 
-    // 5. 怪物
-    for (let i = 0; i < battle.monsters.length; i++) {
-      const m = battle.monsters[i];
-      drawMonster(ctx, m.x, m.y, monsterSize, m.maxHp ? m.hp / m.maxHp : 1, m.rec.kind);
-    }
-
-    // 6. 子弹：长得跟武器一样；瞄着目标时朝目标，目标没了就按飞行方向
-    for (let i = 0; i < battle.bullets.length; i++) {
-      const b = battle.bullets[i];
-      const angle = b.target && b.target.alive
-        ? Math.atan2(b.target.y + (b.oy || 0) - b.y, b.target.x + (b.ox || 0) - b.x)
-        : Math.atan2(b.vy || 0, b.vx || 1);
-      drawWeaponAimed(ctx, b.def, b.x, b.y, bulletSize, angle);
-    }
-
-    // 外壳再画一遍：保证它在棋盘、子弹、怪物之上，不被任何东西盖住
-    if (battle.state === 'build' && shop && shop.shell) drawShell(ctx);
 
     // 世界内容画完，恢复屏幕坐标，按钮和 HUD 不跟着缩
     ctx.restore();
