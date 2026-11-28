@@ -94,7 +94,6 @@ function Battle(deps) {
   this.cy = this.board ? this.board.originY + this.board.height / 2 : this.height / 2;
 
   this._time = 0;          // 累计毫秒
-  this._lastCell = -1;     // 人物上一帧所在的格子序号
   this._spawnLeft = 0;     // 这一波还剩几只没生成
   this._spawnTimer = 0;    // 距离下一只生成还要多久，单位毫秒
   this._fireTimer = 0;     // 开火冷却计时

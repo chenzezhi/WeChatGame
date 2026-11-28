@@ -3,11 +3,12 @@
 /* ==================== 功能 ====================
  * BattleView —— 战斗的画面接线
  *
- * 把 Battle 算出来的东西画到舞台上：槽位武器、格子武器卡、子弹、怪物、
- * HUD、开始按钮、商店遮罩，并把一次点击派给按钮 / 槽位 / 格子。
+ * 每帧：推进 Battle 逻辑 → 把结果画出来。
+ * 负责武器图标、子弹、怪物、HUD、开始按钮、商店遮罩，
+ * 并把一次点击派给按钮 / 槽位 / 格子。
  *
- * 所有占位图都用画布方块画，不依赖任何素材；有美术后把 makeRect 换成
- * sm.add(...) 即可，坐标一行都不用改。
+ * 现在所有图形都是画布直接画的简单形状（箭、圆点、圆块），不依赖素材。
+ * 有美术后把这些 makeXxx 换成 sm.add(...) 即可，坐标一行都不用改。
  * ==============================================*/
 
 /* ==================== 用法 ====================
@@ -16,20 +17,19 @@
  * ==============================================*/
 
 /* ==================== 注意 ====================
- * 坐标单位 px。对象都复用（visible 控制显隐），不增不删，
- * 因为这个版本的 cax 没有节点 remove。
+ * **每帧必须先调用 battle.update(dt)**，否则怪物不生成、人物不开火。
  *
- * 点击有没有被收到、落在哪里，全部显示在屏幕左上角的 HUD 上，
- * 手机上不开控制台也能判断问题出在「没收到」还是「没命中」。
+ * 坐标单位 px。对象都复用（visible 控制显隐），因为这个版本的 cax 没有节点 remove。
+ * 点击有没有被收到、落在哪，显示在左上角 HUD 上，不开控制台也能判断。
  * ==============================================*/
 
 const cax = require('../../libs/cax.js');
 const Ticker = require('./ticker.js');
 
-// 占位色板：没有美术时用颜色区分东西
+// 占位色板
 const COLOR = {
-  card: '#4a7ebb',      // 格子上的武器卡
-  slot: '#3f8a5a',      // 商店槽位里的武器
+  card: '#e8e0c0',      // 武器图标底色
+  arrow: '#38404f',     // 武器图标的箭头
   bullet: '#f0c040',    // 子弹
   monster: '#a03a3a',   // 怪物
   button: '#8b2f2f',    // 按钮
@@ -37,12 +37,49 @@ const COLOR = {
   mark: '#ffffff',      // 点击标记
 };
 
-// 创建一块纯色方块
+// 画一块纯色方块
 // w, h - 尺寸，单位 px
 // color - 填充色
 // 返回 cax.Rect
 function makeRect(w, h, color) {
   return new cax.Rect(w, h, { fillStyle: color });
+}
+
+// 画一个向上的箭头，当武器图标用
+// size - 箭头边长，单位 px
+// color - 填充色
+// 返回 cax.Polygon，取不到 Polygon 时退回方块
+function makeArrow(size, color) {
+  const s = size;
+  const points = [
+    [s * 0.5, 0],
+    [s, s * 0.42],
+    [s * 0.68, s * 0.42],
+    [s * 0.68, s],
+    [s * 0.32, s],
+    [s * 0.32, s * 0.42],
+    [0, s * 0.42],
+  ];
+
+  try {
+    return new cax.Polygon(points, { fillStyle: color });
+  } catch (err) {
+    console.warn('[battle-view] Polygon 不可用，退回方块：' + err.message);
+    return makeRect(size, size, color);
+  }
+}
+
+// 画一个圆点（子弹、怪物都用它）
+// r - 半径，单位 px
+// color - 填充色
+// 返回 cax.Circle，取不到时退回方块
+function makeDot(r, color) {
+  try {
+    return new cax.Circle(r, { fillStyle: color });
+  } catch (err) {
+    console.warn('[battle-view] Circle 不可用，退回方块：' + err.message);
+    return makeRect(r * 2, r * 2, color);
+  }
 }
 
 // 创建战斗视图
@@ -51,7 +88,6 @@ function makeRect(w, h, color) {
 function create(options) {
   const o = options || {};
   const stage = o.stage;
-  const sm = o.sm;
   const board = o.board;
   const shop = o.shop;
   const battle = o.battle;
@@ -61,30 +97,36 @@ function create(options) {
     return null;
   }
 
-  // 各种占位的尺寸，单位 px
-  const cardSize = board.cellW * 0.5;
-  const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.5;
-  const bulletSize = board.cellW * 0.16;
-  const monsterSize = board.cellW * 0.55;
+  // 尺寸，单位 px
+  const cardSize = board.cellW * 0.42;
+  const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.42;
+  const bulletR = board.cellW * 0.06;
+  const monsterR = board.cellW * 0.22;
 
   // 复用池
-  const cards = {};            // 格子序号 → 方块
+  const cards = {};            // 格子序号 → 武器图标
   const monsterSprites = [];
   const bulletSprites = [];
   const slotSprites = [];
 
-  /* ---------- 1. 商店槽位里画武器（方块占位） ---------- */
+  /* ---------- 1. 商店槽位里的武器图标 ---------- */
   if (shop && shop.slots) {
     const weapon = battle.weapons[0] || null;
     for (let i = 0; i < shop.slots.length; i++) {
       const slot = shop.slots[i];
-      const sp = makeRect(slotIconSize, slotIconSize, COLOR.slot);
-      sp.x = slot.x + (slot.w - slotIconSize) / 2;
-      sp.y = slot.y + (slot.h - slotIconSize) / 2;
-      stage.add(sp);
-      slotSprites.push(sp);
 
-      // 槽位上记下它卖的是哪把武器
+      // 图标底下垫一块浅色底，让箭头看得清
+      const bg = makeRect(slotIconSize * 1.3, slotIconSize * 1.3, COLOR.card);
+      bg.x = slot.x + (slot.w - slotIconSize * 1.3) / 2;
+      bg.y = slot.y + (slot.h - slotIconSize * 1.3) / 2;
+      stage.add(bg);
+
+      const icon = makeArrow(slotIconSize, COLOR.arrow);
+      icon.x = slot.x + (slot.w - slotIconSize) / 2;
+      icon.y = slot.y + (slot.h - slotIconSize) / 2;
+      stage.add(icon);
+
+      slotSprites.push(icon);
       slot.weaponName = weapon ? weapon.name : null;
     }
   }
@@ -99,14 +141,13 @@ function create(options) {
     stage.add(mask);
   }
 
-  /* ---------- 3. 开始战斗按钮：放在卡牌槽下面 ---------- */
+  /* ---------- 3. 开始战斗按钮：卡牌槽下面 ---------- */
   const buttonW = board.cellW * 1.8;
   const buttonH = board.cellH * 0.5;
   const slot0 = shop && shop.slots && shop.slots[0] ? shop.slots[0] : null;
   const slotY = slot0 ? slot0.y : battle.height * 0.82;
   const slotH = slot0 ? slot0.h : 0;
 
-  // 默认在槽位下方，超出屏幕就贴底
   let by = slotY + slotH + board.cellH * 0.12;
   by = Math.min(by, battle.height - buttonH - 8);
 
@@ -130,10 +171,10 @@ function create(options) {
   buttonRect.y = button.y;
   stage.add(buttonRect);
 
-  /* ---------- 4. HUD：状态 + 最近一次点击 ---------- */
+  /* ---------- 4. HUD + 点击标记 ---------- */
   let hud = null;
   let lastLine = '等待点击';
-  let lastTap = null;      // { x, y, at }
+  let lastTap = null;
 
   try {
     hud = new cax.Text('', { font: '22px sans-serif', color: '#ffffff' });
@@ -142,18 +183,16 @@ function create(options) {
     stage.add(hud);
   } catch (err) {
     console.warn('[battle-view] HUD 创建失败：' + err.message);
-    hud = null;
   }
 
-  // 点击标记：一个小白块，跟着最后一次点击闪一下
   const mark = makeRect(24, 24, COLOR.mark);
   mark.visible = false;
   stage.add(mark);
 
-  // 更新 HUD 文字
+  // 更新 HUD
   function syncHud() {
     const s = battle.status();
-    let text = '银币 ' + s.coins + ' 耐久 ' + s.hp + ' 第 ' + s.wave + ' 波';
+    let text = '银币 ' + s.coins + ' 耐久 ' + s.hp + ' 第 ' + s.wave + ' 波  怪 ' + s.alive;
 
     if (lastTap) text += '  |  点击 ' + Math.round(lastTap.x) + ',' + Math.round(lastTap.y);
     text += '  |  ' + lastLine;
@@ -166,7 +205,6 @@ function create(options) {
       }
     }
 
-    // 标记显示 400ms
     if (lastTap && Date.now() - lastTap.at < 400) {
       mark.visible = true;
       mark.x = lastTap.x - 12;
@@ -177,7 +215,7 @@ function create(options) {
   }
 
   /* ---------- 5. 每帧同步 ---------- */
-  // 格子上有武器就显示一块
+  // 格子上的武器图标
   function syncCards() {
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
@@ -189,7 +227,7 @@ function create(options) {
       }
 
       if (!sp) {
-        sp = makeRect(cardSize, cardSize, COLOR.card);
+        sp = makeArrow(cardSize, COLOR.arrow);
         sp.x = cell.x + (cell.w - cardSize) / 2;
         sp.y = cell.y + (cell.h - cardSize) / 2;
         cards[i] = sp;
@@ -199,12 +237,12 @@ function create(options) {
     }
   }
 
-  // 怪物：按数量补池子
+  // 怪物
   function syncMonsters() {
     const list = battle.monsters;
 
     while (monsterSprites.length < list.length) {
-      const sp = makeRect(monsterSize, monsterSize, COLOR.monster);
+      const sp = makeDot(monsterR, COLOR.monster);
       sp.visible = false;
       monsterSprites.push(sp);
       stage.add(sp);
@@ -218,17 +256,17 @@ function create(options) {
         continue;
       }
       sp.visible = true;
-      sp.x = m.x - monsterSize / 2;
-      sp.y = m.y - monsterSize / 2;
+      sp.x = m.x - monsterR;
+      sp.y = m.y - monsterR;
     }
   }
 
-  // 子弹：按数量补池子
+  // 子弹
   function syncBullets() {
     const list = battle.bullets;
 
     while (bulletSprites.length < list.length) {
-      const sp = makeRect(bulletSize, bulletSize, COLOR.bullet);
+      const sp = makeDot(bulletR, COLOR.bullet);
       sp.visible = false;
       bulletSprites.push(sp);
       stage.add(sp);
@@ -242,30 +280,28 @@ function create(options) {
         continue;
       }
       sp.visible = true;
-      sp.x = b.x - bulletSize / 2;
-      sp.y = b.y - bulletSize / 2;
+      sp.x = b.x - bulletR;
+      sp.y = b.y - bulletR;
     }
   }
 
-  // 遮罩 + 按钮显隐
+  // 遮罩与按钮显隐
   function syncState() {
     const fighting = battle.state !== 'build';
     if (mask) mask.visible = fighting;
     if (buttonRect) buttonRect.visible = !fighting;
   }
 
-  /* ---------- 6. 点击派活：按钮 → 槽位 → 格子 ---------- */
+  /* ---------- 6. 点击派活 ---------- */
   // 点是否落在矩形里
-  // x, y - 点击坐标；r - { x, y, w, h }
   function inside(x, y, r) {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
-  // 把一次点击派出去
+  // 把一次点击派给按钮 / 槽位 / 格子
   // x, y - 画布物理像素坐标
   // 返回 true 表示有人接手了
   function handleTap(x, y) {
-    // 记下这一下，HUD 会显示出来
     lastTap = { x: x, y: y, at: Date.now() };
     lastLine = '未命中';
 
@@ -275,7 +311,7 @@ function create(options) {
       return true;
     }
 
-    // 2. 商店槽位：选中这把武器
+    // 2. 商店槽位
     if (shop && shop.slots) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
@@ -287,7 +323,7 @@ function create(options) {
       }
     }
 
-    // 3. 棋盘格子：放武器
+    // 3. 棋盘格子
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (inside(x, y, cell)) {
@@ -300,8 +336,9 @@ function create(options) {
     return false;
   }
 
-  // 每帧同步
-  Ticker.onFrame(function () {
+  /* ---------- 7. 每帧：先推进逻辑，再同步画面 ---------- */
+  Ticker.onFrame(function (dt) {
+    battle.update(dt);      // ← 没有这一行，怪物永远不生成、人物永远不开火
     syncCards();
     syncMonsters();
     syncBullets();
@@ -309,7 +346,7 @@ function create(options) {
     syncHud();
   });
 
-  // 波次与失败的日志
+  // 波次日志
   battle.onWaveStart = function (n) {
     console.log('[battle] 第 ' + n + ' 波开始');
   };
