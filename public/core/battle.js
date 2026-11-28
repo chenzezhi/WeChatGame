@@ -44,13 +44,16 @@ function Monster(rec, x, y, tx, ty, hpMul) {
 }
 
 // 单颗子弹
-// def - 武器表里那一行（含 level / color / kind）
+// def - 武器表里那一行（含 level / color / kind / damage）
 // x, y - 出生坐标
+// tx, ty - 目标偏移量，多发时错开落点，看起来才像一束
 // target - 追踪的怪物对象
-function Bullet(def, x, y, target) {
+function Bullet(def, x, y, target, ox, oy) {
   this.def = def;
   this.x = x;
   this.y = y;
+  this.ox = ox || 0;
+  this.oy = oy || 0;
   this.target = target;
   this.life = 0;
   this.alive = true;
@@ -452,22 +455,38 @@ Battle.prototype._nearestMonster = function (x, y) {
   return best;
 };
 
-// 从某个格子朝最近的怪物发一颗子弹
+// 从某个格子朝最近的怪物发一轮子弹
+// cell - 有武器的格子
+// 返回本次发了几发
 Battle.prototype._fireFrom = function (cell) {
   const card = cell.card;
-  if (!card || !card.def) return;
+  if (!card || !card.def) return 0;
 
   const def = card.def;
-  if (this._time - (cell.lastFire || -99999) < (def.cdMs || 0)) return;
-
   const cx = cell.x + cell.w / 2;
   const cy = cell.y + cell.h / 2;
 
   const target = this._nearestMonster(cx, cy);
-  if (!target) return;   // 屏幕上没怪就不开火
+  if (!target) return 0;   // 屏幕上没怪就不开火
+
+  // 这一级一次发几发：1 / 2 / 4 / 8
+  const shots = Math.max(1, def.shots || 1);
+  const ring = cell.w * 0.16;   // 多发时围绕中心错开，单位 px
+
+  for (let i = 0; i < shots; i++) {
+    const a = (Math.PI * 2 * i) / shots;
+    const ox = Math.cos(a) * ring;
+    const oy = Math.sin(a) * ring;
+
+    // 落点也错开一点，否则多发完全重叠看着像一发
+    const tx = Math.cos(a) * (this.tpl.hitRadius || 20) * 0.6;
+    const ty = Math.sin(a) * (this.tpl.hitRadius || 20) * 0.6;
+
+    this.bullets.push(new Bullet(def, cx + ox, cy + oy, target, tx, ty));
+  }
 
   cell.lastFire = this._time;
-  this.bullets.push(new Bullet(def, cx, cy, target));
+  return shots;
 };
 
 /* ---------------- 主循环 ---------------- */
@@ -477,10 +496,12 @@ Battle.prototype._fireFrom = function (cell) {
 Battle.prototype.update = function (dt) {
   this._time += dt;
 
-  // 人物所在格子上有武器就尝试开火
-  if (this.player && this.player.current) {
-    const cell = this.player.current;
-    if (cell && cell.card) this._fireFrom(cell);
+  // 人物刚踏进一个格子：这格有武器就发一轮
+  // 只在「到格」这一瞬间触发，不会在格子之间重复开火
+  if (this.player) {
+    if (this.player.entered && this.player.current && this.player.current.card) {
+      this._fireFrom(this.player.current);
+    }
   }
 
   if (this.state !== 'battle') return;
@@ -534,8 +555,8 @@ Battle.prototype.update = function (dt) {
       continue;
     }
 
-    const dx = t.x - b.x;
-    const dy = t.y - b.y;
+    const dx = t.x + b.ox - b.x;
+    const dy = t.y + b.oy - b.y;
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     const step = (b.def.speed || 0) * (dt / 1000);
 
