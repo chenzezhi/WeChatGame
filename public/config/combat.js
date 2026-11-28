@@ -50,6 +50,7 @@ module.exports = {
      * eliteFrom  - 从第几波开始少量出精英怪
      * bossEvery  - 每几波来一个首领
      */
+    waveClearBase: 10,   // 通关奖励基数：第 1 波给 10，第 2 波 11，第 3 波 12……
     waveBase: 3,
     waveAdd: 1.4,
     hpGrowth: 1.18,

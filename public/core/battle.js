@@ -118,6 +118,7 @@ function Battle(deps) {
   this.shotCount = 0;
   this.hitCount = 0;
   this.fireNote = '';
+  this.lastWaveBonus = 0;   // 最近一次通关奖励了多少银币
 
   // 速度卡效果：乘几、还剩多少毫秒
   this.speedBoost = { mul: 1, left: 0 };
@@ -859,7 +860,7 @@ Battle.prototype.update = function (dt) {
   this.monsters = this.monsters.filter((m) => m.alive);
   this.bullets = this.bullets.filter((b) => b.alive);
 
-  // 5. 这一波打完了：自动刷新商店，回到布阵
+  // 5. 这一波打完了：发通关奖励、刷新商店、回到布阵
   if (!this._plan.length && this.monsters.length === 0) {
     this.state = 'build';
     this.bullets = [];
@@ -867,8 +868,17 @@ Battle.prototype.update = function (dt) {
     this.speedBoost.mul = 1;      // 波次结束速度恢复原样
     this.speedBoost.left = 0;
     if (this.player) this.player.speedMul = 1;
+
+    // 通关奖励：第 1 波 10、第 2 波 11、第 3 波 12……
+    const base = this.tpl.waveClearBase == null ? 10 : this.tpl.waveClearBase;
+    const bonus = base + Math.max(0, this.wave - 1);
+
+    this.coins += bonus;
+    this.lastWaveBonus = bonus;
+    if (this.onCoin) this.onCoin(bonus);   // 这一声不会和别的叠一起
+
     this.fillShop();          // 每波结束免费补满卡槽
-    if (this.onWaveEnd) this.onWaveEnd(this.wave);
+    if (this.onWaveEnd) this.onWaveEnd(this.wave, bonus);
   }
 };
 
