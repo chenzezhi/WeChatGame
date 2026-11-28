@@ -1,161 +1,216 @@
 'use strict';
 
 /* ==================== 功能 ====================
- * BattleView —— 战斗的画面接线
+ * BattleView —— 战斗的画面（原生画布绘制）
  *
- * 每帧：推进 Battle 逻辑 → 把结果画出来。
- * 负责篝火、武器图标、子弹、怪物、HUD、开始按钮、商店遮罩，
- * 并把一次点击派给按钮 / 槽位 / 格子。
+ * 每帧：Ticker 推进 Battle 逻辑 → Overlay 用 Canvas 2D 直接画。
+ * 画的东西：篝火、格子上的武器、怪物、子弹、HUD、开始按钮、商店遮罩。
  *
- * 所有图形都用 Rect / Circle 拼出来，不依赖素材，也不用 Polygon
- * （这个版本的 cax 里 Polygon 构造不报错但画不出来，已验证）。
- * 有美术后把 makeXxx 换成 sm.add(...) 即可，坐标一行都不用改。
+ * 之所以不用 cax 的图形对象：这个版本的 cax 里 Polygon 构造不报错但画不出来，
+ * 复杂形状画不了。cax 继续负责静态内容（背景 / 棋盘 / 商店），
+ * 会动和需要细节的东西全部走这里。
  * ==============================================*/
 
 /* ==================== 用法 ====================
  * const view = BattleView.create({ stage, sm, board, shop, battle, config: COMBAT });
- * view.handleTap(x, y);   // x, y 是画布物理像素
+ * view.handleTap(x, y);   // 画布物理像素坐标
  * ==============================================*/
 
 /* ==================== 注意 ====================
- * **每帧必须先调用 battle.update(dt)**，否则怪物不生成、人物不开火。
- *
- * 坐标单位 px。对象都复用（visible 控制显隐），因为这个版本的 cax 没有节点 remove。
- * 点击有没有被收到、落在哪，显示在左上角 HUD 上，不开控制台也能判断。
+ * 逻辑和绘制分开：battle.update(dt) 挂在 Ticker，绘制挂在 Overlay。
+ * 坐标全部是画布物理像素，和棋盘 / 商店用同一套坐标。
  * ==============================================*/
 
-const cax = require('../../libs/cax.js');
+const Overlay = require('./overlay.js');
 const Ticker = require('./ticker.js');
 
-// 占位色板
+// 色板
 const COLOR = {
-  blade: '#dfe6ef',      // 剑身
-  guard: '#b08a45',      // 剑格
-  hilt: '#6b4a2a',       // 剑柄
-  bullet: '#f0c040',     // 子弹
-  monster: '#a03a3a',    // 怪物身体
-  monsterEye: '#ffe9a8', // 怪物眼睛
-  campStone: '#4a4a52',  // 篝火石圈
-  campFlame: '#e8622a',  // 火焰外圈
-  campInner: '#f6c33a',  // 火焰内芯
-  campLog: '#7a5a34',    // 柴火
-  button: '#8b2f2f',     // 按钮
-  mask: '#12121a',       // 商店遮罩
-  mark: '#ffffff',       // 点击标记
+  blade: '#e6ecf5',
+  bladeEdge: '#38404f',
+  guard: '#c9a14a',
+  hilt: '#6b4a2a',
+  bullet: '#ffd24a',
+  monster: '#a83b3b',
+  monsterDark: '#6e2222',
+  monsterEye: '#fff4c9',
+  campStone: '#4a4a52',
+  campFlame: '#e8622a',
+  campInner: '#f7d24a',
+  campLog: '#7a5433',
+  button: '#8b2f2f',
+  buttonText: '#ffe9c9',
+  hud: '#ffffff',
+  hudBg: 'rgba(0,0,0,0.45)',
+  mask: '#12121a',
+  mark: '#ffffff',
+  hpBack: '#3a1a1a',
+  hpFill: '#e04b4b',
 };
 
-// 画一块纯色方块
-function makeRect(w, h, color) {
-  return new cax.Rect(w, h, { fillStyle: color });
+// 画一个圆角矩形路径
+// ctx - 画布上下文
+// x, y, w, h - 矩形，单位 px
+// r - 圆角半径
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.arcTo(x + w, y, x + w, y + rr, rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+  ctx.lineTo(x + rr, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rr, rr);
+  ctx.lineTo(x, y + rr);
+  ctx.arcTo(x, y, x + rr, y, rr);
+  ctx.closePath();
 }
 
-// 画一个圆
-// r - 半径，单位 px
-function makeCircle(r, color) {
-  return new cax.Circle(r, { fillStyle: color });
-}
-
-// 把多个图形合成一个整体，方便一起移动、一起显隐
-// parts - [{ node, ox, oy }]，ox/oy 是相对整体左上角的偏移
-function group(parts) {
-  return {
-    parts: parts,
-    // 整体左上角摆到 x, y
-    setPos: function (x, y) {
-      for (let i = 0; i < parts.length; i++) {
-        parts[i].node.x = x + parts[i].ox;
-        parts[i].node.y = y + parts[i].oy;
-      }
-    },
-    // 整体显示 / 隐藏
-    setVisible: function (v) {
-      for (let i = 0; i < parts.length; i++) parts[i].node.visible = v;
-    },
-  };
-}
-
-// 画一把剑，当武器图标：剑身 + 剑格 + 剑柄，全用矩形
-// size - 整体高度，单位 px
-// 返回 cax.Rect（只有剑身主体，够认出是武器）
-function makeSword(size) {
-  const s = size;
-  const parts = [];
-
-  // 剑身：竖着的细长条
+// 画一把剑当武器图标（中心点 cx, cy，整体高度 s）
+function drawSword(ctx, cx, cy, s) {
   const bladeW = Math.max(3, s * 0.22);
-  const blade = makeRect(bladeW, s * 0.62, COLOR.blade);
-  parts.push({ node: blade, ox: (s - bladeW) / 2, oy: 0 });
-
-  // 剑格：横着的短条
-  const guardW = s * 0.6;
+  const bladeH = s * 0.52;
+  const guardW = s * 0.56;
   const guardH = Math.max(2, s * 0.1);
-  const guard = makeRect(guardW, guardH, COLOR.guard);
-  parts.push({ node: guard, ox: (s - guardW) / 2, oy: s * 0.62 });
-
-  // 剑柄：短条
   const hiltW = Math.max(2, s * 0.16);
-  const hilt = makeRect(hiltW, s * 0.22, COLOR.hilt);
-  parts.push({ node: hilt, ox: (s - hiltW) / 2, oy: s * 0.72 });
+  const hiltH = s * 0.2;
 
-  return group(parts);
+  const top = cy - s * 0.5;
+
+  ctx.lineWidth = Math.max(1.5, s * 0.05);
+  ctx.strokeStyle = COLOR.bladeEdge;
+
+  // 剑身
+  roundRectPath(ctx, cx - bladeW / 2, top, bladeW, bladeH, bladeW * 0.3);
+  ctx.fillStyle = COLOR.blade;
+  ctx.fill();
+  ctx.stroke();
+
+  // 剑格
+  roundRectPath(ctx, cx - guardW / 2, top + bladeH, guardW, guardH, guardH * 0.4);
+  ctx.fillStyle = COLOR.guard;
+  ctx.fill();
+  ctx.stroke();
+
+  // 剑柄
+  roundRectPath(ctx, cx - hiltW / 2, top + bladeH + guardH, hiltW, hiltH, hiltW * 0.4);
+  ctx.fillStyle = COLOR.hilt;
+  ctx.fill();
+  ctx.stroke();
 }
 
-// 画一个小怪：圆身子 + 两只眼睛 + 两只耳朵
-// size - 整体尺寸，单位 px
-function makeMonster(size) {
-  const s = size;
-  const parts = [];
+// 画一个小怪（中心点 cx, cy，整体尺寸 s）
+// hpRatio - 剩余血量比例 0~1，用来画血条
+function drawMonster(ctx, cx, cy, s, hpRatio) {
+  const r = s * 0.34;
 
-  // 身子：深红圆
-  const bodyR = s * 0.4;
-  const body = makeCircle(bodyR, COLOR.monster);
-  parts.push({ node: body, ox: s * 0.5 - bodyR, oy: s * 0.55 - bodyR });
+  // 两只角
+  ctx.fillStyle = COLOR.monsterDark;
+  for (let i = 0; i < 2; i++) {
+    const dir = i === 0 ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + dir * r * 0.55, cy - r * 0.75);
+    ctx.lineTo(cx + dir * r * 1.05, cy - r * 1.35);
+    ctx.lineTo(cx + dir * r * 0.95, cy - r * 0.55);
+    ctx.closePath();
+    ctx.fill();
+  }
 
-  // 耳朵：两个小方块，让它不像纯圆
-  const ear = Math.max(2, s * 0.14);
-  const l = makeRect(ear, ear, COLOR.monster);
-  const r = makeRect(ear, ear, COLOR.monster);
-  parts.push({ node: l, ox: s * 0.3 - ear / 2, oy: s * 0.18 });
-  parts.push({ node: r, ox: s * 0.7 - ear / 2, oy: s * 0.18 });
+  // 身子
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = COLOR.monster;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, s * 0.05);
+  ctx.strokeStyle = COLOR.monsterDark;
+  ctx.stroke();
 
-  // 眼睛：两个浅黄小圆
-  const eyeR = Math.max(2, s * 0.08);
-  const el = makeCircle(eyeR, COLOR.monsterEye);
-  const er = makeCircle(eyeR, COLOR.monsterEye);
-  parts.push({ node: el, ox: s * 0.38 - eyeR, oy: s * 0.5 - eyeR });
-  parts.push({ node: er, ox: s * 0.62 - eyeR, oy: s * 0.5 - eyeR });
+  // 眼睛
+  const eyeR = Math.max(2, r * 0.26);
+  for (let i = 0; i < 2; i++) {
+    const ex = cx + (i === 0 ? -r * 0.36 : r * 0.36);
+    ctx.beginPath();
+    ctx.arc(ex, cy - r * 0.1, eyeR, 0, Math.PI * 2);
+    ctx.fillStyle = COLOR.monsterEye;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ex, cy - r * 0.05, eyeR * 0.45, 0, Math.PI * 2);
+    ctx.fillStyle = COLOR.monsterDark;
+    ctx.fill();
+  }
 
-  return group(parts);
+  // 嘴
+  ctx.beginPath();
+  ctx.arc(cx, cy + r * 0.42, r * 0.3, Math.PI * 0.15, Math.PI * 0.85);
+  ctx.lineWidth = Math.max(1.2, s * 0.04);
+  ctx.strokeStyle = COLOR.monsterDark;
+  ctx.stroke();
+
+  // 血条：只在小怪头顶
+  if (hpRatio < 1) {
+    const bw = s * 0.8;
+    const bh = Math.max(3, s * 0.08);
+    const bx = cx - bw / 2;
+    const by = cy - r - bh * 3;
+    ctx.fillStyle = COLOR.hpBack;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = COLOR.hpFill;
+    ctx.fillRect(bx, by, bw * Math.max(0, hpRatio), bh);
+  }
 }
 
-// 画一个篝火：柴火 + 石圈 + 两层火
-// size - 整体尺寸，单位 px
-function makeCampfire(size) {
-  const s = size;
-  const parts = [];
+// 画篝火（中心点 cx, cy，整体尺寸 s）
+function drawCampfire(ctx, cx, cy, s) {
+  // 柴火：两根交叉的棕色条
+  ctx.save();
+  ctx.translate(cx, cy + s * 0.3);
+  ctx.fillStyle = COLOR.campLog;
+  for (let i = 0; i < 2; i++) {
+    ctx.save();
+    ctx.rotate((i === 0 ? -1 : 1) * 0.35);
+    roundRectPath(ctx, -s * 0.34, -s * 0.06, s * 0.68, s * 0.12, s * 0.05);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
 
-  // 柴火：底下两根棕色短条
-  const logW = s * 0.7;
-  const logH = Math.max(3, s * 0.12);
-  const log = makeRect(logW, logH, COLOR.campLog);
-  parts.push({ node: log, ox: (s - logW) / 2, oy: s * 0.78 });
+  // 石圈：几块深灰圆当围石
+  ctx.fillStyle = COLOR.campStone;
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI * 2 * i) / 6;
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(a) * s * 0.34, cy + s * 0.28 + Math.sin(a) * s * 0.1, s * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
-  // 石圈：深灰圆当底座
-  const stoneR = s * 0.3;
-  const stone = makeCircle(stoneR, COLOR.campStone);
-  parts.push({ node: stone, ox: s * 0.5 - stoneR, oy: s * 0.78 - stoneR * 0.6 });
+  // 外焰：曲线画出的火苗
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.5);
+  ctx.quadraticCurveTo(cx + s * 0.3, cy - s * 0.05, cx + s * 0.16, cy + s * 0.22);
+  ctx.quadraticCurveTo(cx, cy + s * 0.3, cx - s * 0.16, cy + s * 0.22);
+  ctx.quadraticCurveTo(cx - s * 0.3, cy - s * 0.05, cx, cy - s * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = COLOR.campFlame;
+  ctx.fill();
 
-  // 外焰：橙色圆
-  const flameR = s * 0.28;
-  const flame = makeCircle(flameR, COLOR.campFlame);
-  parts.push({ node: flame, ox: s * 0.5 - flameR, oy: s * 0.42 - flameR });
+  // 内焰
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.2);
+  ctx.quadraticCurveTo(cx + s * 0.14, cy + s * 0.02, cx + s * 0.08, cy + s * 0.18);
+  ctx.quadraticCurveTo(cx, cy + s * 0.24, cx - s * 0.08, cy + s * 0.18);
+  ctx.quadraticCurveTo(cx - s * 0.14, cy + s * 0.02, cx, cy - s * 0.2);
+  ctx.closePath();
+  ctx.fillStyle = COLOR.campInner;
+  ctx.fill();
+}
 
-  // 内焰：黄色小圆
-  const innerR = s * 0.16;
-  const inner = makeCircle(innerR, COLOR.campInner);
-  parts.push({ node: inner, ox: s * 0.5 - innerR, oy: s * 0.46 - innerR });
-
-  return group(parts);
+// 画一颗子弹
+function drawBullet(ctx, cx, cy, r) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = COLOR.bullet;
+  ctx.fill();
 }
 
 // 创建战斗视图
@@ -163,60 +218,26 @@ function makeCampfire(size) {
 // 返回 { handleTap(x, y), refresh() }
 function create(options) {
   const o = options || {};
-  const stage = o.stage;
   const board = o.board;
   const shop = o.shop;
   const battle = o.battle;
   const cfg = o.config || {};
   const tpl = cfg.template || {};
 
-  if (!stage || !board || !battle) {
-    console.warn('[battle-view] 缺少 stage / board / battle，战斗画面没有创建');
+  if (!board || !battle) {
+    console.warn('[battle-view] 缺少 board / battle，战斗画面没有创建');
     return null;
   }
 
   // 尺寸，单位 px
-  const cardSize = board.cellW * 0.5;
-  const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.5;
+  const cardSize = board.cellW * 0.55;
+  const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.55;
   const bulletR = board.cellW * 0.06;
-  const monsterSize = board.cellW * 0.6;
-  const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 0.9 : tpl.campfireSizeRatio);
+  const monsterSize = board.cellW * 0.7;
+  const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 1 : tpl.campfireSizeRatio);
+  const fontPx = Math.max(12, Math.round(board.cellW * 0.16));
 
-  /* ---------- 1. 篝火：摆在棋盘中间，是怪物的目标 ---------- */
-  const fire = makeCampfire(campfireSize);
-  fire.setPos(battle.campfire.x - campfireSize / 2, battle.campfire.y - campfireSize / 2);
-  for (let i = 0; i < fire.parts.length; i++) stage.add(fire.parts[i].node);
-
-  /* ---------- 2. 商店槽位里的武器图标 ---------- */
-  const slotSprites = [];
-  if (shop && shop.slots) {
-    const weapon = battle.weapons[0] || null;
-
-    for (let i = 0; i < shop.slots.length; i++) {
-      const slot = shop.slots[i];
-
-      const sword = makeSword(slotIconSize);
-      const ox = slot.x + (slot.w - slotIconSize) / 2;
-      const oy = slot.y + (slot.h - slotIconSize) / 2;
-      for (let j = 0; j < sword.parts.length; j++) stage.add(sword.parts[j].node);
-      sword.setPos(ox, oy);
-
-      slotSprites.push(sword);
-      slot.weaponName = weapon ? weapon.name : null;
-    }
-  }
-
-  /* ---------- 3. 商店遮罩：战斗时盖住商店 ---------- */
-  let mask = null;
-  if (shop && shop.shell) {
-    mask = makeRect(shop.shell.w, shop.shell.h, COLOR.mask);
-    mask.x = shop.shell.x;
-    mask.y = shop.shell.y;
-    mask.visible = false;
-    stage.add(mask);
-  }
-
-  /* ---------- 4. 开始战斗按钮：卡牌槽下面 ---------- */
+  /* ---------- 按钮位置：卡牌槽下面 ---------- */
   const buttonW = board.cellW * 1.8;
   const buttonH = board.cellH * 0.5;
   const slot0 = shop && shop.slots && shop.slots[0] ? shop.slots[0] : null;
@@ -241,147 +262,111 @@ function create(options) {
     },
   };
 
-  const buttonRect = makeRect(button.w, button.h, COLOR.button);
-  buttonRect.x = button.x;
-  buttonRect.y = button.y;
-  stage.add(buttonRect);
-
-  /* ---------- 5. HUD + 点击标记 ---------- */
-  let hud = null;
+  // 运行时状态
   let lastLine = '等待点击';
   let lastTap = null;
 
-  try {
-    hud = new cax.Text('', { font: '22px sans-serif', color: '#ffffff' });
-    hud.x = 20;
-    hud.y = 20;
-    stage.add(hud);
-  } catch (err) {
-    console.warn('[battle-view] HUD 创建失败：' + err.message);
-  }
+  /* ---------- 绘制：一整帧 ---------- */
+  // 把这一帧所有动态内容画出来
+  // ctx - Canvas 2D 上下文，坐标是画布物理像素
+  function paintAll(ctx) {
+    // 1. 篝火
+    drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
 
-  const mark = makeRect(24, 24, COLOR.mark);
-  mark.visible = false;
-  stage.add(mark);
-
-  // 更新 HUD
-  function syncHud() {
-    const s = battle.status();
-    let text = '银币 ' + s.coins + ' 耐久 ' + s.hp + ' 第 ' + s.wave + ' 波  怪 ' + s.alive;
-
-    if (lastTap) text += '  |  点击 ' + Math.round(lastTap.x) + ',' + Math.round(lastTap.y);
-    text += '  |  ' + lastLine;
-
-    if (hud) {
-      try {
-        hud.text = text;
-      } catch (e) {
-        /* 字段名不兼容就算了 */
-      }
-    }
-
-    if (lastTap && Date.now() - lastTap.at < 400) {
-      mark.visible = true;
-      mark.x = lastTap.x - 12;
-      mark.y = lastTap.y - 12;
-    } else {
-      mark.visible = false;
-    }
-  }
-
-  /* ---------- 6. 每帧同步 ---------- */
-  // 格子上的武器图标
-  const cards = {};
-  function syncCards() {
+    // 2. 格子上的武器
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
-      let v = cards[i];
+      if (!cell.card) continue;
+      drawSword(ctx, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
+    }
 
-      if (!cell.card) {
-        if (v) v.setVisible(false);
-        continue;
+    // 3. 商店槽位里的武器图标
+    if (shop && shop.slots && battle.state === 'build') {
+      for (let i = 0; i < shop.slots.length; i++) {
+        const slot = shop.slots[i];
+        drawSword(ctx, slot.x + slot.w / 2, slot.y + slot.h / 2, slotIconSize);
       }
+    }
 
-      if (!v) {
-        v = makeSword(cardSize);
-        for (let j = 0; j < v.parts.length; j++) stage.add(v.parts[j].node);
-        v.setPos(cell.x + (cell.w - cardSize) / 2, cell.y + (cell.h - cardSize) / 2);
-        cards[i] = v;
-      }
-      v.setVisible(true);
+    // 4. 怪物
+    for (let i = 0; i < battle.monsters.length; i++) {
+      const m = battle.monsters[i];
+      drawMonster(ctx, m.x, m.y, monsterSize, m.maxHp ? m.hp / m.maxHp : 1);
+    }
+
+    // 5. 子弹
+    for (let i = 0; i < battle.bullets.length; i++) {
+      const b = battle.bullets[i];
+      drawBullet(ctx, b.x, b.y, bulletR);
+    }
+
+    // 6. 战斗时盖住商店
+    if (shop && shop.shell && battle.state !== 'build') {
+      ctx.fillStyle = COLOR.mask;
+      ctx.fillRect(shop.shell.x, shop.shell.y, shop.shell.w, shop.shell.h);
+    }
+
+    // 7. 开始战斗按钮（布阵阶段才显示）
+    if (battle.state === 'build') {
+      roundRectPath(ctx, button.x, button.y, button.w, button.h, buttonH * 0.25);
+      ctx.fillStyle = COLOR.button;
+      ctx.fill();
+
+      ctx.fillStyle = COLOR.buttonText;
+      ctx.font = 'bold ' + Math.round(buttonH * 0.5) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('开始战斗', button.x + button.w / 2, button.y + button.h / 2);
+    }
+
+    // 8. HUD
+    const s = battle.status();
+    let text = '银币 ' + s.coins + '   耐久 ' + s.hp + '   第 ' + s.wave + ' 波   怪 ' + s.alive;
+    if (lastTap) text += '   点击 ' + Math.round(lastTap.x) + ',' + Math.round(lastTap.y);
+    text += '   ' + lastLine;
+
+    ctx.font = fontPx + 'px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    const padX = fontPx * 0.6;
+    const padY = fontPx * 0.4;
+    const tw = ctx.measureText(text).width;
+
+    ctx.fillStyle = COLOR.hudBg;
+    roundRectPath(ctx, 12, 12, tw + padX * 2, fontPx + padY * 2, fontPx * 0.3);
+    ctx.fill();
+
+    ctx.fillStyle = COLOR.hud;
+    ctx.fillText(text, 12 + padX, 12 + padY);
+
+    // 9. 点击标记
+    if (lastTap && Date.now() - lastTap.at < 400) {
+      ctx.fillStyle = COLOR.mark;
+      ctx.fillRect(lastTap.x - 10, lastTap.y - 10, 20, 20);
     }
   }
 
-  // 怪物
-  const monsterSprites = [];
-  function syncMonsters() {
-    const list = battle.monsters;
-
-    while (monsterSprites.length < list.length) {
-      const v = makeMonster(monsterSize);
-      for (let i = 0; i < v.parts.length; i++) stage.add(v.parts[i].node);
-      v.setVisible(false);
-      monsterSprites.push(v);
-    }
-
-    for (let i = 0; i < monsterSprites.length; i++) {
-      const v = monsterSprites[i];
-      const m = list[i];
-      if (!m) {
-        v.setVisible(false);
-        continue;
-      }
-      v.setVisible(true);
-      v.setPos(m.x - monsterSize / 2, m.y - monsterSize / 2);
-    }
-  }
-
-  // 子弹
-  const bulletSprites = [];
-  function syncBullets() {
-    const list = battle.bullets;
-
-    while (bulletSprites.length < list.length) {
-      const sp = makeCircle(bulletR, COLOR.bullet);
-      sp.visible = false;
-      bulletSprites.push(sp);
-      stage.add(sp);
-    }
-
-    for (let i = 0; i < bulletSprites.length; i++) {
-      const sp = bulletSprites[i];
-      const b = list[i];
-      if (!b) {
-        sp.visible = false;
-        continue;
-      }
-      sp.visible = true;
-      sp.x = b.x - bulletR;
-      sp.y = b.y - bulletR;
-    }
-  }
-
-  // 遮罩与按钮显隐
-  function syncState() {
-    const fighting = battle.state !== 'build';
-    if (mask) mask.visible = fighting;
-    if (buttonRect) buttonRect.visible = !fighting;
-  }
-
-  /* ---------- 7. 点击派活 ---------- */
+  /* ---------- 点击派活：按钮 → 槽位 → 格子 ---------- */
+  // 点是否落在矩形里
   function inside(x, y, r) {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
+  // 把一次点击派出去
+  // x, y - 画布物理像素坐标
+  // 返回 true 表示有人接手了
   function handleTap(x, y) {
     lastTap = { x: x, y: y, at: Date.now() };
     lastLine = '未命中';
 
+    // 1. 按钮
     if (battle.state === 'build' && inside(x, y, button)) {
       button.onTap();
       return true;
     }
 
+    // 2. 商店槽位
     if (shop && shop.slots) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
@@ -393,6 +378,7 @@ function create(options) {
       }
     }
 
+    // 3. 棋盘格子
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (inside(x, y, cell)) {
@@ -405,15 +391,14 @@ function create(options) {
     return false;
   }
 
-  /* ---------- 8. 每帧：先推进逻辑，再同步画面 ---------- */
+  /* ---------- 挂到两条流水线上 ---------- */
+  // 逻辑每帧推进
   Ticker.onFrame(function (dt) {
-    battle.update(dt);      // ← 没有这一行，怪物永远不生成、人物永远不开火
-    syncCards();
-    syncMonsters();
-    syncBullets();
-    syncState();
-    syncHud();
+    battle.update(dt);
   });
+
+  // 画面每帧绘制（在 cax 之后）
+  Overlay.onDraw(paintAll);
 
   // 波次日志
   battle.onWaveStart = function (n) {
@@ -426,21 +411,11 @@ function create(options) {
     console.log('[battle] 耐久归零，本局结束');
   };
 
-  console.log('[battle-view] 图形：矩形+圆形（这个 cax 的 Polygon 画不出来）');
-  console.log('[battle-view] 篝火 ' + Math.round(battle.campfire.x) + ',' + Math.round(battle.campfire.y) +
-    ' 判定半径 ' + Math.round(battle.campfire.r) +
+  console.log('[battle-view] 用原生 ctx 绘制；篝火 ' +
+    Math.round(battle.campfire.x) + ',' + Math.round(battle.campfire.y) +
     '；按钮 ' + Math.round(button.x) + ',' + Math.round(button.y));
 
-  return {
-    handleTap: handleTap,
-    refresh: function () {
-      syncCards();
-      syncMonsters();
-      syncBullets();
-      syncState();
-      syncHud();
-    },
-  };
+  return { handleTap: handleTap, refresh: function () {} };
 }
 
 module.exports = { create: create };
