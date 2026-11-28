@@ -868,17 +868,31 @@ Battle.prototype.update = function (dt) {
 
     const step = (b.def.bulletSpd || 0) * (dt / 1000);
 
-    // 旋刃：直飞 + 自转 + 越飞越大，碰到谁打谁（范围伤害，每只只打一次）
+    // 旋刃：先在格子上蓄力变大，蓄满后才飞出去，碰到谁打谁（范围伤害）
     if (b.spin) {
-      b.x += b.vx * step;
-      b.y += b.vy * step;
       b.life += dt;
 
-      b.spinAngle += (b.def.spinSpd || 6) * (dt / 1000);
-
-      // 变大：1 秒内长到满（grow）
       const growMax = b.def.grow || 2;
-      b.growScale = Math.min(growMax, 1 + (b.life / 1000) * (growMax - 1) * 1.4);
+      const charge = this.tpl.spinChargeMs == null ? 1000 : this.tpl.spinChargeMs;
+      const spinSpd = b.def.spinSpd || 6;
+
+      // 蓄力阶段：原地不动，只变大 + 转得快一点
+      if (b.life < charge) {
+        const p = Math.min(1, b.life / charge);
+        b.growScale = 1 + p * (growMax - 1);
+        b.spinAngle += spinSpd * 1.6 * (dt / 1000);
+
+        // 蓄力时不出伤、不移动
+        b.alive = b.alive && b.life <= lifeMs;
+        continue;
+      }
+
+      // 起飞：满尺寸直飞，继续自转
+      b.growScale = growMax;
+      b.spinAngle += spinSpd * (dt / 1000);
+
+      b.x += b.vx * step;
+      b.y += b.vy * step;
 
       const radius = (b.def.radius || 40) * b.growScale;
 
