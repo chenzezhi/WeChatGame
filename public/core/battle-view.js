@@ -25,6 +25,7 @@
 const Overlay = require('./overlay.js');
 const Ticker = require('./ticker.js');
 const World = require('./world.js');
+const Speed = require('./speed.js');
 const texture = require('./texture.js');
 
 // 界面色
@@ -457,6 +458,20 @@ function create(options) {
   const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 1 : tpl.campfireSizeRatio);
   const fontPx = Math.max(12, Math.round(board.cellW * 0.16));
 
+  /* ---------- 右上角 UI：波次徽章 + 速度按钮 ---------- */
+  const uiSize = Math.round(fontPx * 1.5);
+  const uiPadX = uiSize * 0.5;
+  const uiPadY = uiSize * 0.35;
+  const uiBoxH = uiSize + uiPadY * 2;
+
+  // 速度按钮：贴在波次徽章下面
+  const speedBtn = {
+    x: battle.width - 12 - uiSize * 2.1,
+    y: 12 + uiBoxH + 8,
+    w: uiSize * 2.1,
+    h: uiBoxH,
+  };
+
   /* ---------- 抽奖按钮：商店外壳左上角 ---------- */
   const gachaBtn = (function () {
     const shell = shop && shop.shell ? shop.shell : null;
@@ -820,8 +835,9 @@ function create(options) {
     // 10. HUD：左上角银币
     drawHud(ctx);
 
-    // 11. 右上角：第几波
+    // 11. 右上角：第几波 + 速度按钮
     drawWave(ctx);
+    drawSpeedBtn(ctx);
   }
 
   // 画槽位下方的价格：银币图标 + 数字，钱不够变红
@@ -1119,6 +1135,21 @@ function create(options) {
     }
   }
 
+  // 右上角第二个：游戏速度按钮 ×1 / ×2 / ×4
+  function drawSpeedBtn(ctx) {
+    const b = speedBtn;
+    ctx.fillStyle = COLOR.hudBg;
+    roundRectPath(ctx, b.x, b.y, b.w, b.h, b.h * 0.3);
+    ctx.fill();
+
+    const text = Speed.label();
+    ctx.font = 'bold ' + Math.round(uiSize * 0.9) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = Speed.get() > 1 ? '#ffd94a' : COLOR.hud;
+    ctx.fillText(text, b.x + b.w / 2, b.y + b.h / 2);
+  }
+
   // 右上角：第几波
   function drawWave(ctx) {
     const wave = battle.wave;
@@ -1288,6 +1319,13 @@ function create(options) {
         return true;
       }
       return false;
+    }
+
+    // 速度按钮：任何时候都能点
+    if (inside(x, y, speedBtn)) {
+      Speed.cycle();
+      lastLine = '速度 ' + Speed.label();
+      return true;
     }
 
     // 按钮是屏幕坐标，不缩放

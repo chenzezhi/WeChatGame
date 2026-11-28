@@ -43,6 +43,17 @@ module.exports = {
     shellFit: 'width',
     shellAnchor: 'top',
 
+    /* ★ 商店标题（画在外壳顶部居中）
+     * title          - 标题文字，留空就不画
+     * titleTopRatio  - 标题中心距外壳顶部的比例（相对外壳高度），0.05 = 往下 5%
+     * titleFontRatio - 字号占外壳高度的比例
+     * titleColor     - 文字颜色
+     */
+    title: '商店',
+    titleTopRatio: 0.05,
+    titleFontRatio: 0.16,
+    titleColor: '#ffe9c9',
+
     /* ★ 插槽 2：卡牌槽位
      * slotAsset    - 槽位底图，写法同 shellAsset
      * slotCount    - 一排几个槽位
@@ -54,6 +65,6 @@ module.exports = {
     slotCount: 3,
     slotRatio: 0.24,
     gapRatio: 0.03,
-    slotTopRatio: 0.76,
+    slotTopRatio: 0.81,
   },
 };

@@ -1,5 +1,7 @@
 'use strict';
 
+const Speed = require('./speed.js');
+
 /* ==================== 功能 ====================
  * Ticker —— 每帧回调
  *
@@ -37,8 +39,11 @@ function tick() {
   const now = Date.now();
 
   // 第一帧没有上一帧可比，按 16ms 算
-  const dt = last ? Math.min(now - last, 100) : 16;
+  const raw = last ? Math.min(now - last, 100) : 16;
   last = now;
+
+  // 乘上全局游戏速度：整个人物/怪物/子弹/冷却都一起加速
+  const dt = raw * Speed.get();
 
   for (let i = 0; i < callbacks.length; i++) {
     try {
