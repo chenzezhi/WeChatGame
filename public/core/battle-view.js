@@ -319,7 +319,7 @@ function create(options) {
   const cardSize = board.cellW * 0.6;
   const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.55;
   const bulletSize = board.cellW * (tpl.bulletScale == null ? 0.42 : tpl.bulletScale);
-  const monsterSize = board.cellW * 0.7;
+  const monsterSize = board.cellW * (tpl.monsterSizeRatio == null ? 0.5 : tpl.monsterSizeRatio);
   const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 1 : tpl.campfireSizeRatio);
   const fontPx = Math.max(12, Math.round(board.cellW * 0.16));
 

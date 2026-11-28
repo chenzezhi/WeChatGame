@@ -41,6 +41,10 @@ function Monster(rec, x, y, tx, ty, hpMul) {
   this.hp = Math.round((rec.hp || 1) * (hpMul || 1));
   this.maxHp = this.hp;
   this.alive = true;
+
+  // 走到篝火旁边后停下持续攻击
+  this.attacking = false;
+  this.atkTimer = rec.atkCd || 1000;
 }
 
 // 单颗子弹
@@ -565,7 +569,7 @@ Battle.prototype.update = function (dt) {
     }
   }
 
-  // 2. 怪物朝篝火走
+  // 2. 怪物朝篝火走；走到旁边就停下，按间隔持续攻击
   for (let i = 0; i < this.monsters.length; i++) {
     const m = this.monsters[i];
     if (!m.alive) continue;
@@ -574,24 +578,34 @@ Battle.prototype.update = function (dt) {
     const dy = m.ty - m.y;
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
 
+    // 进到篝火攻击范围，停下开打
+    if (len <= this.campfire.r) m.attacking = true;
+
+    if (m.attacking) {
+      m.atkTimer -= dt;
+      if (m.atkTimer <= 0) {
+        m.atkTimer = m.rec.atkCd || 1000;
+        this.hp -= m.rec.damage || 0;
+
+        if (this.hp <= 0) {
+          this.hp = 0;
+          this.state = 'over';
+          this.bullets = [];
+          this._shotQueue = [];
+          if (this.onOver) this.onOver();
+          return;
+        }
+      }
+
+      // 攻击中不再移动
+      continue;
+    }
+
     const speedMul = Math.pow(this.tpl.speedGrowth || 1, this.wave - 1);
     const step = (m.rec.speed || 0) * speedMul * (dt / 1000);
 
     m.x += (dx / len) * step;
     m.y += (dy / len) * step;
-
-    // 走到篝火：扣耐久，怪物消失
-    if (len <= this.campfire.r) {
-      m.alive = false;
-      this.hp -= m.rec.damage || 0;
-      if (this.hp <= 0) {
-        this.hp = 0;
-        this.state = 'over';
-        this.bullets = [];
-        if (this.onOver) this.onOver();
-        return;
-      }
-    }
   }
 
   // 3. 子弹追踪

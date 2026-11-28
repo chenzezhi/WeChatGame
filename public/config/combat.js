@@ -27,7 +27,7 @@ module.exports = {
 
     refreshCost: 15,     // 刷新商店的价格，单位银币
 
-    spawnMargin: 80,     // 怪物出生点离屏幕边缘的距离，单位 px（负数在外，正数在内）
+    spawnMargin: 220,    // 怪物出生点离屏幕边缘的距离，单位 px（大于 0 就在屏幕外）（负数在外，正数在内）
     hitRadius: 30,       // 子弹命中判定半径，单位 px
     bulletLifeMs: 6000,  // 子弹最长存活时间，单位毫秒
 
@@ -56,11 +56,14 @@ module.exports = {
     // 子弹相对武器的缩小倍数（1 = 和武器图标一样大）
     bulletScale: 0.42,
 
+    // 怪物画多大，占格子宽度的比例
+    monsterSizeRatio: 0.5,
+
     /* ★ 战斗表现
      * shotGapMs  - 多发之间的间隔，单位毫秒（8 发就是分 8 次发出）
      * battleZoom - 战斗时画面缩小到多少（1 = 不缩，0.62 = 缩到 62%）
      */
     shotGapMs: 70,
-    battleZoom: 0.62,
+    battleZoom: 0.5,
   },
 };

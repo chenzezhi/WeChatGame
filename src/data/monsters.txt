@@ -4,11 +4,12 @@
 # kind   - 种类：normal 普通 / elite 精英 / boss 首领
 # hp     - 基础血量（会按波次放大）
 # speed  - 移动速度，单位 px/秒
-# damage - 走到篝火时扣掉的耐久
+# damage - 每次攻击篝火扣掉多少耐久
+# atkCd  - 攻击间隔，单位毫秒（走到篝火旁边就按这个节奏打）
 # coins  - 打死它能拿多少银币
 
-name  kind   hp  speed damage coins
-slime normal 20  70    1      15
-bat   normal 10  150   1      10
-elite elite  60  60    2      40
-boss  boss   300 45    5      150
+name  kind   hp  speed damage atkCd coins
+slime normal 20  70    1      1200  15
+bat   normal 10  150   1      900   10
+elite elite  60  60    2      1000  40
+boss  boss   300 45    5      800   150
