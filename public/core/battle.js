@@ -134,7 +134,12 @@ function Battle(deps) {
   this.onWaveStart = null;
   this.onWaveEnd = null;
   this.onOver = null;
-  this.onStep = null;      // 人物踏进一个格子时叫一声（走路音效用）
+  this.onStep = null;      // 人物踏进一个格子
+  this.onShoot = null;     // 一次发射（多发算一次）
+  this.onHit = null;       // 子弹命中
+  this.onKill = null;      // 怪物阵亡
+  this.onCampfireHit = null;  // 篝火被咬
+  this.onPlace = null;     // 卡牌放上格子
 
   // 当前选中的商品 { name, level, price, slot }；null 表示用第一把 1 级
   this.selected = null;
@@ -229,6 +234,9 @@ Battle.prototype.placeWeapon = function (cell, sel) {
   // 商品从卡槽里拿走
   if (item.slot) item.slot.sold = true;
   else this._consumeSlot(item.name);
+
+  // 放牌音效
+  if (this.onPlace) this.onPlace(cell);
 
   // 抽奖拿了一张：剩下两张作废，恢复抽奖前的卡槽
   if (this.gacha.phase === 'result') this._closeGacha();
@@ -590,6 +598,10 @@ Battle.prototype._fireFrom = function (cell) {
   }
 
   cell.lastFire = this._time;
+
+  // 一轮发射只叫一声，不会因为 8 发就连响 8 次
+  if (this.onShoot) this.onShoot();
+
   return shots;
 };
 
@@ -736,6 +748,8 @@ Battle.prototype.update = function (dt) {
         m.atkTimer = m.rec.atkCd || 1000;
         this.hp -= m.rec.damage || 0;
 
+        if (this.onCampfireHit) this.onCampfireHit(m.rec);
+
         if (this.hp <= 0) {
           this.hp = 0;
           this.state = 'over';
@@ -788,12 +802,16 @@ Battle.prototype.update = function (dt) {
       this.hitCount += 1;
       b.alive = false;
 
+      if (this.onHit) this.onHit();
+
       if (t.hp <= 0) {
         t.alive = false;
 
         // 击杀奖励
         const reward = t.rec.coins || 0;
         if (reward) this.coins += reward;
+
+        if (this.onKill) this.onKill(t.rec);
       }
     }
   }

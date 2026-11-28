@@ -50,7 +50,16 @@ const BOARD = require('../config/board.js');
 const PLAYER = require('../config/player.js');
 const SHOP = require('../config/shop.js');
 const BGM = require('../config/bgm.js');
+const SFX = require('../config/sound.js');
 const COMBAT = require('../config/combat.js');
+
+// 播一个具名音效
+// key - config/sound.js 里的键名
+function playSfx(key) {
+  const s = SFX[key];
+  if (!s || !s.file) return;
+  Sound.play(s.file, s.volume, s.gapMs);
+}
 
 function start(env) {
   const stage = env.stage;
@@ -176,10 +185,25 @@ function start(env) {
               });
             }
 
-            // 走路音效：人物每踏进一个格子播一次
+            // 音效接线：每个钩子对应 config/sound.js 里的一项
             if (battle) {
               battle.onStep = function () {
-                Sound.play(PLAYER.stepSound, PLAYER.stepVolume);
+                playSfx('step');
+              };
+              battle.onShoot = function () {
+                playSfx('shoot');
+              };
+              battle.onHit = function () {
+                playSfx('hit');
+              };
+              battle.onKill = function () {
+                playSfx('kill');
+              };
+              battle.onCampfireHit = function () {
+                playSfx('campHit');
+              };
+              battle.onPlace = function () {
+                playSfx('place');
               };
             }
 
