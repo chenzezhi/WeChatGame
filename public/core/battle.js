@@ -107,8 +107,11 @@ function Battle(deps) {
   this.onWaveEnd = null;
   this.onOver = null;
 
-  // 当前选中的武器名；null 表示第一把
-  this.selectedWeapon = null;
+  // 当前选中的商品 { name, level, price, slot }；null 表示用第一把 1 级
+  this.selected = null;
+
+  // 已经刷新过几次，用来算刷新价
+  this.refreshCount = 0;
 
   // 开局把商店卡槽填满
   this.fillShop();
@@ -155,70 +158,161 @@ Battle.prototype.weaponDef = function (name, level) {
   return null;
 };
 
-// 往格子放武器；格子已经有同名武器就升级
+// 往格子放武器：空格直接放，同名同等级就合成升一级
 // cell - Board 里的 Cell 对象
-// weaponName - 放哪把武器，不传用第一把
-// 返回 true 表示成功了
-Battle.prototype.placeWeapon = function (cell, weaponName) {
+// sel - 选中的商品 { name, level, price, slot }；不传就用第一把 1 级
+// 返回 true 表示放上了
+Battle.prototype.placeWeapon = function (cell, sel) {
   if (!cell) return false;
 
-  const name = weaponName || this.weaponNames()[0];
-  if (!name) {
-    console.warn('[battle] 武器表是空的');
-    return false;
-  }
+  const item = sel || this.defaultItem();
+  if (!item) return false;
 
   const maxLevel = this.tpl.maxLevel || 4;
-  let targetLevel = 1;
+  let targetLevel;
 
-  // 格子上已有武器：必须同名，且没满级，才合成
   if (cell.card) {
-    if (cell.card.name !== name) return false;
+    // 合成：必须同名同等级，且没满级
+    if (cell.card.name !== item.name) return false;
+    if (cell.card.level !== item.level) return false;
     if (cell.card.level >= maxLevel) return false;
     targetLevel = cell.card.level + 1;
+  } else {
+    targetLevel = item.level;
   }
 
-  const def = this.weaponDef(name, targetLevel);
+  const def = this.weaponDef(item.name, targetLevel);
   if (!def) {
-    console.warn('[battle] 武器表里没有 ' + name + ' 的 ' + targetLevel + ' 级');
+    console.warn('[battle] 武器表里没有 ' + item.name + ' 的 ' + targetLevel + ' 级');
     return false;
   }
 
-  const cost = def.cost || 0;
-  if (this.coins < cost) {
-    console.log('[battle] 银币不够：要 ' + cost + '，现有 ' + this.coins);
+  const price = item.price || 0;
+  if (this.coins < price) {
+    console.log('[battle] 银币不够：要 ' + price + '，现有 ' + this.coins);
     return false;
   }
 
-  this.coins -= cost;
-  cell.card = { name: name, level: targetLevel, def: def };
+  this.coins -= price;
+  cell.card = { name: item.name, level: targetLevel, def: def };
   cell.lastFire = -99999;
 
-  // 卡槽里的这张卡被拿走了
-  this._consumeSlot(name);
+  // 商品从卡槽里拿走
+  if (item.slot) item.slot.sold = true;
+  else this._consumeSlot(item.name);
 
   return true;
 };
 
+// 没选中商品时的默认项：第一把武器的 1 级
+// 返回 { name, level, price, slot } 或 null
+Battle.prototype.defaultItem = function () {
+  const name = this.weaponNames()[0];
+  if (!name) return null;
+
+  const def = this.weaponDef(name, 1);
+  if (!def) return null;
+
+  return { name: name, level: 1, price: def.cost || 0, slot: null };
+};
+
+// 选中商店里的某个卡槽
+// slot - Shop 的槽位对象
+// 返回选中的商品，槽位空了则返回 null
+Battle.prototype.selectSlot = function (slot) {
+  if (!slot || slot.sold || !slot.weapon) {
+    this.selected = null;
+    return null;
+  }
+
+  this.selected = {
+    name: slot.weapon.name,
+    level: slot.level || Number(slot.weapon.level) || 1,
+    price: slot.price || 0,
+    slot: slot,
+  };
+  return this.selected;
+};
+
 /* ---------------- 商店 ---------------- */
 
-// 把商店卡槽填满：按顺序轮流分配武器
+// 按权重随机挑一把武器名
+Battle.prototype._pickWeapon = function () {
+  const names = this.weaponNames();
+  if (!names.length) return null;
+
+  const w = this.tpl.weaponWeights || {};
+  let total = 0;
+  for (let i = 0; i < names.length; i++) total += w[names[i]] || 1;
+  if (total <= 0) return names[0];
+
+  let r = Math.random() * total;
+  for (let i = 0; i < names.length; i++) {
+    r -= w[names[i]] || 1;
+    if (r <= 0) return names[i];
+  }
+  return names[names.length - 1];
+};
+
+// 按权重随机挑一个等级，返回 1~maxLevel
+Battle.prototype._pickLevel = function () {
+  const weights = this.tpl.levelWeights || [70, 25, 5, 0];
+  const max = Math.min(this.tpl.maxLevel || 4, weights.length);
+
+  let total = 0;
+  for (let i = 0; i < max; i++) total += weights[i] || 0;
+  if (total <= 0) return 1;
+
+  let r = Math.random() * total;
+  for (let i = 0; i < max; i++) {
+    r -= weights[i] || 0;
+    if (r <= 0) return i + 1;
+  }
+  return 1;
+};
+
+// 商店里卖这个等级要多少钱：1 级按表价，2 级以上加价
+// def - 武器表里的一行
+// 返回价格，单位银币
+Battle.prototype.shopPrice = function (def) {
+  if (!def) return 0;
+
+  const base = def.cost || 0;
+  if (Number(def.level) <= 1) return base;
+
+  const mul = this.tpl.buyMarkup == null ? 1.2 : this.tpl.buyMarkup;
+  return Math.round(base * mul);
+};
+
+// 把商店卡槽填满：随机武器 + 随机等级
 Battle.prototype.fillShop = function () {
   const shop = this.shop;
-  const names = this.weaponNames();
-  if (!shop || !shop.slots || !names.length) return;
+  if (!shop || !shop.slots || !this.weaponNames().length) return;
 
   for (let i = 0; i < shop.slots.length; i++) {
-    const name = names[i % names.length];
-    shop.slots[i].weapon = this.weaponDef(name, 1);   // 槽位里卖的是 1 级
+    const name = this._pickWeapon();
+    const level = this._pickLevel();
+    const def = this.weaponDef(name, level);
+
+    shop.slots[i].weapon = def;
+    shop.slots[i].level = def ? Number(def.level) : 1;
+    shop.slots[i].price = this.shopPrice(def);
     shop.slots[i].sold = false;
   }
 };
 
-// 刷新商店：花银币把卡槽补满
+// 当前刷新价格：第一次 base，每刷一次涨 step
+// 返回价格，单位银币
+Battle.prototype.refreshPrice = function () {
+  const base = this.tpl.refreshCostBase == null ? 15 : this.tpl.refreshCostBase;
+  const step = this.tpl.refreshCostStep == null ? 1 : this.tpl.refreshCostStep;
+  return base + this.refreshCount * step;
+};
+
+// 刷新商店：花银币重新随机卡槽
 // 返回 true 表示刷新成功
 Battle.prototype.refreshShop = function () {
-  const cost = this.tpl.refreshCost || 0;
+  const cost = this.refreshPrice();
 
   if (this.coins < cost) {
     console.log('[battle] 刷新要 ' + cost + ' 银币，现有 ' + this.coins);
@@ -226,11 +320,14 @@ Battle.prototype.refreshShop = function () {
   }
 
   this.coins -= cost;
+  this.refreshCount += 1;
+  this.selected = null;
   this.fillShop();
   return true;
 };
 
-// 把一个槽位标成已卖
+// 把一个槽位标成已卖（没有指定槽位时，按武器名找第一个）
+// weaponName - 武器名
 Battle.prototype._consumeSlot = function (weaponName) {
   const shop = this.shop;
   if (!shop || !shop.slots) return;

@@ -1,31 +1,32 @@
 # 武器表：一种武器四个等级，一个等级一行
 #
-# name   - 武器名，格子上的武器靠它判断能不能合成
+# name   - 武器名，判断能不能合成靠它
 # kind   - 画什么形状：sword / axe / spear / staff
 # level  - 等级，1~4，同名的必须从 1 开始连续
 # damage - 每次命中的伤害
 # cdMs   - 两次发射的最小间隔，单位毫秒
 # speed  - 子弹飞行速度，单位 px/秒
-# cost   - 放到格子上要花多少银币（空格买 1 级，合成买目标等级）
+# cost   - 这一级的价格（累加价：2 级 ≈ 两个 1 级；4 级 ≈ 四个 1 级）
+#          商店直接卖 2 级以上时会再加 20%
 # color  - 图标和子弹的颜色，等级越高越亮
 
 name   kind  level damage cdMs speed cost color
 arrow  sword 1     8      600  950   15   #d8dee8
-arrow  sword 2     14     560  1000  25   #8fc9ff
-arrow  sword 3     22     520  1050  40   #5aa8ff
+arrow  sword 2     14     560  1000  30   #8fc9ff
+arrow  sword 3     22     520  1050  45   #5aa8ff
 arrow  sword 4     34     480  1100  60   #2f7fff
 
 axe    axe   1     16     1000 700   20   #d8c8b0
-axe    axe   2     26     950  740   32   #e0a86a
-axe    axe   3     40     900  780   48   #d98a3f
-axe    axe   4     60     850  820   70   #c96a1f
+axe    axe   2     26     950  740   40   #e0a86a
+axe    axe   3     40     900  780   60   #d98a3f
+axe    axe   4     60     850  820   80   #c96a1f
 
 spear  spear 1     6      420  1300  18   #cfe8d8
-spear  spear 2     10     400  1350  28   #8fe0a8
-spear  spear 3     16     380  1400  44   #4fcf7f
-spear  spear 4     25     360  1450  64   #1faf5f
+spear  spear 2     10     400  1350  36   #8fe0a8
+spear  spear 3     16     380  1400  54   #4fcf7f
+spear  spear 4     25     360  1450  72   #1faf5f
 
 staff  staff 1     12     800  600   22   #e8d0f0
-staff  staff 2     20     760  640   34   #c88fe0
-staff  staff 3     32     720  680   50   #a45fd8
-staff  staff 4     48     680  720   72   #7a2fc0
+staff  staff 2     20     760  640   44   #c88fe0
+staff  staff 3     32     720  680   66   #a45fd8
+staff  staff 4     48     680  720   88   #7a2fc0
