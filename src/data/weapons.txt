@@ -1,33 +1,46 @@
-# 武器表：一种武器四个等级，一个等级一行
+# 卡牌表：武器 + 功能卡，一种卡四个等级
 #
-# name   - 武器名，判断能不能合成靠它
-# kind   - 画什么形状：sword / axe / spear / staff
-# level  - 等级，1~4，同名的必须从 1 开始连续
-# damage - 每一发的伤害（多发时乘算）
-# shots  - 一次发射几发：1 / 2 / 4 / 8
-# cdMs   - 两次发射的最小间隔，单位毫秒
-# speed  - 子弹飞行速度，单位 px/秒（越小越慢、看得越清楚）
-# cost   - 这一级的价格（累加价：2 级 ≈ 两个 1 级）
-#          商店直接卖 2 级以上时会再加 20%
-# color  - 图标和子弹的颜色，等级越高越亮
+# name       - 卡名，判断能不能合成靠它
+# type       - weapon 武器 / heal 加耐久 / speed 加速度
+# level      - 等级 1~4，同名的必须从 1 开始连续
+# damage     - 武器：每发伤害
+# shots      - 武器：一次发几发（1/2/4/8），会显示成 ×1/×2/×4/×8
+# cdMs       - 武器：两轮发射间隔，单位毫秒
+# bulletSpd  - 武器：子弹速度，单位 px/秒
+# heal       - 加耐久卡：每次加多少耐久
+# speedMul   - 速度卡：人物移动速度乘以几
+# durationMs - 速度卡：持续多少毫秒（不显示）
+# cost       - 这一级的价格（累加价）
+# color      - 图标颜色
+# kind       - 画什么形状：sword / axe / spear / staff / heal / speed
 
-name   kind  level damage shots cdMs speed cost color
-arrow  sword 1     10     1     600  380   15   #d8dee8
-arrow  sword 2     11     2     580  400   30   #8fc9ff
-arrow  sword 3     13     4     560  420   45   #5aa8ff
-arrow  sword 4     15     8     540  440   60   #2f7fff
+name   type   level damage shots cdMs bulletSpd heal speedMul durationMs cost color kind
+arrow  weapon 1     10     1     600  380       0    0        0          15   #d8dee8 sword
+arrow  weapon 2     11     2     580  400       0    0        0          30   #8fc9ff sword
+arrow  weapon 3     13     4     560  420       0    0        0          45   #5aa8ff sword
+arrow  weapon 4     15     8     540  440       0    0        0          60   #2f7fff sword
 
-axe    axe   1     16     1     1000 260   20   #d8c8b0
-axe    axe   2     18     2     960  280   40   #e0a86a
-axe    axe   3     21     4     920  300   60   #d98a3f
-axe    axe   4     24     8     880  320   80   #c96a1f
+axe    weapon 1     16     1     1000 260       0    0        0          20   #d8c8b0 axe
+axe    weapon 2     18     2     960  280       0    0        0          40   #e0a86a axe
+axe    weapon 3     21     4     920  300       0    0        0          60   #d98a3f axe
+axe    weapon 4     24     8     880  320       0    0        0          80   #c96a1f axe
 
-spear  spear 1     6      1     420  520   18   #cfe8d8
-spear  spear 2     7      2     400  540   36   #8fe0a8
-spear  spear 3     8      4     380  560   54   #4fcf7f
-spear  spear 4     9      8     360  580   72   #1faf5f
+spear  weapon 1     6      1     420  520       0    0        0          18   #cfe8d8 spear
+spear  weapon 2     7      2     400  540       0    0        0          36   #8fe0a8 spear
+spear  weapon 3     8      4     380  560       0    0        0          54   #4fcf7f spear
+spear  weapon 4     9      8     360  580       0    0        0          72   #1faf5f spear
 
-staff  staff 1     12     1     800  300   22   #e8d0f0
-staff  staff 2     13     2     760  320   44   #c88fe0
-staff  staff 3     15     4     720  340   66   #a45fd8
-staff  staff 4     17     8     680  360   88   #7a2fc0
+staff  weapon 1     12     1     800  300       0    0        0          22   #e8d0f0 staff
+staff  weapon 2     13     2     760  320       0    0        0          44   #c88fe0 staff
+staff  weapon 3     15     4     720  340       0    0        0          66   #a45fd8 staff
+staff  weapon 4     17     8     680  360       0    0        0          88   #7a2fc0 staff
+
+heart  heal   1     0      0     0    0         2    0        0          20   #ff6f91 heal
+heart  heal   2     0      0     0    0         4    0        0          40   #ff4d7a heal
+heart  heal   3     0      0     0    0         7    0        0          60   #ff2a63 heal
+heart  heal   4     0      0     0    0         11   0        0          80   #e6004c heal
+
+boost  speed  1     0      0     0    0         0    3        3000       20   #9fd0ff speed
+boost  speed  2     0      0     0    0         0    4.5      3500       40   #6fb0ff speed
+boost  speed  3     0      0     0    0         0    6        4000       60   #3f8fff speed
+boost  speed  4     0      0     0    0         0    7.5      4500       80   #1f6fff speed
