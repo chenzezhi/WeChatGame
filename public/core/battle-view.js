@@ -28,6 +28,8 @@ const World = require('./world.js');
 const Speed = require('./speed.js');
 const Sound = require('./sound.js');
 const Bgm = require('./bgm.js');
+const Fire = require('./fire.js');
+const FIRE = require('../config/fire.js');
 const texture = require('./texture.js');
 
 // 界面色
@@ -471,6 +473,9 @@ function create(options) {
   const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 1 : tpl.campfireSizeRatio);
   const fontPx = Math.max(12, Math.round(board.cellW * 0.16));
 
+  // 篝火精灵图：加载一次，之后每帧直接画
+  Fire.load(FIRE);
+
   /* ---------- 左上角第二行：菜单按钮 ---------- */
   const coinSize = Math.round(fontPx * 1.7);
   const coinBoxH = Math.round(coinSize * 1.7);
@@ -697,9 +702,14 @@ function create(options) {
     ctx.save();
     World.apply(ctx);
 
-    // 1. 篝火：4 帧循环，看起来在烧
-    const fireFrame = Math.floor(battle._time / 110) % 4;
-    drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize, fireFrame);
+    // 1. 篝火：优先用精灵图（15 帧动画 + 石圈 + 柴火 + 光晕）
+    //    图还没加载好时退回代码画的那版，保证画面不空
+    const fireOk = Fire.draw(ctx, battle.campfire.x, battle.campfire.y, campfireSize, battle._time);
+
+    if (!fireOk) {
+      const fireFrame = Math.floor(battle._time / 110) % 4;
+      drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize, fireFrame);
+    }
 
     // 1.5 篝火右下角：爱心 + 当前耐久
     // 掉血时爱心会「蹦两下」：先放大再回弹，幅度不大但有反馈
@@ -1615,16 +1625,15 @@ function create(options) {
 
       const before = cell.card ? cell.card.level : 0;
       const ok = battle.placeWeapon(cell, battle.selected);
-      if (!ok) {
-        lastLine = cell.card ? '合不了（不同类/满级/没钱）' : '放不了（没钱）';
-      } else if (before) {
-        lastLine = '合成到 ' + cell.card.level + ' 级';
-      } else {
-        lastLine = '放到第 ' + cell.index + ' 格';
-      }
+
+      if (!ok) lastLine = cell.card ? '合不了（不同类/满级/没钱）' : '放不了（没钱）';
+      else if (before) lastLine = '合成到 ' + cell.card.level + ' 级';
+      else lastLine = '放到第 ' + cell.index + ' 格';
+
       return ok;
     }
 
+    lastLine = '没点中东西';
     return false;
   }
 
@@ -1648,7 +1657,7 @@ function create(options) {
     }
   });
 
-  // 波次日志（只留必要的，方便在手机上确认流程）
+  // 波次日志
   battle.onWaveStart = function (n, count) {
     console.log('[battle] 第 ' + n + ' 波开始，怪物 ' + count + ' 只');
   };
