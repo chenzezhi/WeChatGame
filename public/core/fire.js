@@ -56,6 +56,16 @@ function ready() {
   return !!(img && imgW && imgH);
 }
 
+// 取图片对象（调试预览用）
+function image() {
+  return img;
+}
+
+// 取图片原始尺寸（调试预览用）
+function size() {
+  return { w: imgW, h: imgH };
+}
+
 // 画一个「按比例定义的子图」，按目标高度等比缩放，居中对齐
 // p - { x, y, w, h } 全是比例
 // cx, cy - 目标中心
@@ -116,4 +126,4 @@ function draw(ctx, cx, cy, size, timeMs) {
   return true;
 }
 
-module.exports = { load: load, ready: ready, draw: draw };
+module.exports = { load: load, ready: ready, draw: draw, image: image, size: size };
