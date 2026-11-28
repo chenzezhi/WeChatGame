@@ -71,6 +71,7 @@ function Battle(deps) {
   this.tpl = tpl;
   this.board = d.board || null;
   this.player = d.player || null;
+  this.shop = d.shop || null;
   this.width = d.width || 0;
   this.height = d.height || 0;
 
@@ -115,6 +116,9 @@ function Battle(deps) {
 
   // 当前选中的武器名；null 表示用武器表第一把
   this.selectedWeapon = null;
+
+  // 开局把商店卡槽填满
+  this.fillShop();
 }
 
 // 读一张表，出错时打日志并返回空数组
@@ -165,7 +169,53 @@ Battle.prototype.placeWeapon = function (cell, weaponName) {
   this.coins -= cost;
   cell.card = weapon;
   cell.lastFire = -99999;
+
+  // 卡槽里的这张卡被拿走了，槽位变空
+  this._consumeSlot(weapon.name);
+
   return true;
+};
+
+// 把商店卡槽重新填满：按顺序分配给每个槽位
+Battle.prototype.fillShop = function () {
+  const shop = this.shop;
+  if (!shop || !shop.slots || !this.weapons.length) return;
+
+  for (let i = 0; i < shop.slots.length; i++) {
+    const slot = shop.slots[i];
+    slot.weapon = this.weapons[i % this.weapons.length] || null;
+    slot.sold = false;
+  }
+};
+
+// 刷新商店：花银币把卡槽补满
+// 返回 true 表示刷新成功
+Battle.prototype.refreshShop = function () {
+  const cost = this.tpl.refreshCost || 0;
+
+  if (this.coins < cost) {
+    console.log('[battle] 刷新要 ' + cost + ' 银币，现在只有 ' + this.coins);
+    return false;
+  }
+
+  this.coins -= cost;
+  this.fillShop();
+  return true;
+};
+
+// 把一个槽位标成已卖（同名武器取第一个未卖的）
+// weaponName - 武器名
+Battle.prototype._consumeSlot = function (weaponName) {
+  const shop = this.shop;
+  if (!shop || !shop.slots) return;
+
+  for (let i = 0; i < shop.slots.length; i++) {
+    const slot = shop.slots[i];
+    if (!slot.sold && slot.weapon && slot.weapon.name === weaponName) {
+      slot.sold = true;
+      return;
+    }
+  }
 };
 
 // 开始下一波
@@ -335,7 +385,16 @@ Battle.prototype.update = function (dt) {
     if (len <= (this.tpl.hitRadius || 20) + step) {
       t.hp -= b.weapon.damage || 0;
       b.alive = false;
-      if (t.hp <= 0) t.alive = false;
+      if (t.hp <= 0) {
+        t.alive = false;
+
+        // 击杀奖励：按怪物表的 coins 加银币
+        const reward = t.rec.coins || 0;
+        if (reward) {
+          this.coins += reward;
+          console.log('[battle] 杀一只 ' + t.rec.name + '，+' + reward + ' 银币（共 ' + this.coins + '）');
+        }
+      }
     }
   }
 

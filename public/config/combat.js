@@ -24,6 +24,7 @@ module.exports = {
   template: {
     coins: 100,          // 开局银币
     weaponCost: 20,      // 往一个格子放武器花多少银币
+    refreshCost: 15,     // 刷新商店（把卖掉的卡槽重新补满）花多少银币
     cellHp: 10,          // 法阵耐久：每只怪走到法阵扣多少血（见怪物表 damage）
 
     spawnMargin: 80,     // 怪物出生点离屏幕边缘的距离，单位 px（负数在外，正数在内）
