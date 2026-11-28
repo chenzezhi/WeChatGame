@@ -7,7 +7,8 @@
  * 负责篝火、武器图标、子弹、怪物、HUD、开始按钮、商店遮罩，
  * 并把一次点击派给按钮 / 槽位 / 格子。
  *
- * 所有图形都是画布直接画的（Polygon / Circle / Rect），不依赖素材。
+ * 所有图形都用 Rect / Circle 拼出来，不依赖素材，也不用 Polygon
+ * （这个版本的 cax 里 Polygon 构造不报错但画不出来，已验证）。
  * 有美术后把 makeXxx 换成 sm.add(...) 即可，坐标一行都不用改。
  * ==============================================*/
 
@@ -28,26 +29,38 @@ const Ticker = require('./ticker.js');
 
 // 占位色板
 const COLOR = {
-  arrow: '#38404f',      // 武器箭头
-  arrowBg: '#e8e0c0',    // 武器图标底
+  blade: '#dfe6ef',      // 剑身
+  guard: '#b08a45',      // 剑格
+  hilt: '#6b4a2a',       // 剑柄
   bullet: '#f0c040',     // 子弹
   monster: '#a03a3a',    // 怪物身体
   monsterEye: '#ffe9a8', // 怪物眼睛
   campStone: '#4a4a52',  // 篝火石圈
   campFlame: '#e8622a',  // 火焰外圈
   campInner: '#f6c33a',  // 火焰内芯
+  campLog: '#7a5a34',    // 柴火
   button: '#8b2f2f',     // 按钮
   mask: '#12121a',       // 商店遮罩
   mark: '#ffffff',       // 点击标记
 };
 
+// 画一块纯色方块
+function makeRect(w, h, color) {
+  return new cax.Rect(w, h, { fillStyle: color });
+}
+
+// 画一个圆
+// r - 半径，单位 px
+function makeCircle(r, color) {
+  return new cax.Circle(r, { fillStyle: color });
+}
+
 // 把多个图形合成一个整体，方便一起移动、一起显隐
 // parts - [{ node, ox, oy }]，ox/oy 是相对整体左上角的偏移
-// 返回 { parts, setPos(x, y), setVisible(v) }
 function group(parts) {
   return {
     parts: parts,
-    // 把整体左上角摆到 x, y
+    // 整体左上角摆到 x, y
     setPos: function (x, y) {
       for (let i = 0; i < parts.length; i++) {
         parts[i].node.x = x + parts[i].ox;
@@ -61,127 +74,88 @@ function group(parts) {
   };
 }
 
-// 画一块纯色方块
-function makeRect(w, h, color) {
-  return new cax.Rect(w, h, { fillStyle: color });
-}
-
-// 画一个向上的箭头，当武器图标
-// size - 边长，单位 px
-function makeArrow(size, color) {
+// 画一把剑，当武器图标：剑身 + 剑格 + 剑柄，全用矩形
+// size - 整体高度，单位 px
+// 返回 cax.Rect（只有剑身主体，够认出是武器）
+function makeSword(size) {
   const s = size;
-  const points = [
-    [s * 0.5, 0],
-    [s, s * 0.42],
-    [s * 0.68, s * 0.42],
-    [s * 0.68, s],
-    [s * 0.32, s],
-    [s * 0.32, s * 0.42],
-    [0, s * 0.42],
-  ];
+  const parts = [];
 
-  try {
-    return new cax.Polygon(points, { fillStyle: color });
-  } catch (err) {
-    console.warn('[battle-view] Polygon 不可用，退回方块：' + err.message);
-    return makeRect(size, size, color);
-  }
+  // 剑身：竖着的细长条
+  const bladeW = Math.max(3, s * 0.22);
+  const blade = makeRect(bladeW, s * 0.62, COLOR.blade);
+  parts.push({ node: blade, ox: (s - bladeW) / 2, oy: 0 });
+
+  // 剑格：横着的短条
+  const guardW = s * 0.6;
+  const guardH = Math.max(2, s * 0.1);
+  const guard = makeRect(guardW, guardH, COLOR.guard);
+  parts.push({ node: guard, ox: (s - guardW) / 2, oy: s * 0.62 });
+
+  // 剑柄：短条
+  const hiltW = Math.max(2, s * 0.16);
+  const hilt = makeRect(hiltW, s * 0.22, COLOR.hilt);
+  parts.push({ node: hilt, ox: (s - hiltW) / 2, oy: s * 0.72 });
+
+  return group(parts);
 }
 
-// 画一个小怪：三角身子 + 两只眼睛
+// 画一个小怪：圆身子 + 两只眼睛 + 两只耳朵
 // size - 整体尺寸，单位 px
-// 返回 group(...)，setPos 传中心点
 function makeMonster(size) {
   const s = size;
   const parts = [];
 
-  // 身体：下宽上尖的三角，像个小怪
-  try {
-    const body = new cax.Polygon(
-      [
-        [s * 0.5, 0],
-        [s, s * 0.55],
-        [s * 0.82, s],
-        [s * 0.18, s],
-        [0, s * 0.55],
-      ],
-      { fillStyle: COLOR.monster }
-    );
-    parts.push({ node: body, ox: 0, oy: 0 });
-  } catch (err) {
-    parts.push({ node: makeRect(s, s, COLOR.monster), ox: 0, oy: 0 });
-  }
+  // 身子：深红圆
+  const bodyR = s * 0.4;
+  const body = makeCircle(bodyR, COLOR.monster);
+  parts.push({ node: body, ox: s * 0.5 - bodyR, oy: s * 0.55 - bodyR });
 
-  // 眼睛：两个小圆
-  const eyeR = Math.max(2, s * 0.09);
-  try {
-    const l = new cax.Circle(eyeR, { fillStyle: COLOR.monsterEye });
-    const r = new cax.Circle(eyeR, { fillStyle: COLOR.monsterEye });
-    parts.push({ node: l, ox: s * 0.3 - eyeR, oy: s * 0.3 - eyeR });
-    parts.push({ node: r, ox: s * 0.56 - eyeR, oy: s * 0.3 - eyeR });
-  } catch (err) {
-    /* 眼睛画不出来就算了，身子还在 */
-  }
+  // 耳朵：两个小方块，让它不像纯圆
+  const ear = Math.max(2, s * 0.14);
+  const l = makeRect(ear, ear, COLOR.monster);
+  const r = makeRect(ear, ear, COLOR.monster);
+  parts.push({ node: l, ox: s * 0.3 - ear / 2, oy: s * 0.18 });
+  parts.push({ node: r, ox: s * 0.7 - ear / 2, oy: s * 0.18 });
+
+  // 眼睛：两个浅黄小圆
+  const eyeR = Math.max(2, s * 0.08);
+  const el = makeCircle(eyeR, COLOR.monsterEye);
+  const er = makeCircle(eyeR, COLOR.monsterEye);
+  parts.push({ node: el, ox: s * 0.38 - eyeR, oy: s * 0.5 - eyeR });
+  parts.push({ node: er, ox: s * 0.62 - eyeR, oy: s * 0.5 - eyeR });
 
   return group(parts);
 }
 
-// 画一个篝火：石圈 + 两层火苗
+// 画一个篝火：柴火 + 石圈 + 两层火
 // size - 整体尺寸，单位 px
-// 返回 group(...)，setPos 传左上角
 function makeCampfire(size) {
   const s = size;
   const parts = [];
 
-  // 石圈：一个深色圆当底座
-  try {
-    const stone = new cax.Circle(s * 0.42, { fillStyle: COLOR.campStone });
-    parts.push({ node: stone, ox: s * 0.08, oy: s * 0.42 });
-  } catch (err) {
-    parts.push({ node: makeRect(s * 0.84, s * 0.4, COLOR.campStone), ox: s * 0.08, oy: s * 0.42 });
-  }
+  // 柴火：底下两根棕色短条
+  const logW = s * 0.7;
+  const logH = Math.max(3, s * 0.12);
+  const log = makeRect(logW, logH, COLOR.campLog);
+  parts.push({ node: log, ox: (s - logW) / 2, oy: s * 0.78 });
 
-  // 外圈火苗：一个竖三角
-  try {
-    const flame = new cax.Polygon(
-      [
-        [s * 0.5, 0],
-        [s * 0.86, s * 0.68],
-        [s * 0.14, s * 0.68],
-      ],
-      { fillStyle: COLOR.campFlame }
-    );
-    parts.push({ node: flame, ox: 0, oy: s * 0.06 });
-  } catch (err) {
-    parts.push({ node: makeRect(s * 0.7, s * 0.6, COLOR.campFlame), ox: s * 0.15, oy: s * 0.1 });
-  }
+  // 石圈：深灰圆当底座
+  const stoneR = s * 0.3;
+  const stone = makeCircle(stoneR, COLOR.campStone);
+  parts.push({ node: stone, ox: s * 0.5 - stoneR, oy: s * 0.78 - stoneR * 0.6 });
 
-  // 内芯：小一点的黄三角
-  try {
-    const inner = new cax.Polygon(
-      [
-        [s * 0.5, s * 0.28],
-        [s * 0.68, s * 0.66],
-        [s * 0.32, s * 0.66],
-      ],
-      { fillStyle: COLOR.campInner }
-    );
-    parts.push({ node: inner, ox: 0, oy: s * 0.06 });
-  } catch (err) {
-    /* 内芯画不出来就用单层火 */
-  }
+  // 外焰：橙色圆
+  const flameR = s * 0.28;
+  const flame = makeCircle(flameR, COLOR.campFlame);
+  parts.push({ node: flame, ox: s * 0.5 - flameR, oy: s * 0.42 - flameR });
+
+  // 内焰：黄色小圆
+  const innerR = s * 0.16;
+  const inner = makeCircle(innerR, COLOR.campInner);
+  parts.push({ node: inner, ox: s * 0.5 - innerR, oy: s * 0.46 - innerR });
 
   return group(parts);
-}
-
-// 画一个圆点（子弹用）
-// r - 半径，单位 px
-function makeDot(r, color) {
-  try {
-    return new cax.Circle(r, { fillStyle: color });
-  } catch (err) {
-    return makeRect(r * 2, r * 2, color);
-  }
 }
 
 // 创建战斗视图
@@ -202,10 +176,10 @@ function create(options) {
   }
 
   // 尺寸，单位 px
-  const cardSize = board.cellW * 0.42;
-  const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.42;
+  const cardSize = board.cellW * 0.5;
+  const slotIconSize = (shop && shop.slotSize ? shop.slotSize : board.cellW) * 0.5;
   const bulletR = board.cellW * 0.06;
-  const monsterSize = board.cellW * 0.5;
+  const monsterSize = board.cellW * 0.6;
   const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 0.9 : tpl.campfireSizeRatio);
 
   /* ---------- 1. 篝火：摆在棋盘中间，是怪物的目标 ---------- */
@@ -221,17 +195,13 @@ function create(options) {
     for (let i = 0; i < shop.slots.length; i++) {
       const slot = shop.slots[i];
 
-      const bg = makeRect(slotIconSize * 1.4, slotIconSize * 1.4, COLOR.arrowBg);
-      bg.x = slot.x + (slot.w - slotIconSize * 1.4) / 2;
-      bg.y = slot.y + (slot.h - slotIconSize * 1.4) / 2;
-      stage.add(bg);
+      const sword = makeSword(slotIconSize);
+      const ox = slot.x + (slot.w - slotIconSize) / 2;
+      const oy = slot.y + (slot.h - slotIconSize) / 2;
+      for (let j = 0; j < sword.parts.length; j++) stage.add(sword.parts[j].node);
+      sword.setPos(ox, oy);
 
-      const icon = makeArrow(slotIconSize, COLOR.arrow);
-      icon.x = slot.x + (slot.w - slotIconSize) / 2;
-      icon.y = slot.y + (slot.h - slotIconSize) / 2;
-      stage.add(icon);
-
-      slotSprites.push(icon);
+      slotSprites.push(sword);
       slot.weaponName = weapon ? weapon.name : null;
     }
   }
@@ -325,21 +295,20 @@ function create(options) {
   function syncCards() {
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
-      let sp = cards[i];
+      let v = cards[i];
 
       if (!cell.card) {
-        if (sp) sp.visible = false;
+        if (v) v.setVisible(false);
         continue;
       }
 
-      if (!sp) {
-        sp = makeArrow(cardSize, COLOR.arrow);
-        sp.x = cell.x + (cell.w - cardSize) / 2;
-        sp.y = cell.y + (cell.h - cardSize) / 2;
-        cards[i] = sp;
-        stage.add(sp);
+      if (!v) {
+        v = makeSword(cardSize);
+        for (let j = 0; j < v.parts.length; j++) stage.add(v.parts[j].node);
+        v.setPos(cell.x + (cell.w - cardSize) / 2, cell.y + (cell.h - cardSize) / 2);
+        cards[i] = v;
       }
-      sp.visible = true;
+      v.setVisible(true);
     }
   }
 
@@ -373,7 +342,7 @@ function create(options) {
     const list = battle.bullets;
 
     while (bulletSprites.length < list.length) {
-      const sp = makeDot(bulletR, COLOR.bullet);
+      const sp = makeCircle(bulletR, COLOR.bullet);
       sp.visible = false;
       bulletSprites.push(sp);
       stage.add(sp);
@@ -400,12 +369,10 @@ function create(options) {
   }
 
   /* ---------- 7. 点击派活 ---------- */
-  // 点是否落在矩形里
   function inside(x, y, r) {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
-  // 把一次点击派给按钮 / 槽位 / 格子
   function handleTap(x, y) {
     lastTap = { x: x, y: y, at: Date.now() };
     lastLine = '未命中';
@@ -459,6 +426,7 @@ function create(options) {
     console.log('[battle] 耐久归零，本局结束');
   };
 
+  console.log('[battle-view] 图形：矩形+圆形（这个 cax 的 Polygon 画不出来）');
   console.log('[battle-view] 篝火 ' + Math.round(battle.campfire.x) + ',' + Math.round(battle.campfire.y) +
     ' 判定半径 ' + Math.round(battle.campfire.r) +
     '；按钮 ' + Math.round(button.x) + ',' + Math.round(button.y));
