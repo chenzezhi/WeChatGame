@@ -33,6 +33,16 @@ module.exports = {
     y: null,
     topRatio: 0.7,
 
+    /* 图片怎么铺进外壳盒子（盒子 = 上面 shellWidthRatio / topRatio 定出的那块）
+     * shellFit    - cover 铺满（四边都裁） / width 按宽度（只裁上下） / height 按高度（只裁左右）
+     * shellAnchor - top 顶部对齐（保住顶部装饰边） / center 居中 / bottom 贴底
+     *
+     * 现在默认 width + top：按宽度铺满，顶边贴在盒子顶，下方溢出裁掉。
+     * 这样图片的顶部装饰边不会因为“居中裁”而被切掉。
+     */
+    shellFit: 'width',
+    shellAnchor: 'top',
+
     /* ★ 插槽 2：卡牌槽位
      * slotAsset    - 槽位底图，写法同 shellAsset
      * slotCount    - 一排几个槽位
@@ -42,8 +52,8 @@ module.exports = {
      */
     slotAsset: 30,
     slotCount: 3,
-    slotRatio: 0.28,
+    slotRatio: 0.24,
     gapRatio: 0.03,
-    slotTopRatio: 0.8,
+    slotTopRatio: 0.76,
   },
 };

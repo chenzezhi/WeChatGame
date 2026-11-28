@@ -448,26 +448,26 @@ function create(options) {
   /* ---------- 抽奖按钮：商店外壳左上角 ---------- */
   const gachaBtn = (function () {
     const shell = shop && shop.shell ? shop.shell : null;
-    const pad = board.cellW * 0.12;
-    const size = board.cellW * 0.5;
+    const pad = board.cellW * 0.1;
+    const size = board.cellW * 0.36;
 
     if (!shell) {
-      return { x: pad, y: battle.height * 0.66, w: size * 1.6, h: size, label: '抽奖' };
+      return { x: pad, y: battle.height * 0.66, w: size * 1.5, h: size, label: '抽奖' };
     }
 
     return {
       x: Math.max(shell.x, 0) + pad,
       y: Math.max(shell.y, 0) + pad,
-      w: size * 1.6,
+      w: size * 1.5,
       h: size,
       label: '抽奖',
     };
   })();
 
   /* ---------- 两个按钮：刷新（带价格）+ 开始战斗，大小一样 ---------- */
-  const buttonH = board.cellH * 0.55;
-  const buttonW = Math.min(board.cellW * 1.45, battle.width * 0.4);
-  const buttonGap = board.cellW * 0.18;
+  const buttonH = board.cellH * 0.4;
+  const buttonW = Math.min(board.cellW * 1.1, battle.width * 0.31);
+  const buttonGap = board.cellW * 0.14;
 
   const slot0 = shop && shop.slots && shop.slots[0] ? shop.slots[0] : null;
   const slotY = slot0 ? slot0.y : battle.height * 0.82;
