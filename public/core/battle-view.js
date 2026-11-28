@@ -25,6 +25,7 @@
 const Overlay = require('./overlay.js');
 const Ticker = require('./ticker.js');
 const World = require('./world.js');
+const texture = require('./texture.js');
 
 // 界面色
 const COLOR = {
@@ -450,6 +451,33 @@ function create(options) {
   let dragPoint = null;
   let dragDef = null;
 
+  /* ---------- 外壳图片：可能是图片路径，异步读一次 ---------- */
+  let shellImg = null;
+  if (shop && shop.shell && /[\/.]/.test(String(shop.shell.asset))) {
+    texture.load(
+      shop.shell.asset,
+      function (t) { shellImg = t; },
+      function (err) { console.warn('[battle-view] 外壳图片加载失败：' + err.message); }
+    );
+  }
+
+  /* ---------- 垃圾桶：商店外壳右上角 ---------- */
+  const trashSize = board.cellW * 0.4;
+  const trashRect = (function () {
+    const shell = shop && shop.shell ? shop.shell : null;
+    const pad = board.cellW * 0.12;
+
+    if (!shell) {
+      return { x: battle.width - trashSize - pad, y: battle.height * 0.7, w: trashSize, h: trashSize };
+    }
+
+    // 外壳可能超出屏幕，取个不越界的位置
+    const right = Math.min(shell.x + shell.w, battle.width) - pad;
+    const top = Math.max(shell.y, 0) + pad;
+
+    return { x: right - trashSize, y: top, w: trashSize, h: trashSize };
+  })();
+
   // 按下时命中的格子 / 槽位（还没确认是不是拖拽）
   let pendingCell = null;
   let pendingSlot = null;
@@ -525,19 +553,38 @@ function create(options) {
       if (cell === dragFromCell) continue;
 
       drawWeapon(ctx, cell.card.def, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
-      drawBadge(ctx, badgeTextOf(cell.card.def), cell.x + cell.w * 0.94, cell.y + cell.h * 0.96, board.cellW * 0.13);
+      drawBadge(ctx, badgeTextOf(cell.card.def), cell.x + cell.w * 0.86, cell.y + cell.h * 0.9, board.cellW * 0.13);
     }
 
-    // 4. 商店槽位里的武器（卖掉的槽位不画），每格带一个价格
-    if (shop && shop.slots && battle.state === 'build') {
-      for (let i = 0; i < shop.slots.length; i++) {
-        const slot = shop.slots[i];
-        if (slot.sold || !slot.weapon) continue;
-        if (slot === dragFromSlot) continue;   // 正在被拖走
-        drawWeapon(ctx, slot.weapon, slot.x + slot.w / 2, slot.y + slot.h * 0.42, slotIconSize);
-        drawBadge(ctx, badgeTextOf(slot.weapon), slot.x + slot.w * 0.94, slot.y + slot.h * 0.62, slot.w * 0.14);
-        drawSlotPrice(ctx, slot);
+    // 4. 商店：外壳 → 槽位底图 → 卡牌图标 → 价格 → 垃圾桶
+    if (shop && shop.shell) {
+      const build = battle.state === 'build';
+
+      // 4.1 外壳（图片路径也能画）
+      if (build) drawShell(ctx);
+
+      // 4.2 槽位
+      if (shop.slots) {
+        for (let i = 0; i < shop.slots.length; i++) {
+          const slot = shop.slots[i];
+
+          // 槽位底板：一块圆角深色块，保证卡牌有底
+          ctx.fillStyle = build ? 'rgba(18,22,30,0.72)' : 'rgba(18,22,30,0.0)';
+          roundRectPath(ctx, slot.x, slot.y, slot.w, slot.h, slot.w * 0.12);
+          ctx.fill();
+
+          if (!build) continue;
+          if (slot.sold || !slot.weapon) continue;
+          if (slot === dragFromSlot) continue;   // 正在被拖走
+
+          drawWeapon(ctx, slot.weapon, slot.x + slot.w / 2, slot.y + slot.h * 0.42, slotIconSize);
+          drawBadge(ctx, badgeTextOf(slot.weapon), slot.x + slot.w * 0.84, slot.y + slot.h * 0.58, slot.w * 0.14);
+          drawSlotPrice(ctx, slot);
+        }
       }
+
+      // 4.3 垃圾桶（拖到它上面就变红、掀盖子）
+      if (build) drawTrash(ctx, isOverTrash());
     }
 
     // 5. 怪物
@@ -604,7 +651,7 @@ function create(options) {
     ctx.fillText(numText, startX + iconR * 2 + gap, y);
   }
 
-  // 拖拽时在上方显示这张卡的核心属性
+  // 拖拽时在上方显示这张卡的核心属性；拖到垃圾桶上就改成显示能卖多少钱
   // def - 卡牌表里的一行
   function drawDragHint(ctx, def) {
     const y = fontPx * 3.2;
@@ -613,13 +660,19 @@ function create(options) {
     ctx.font = size + 'px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-
-    // 颜色压暗一点，有识别度但不抢眼睛
     ctx.fillStyle = 'rgba(214,222,236,0.85)';
 
     let x = 16;
 
-    // 加耐久卡：先用爱心图标代替文字，后面跟数字
+    // 拖到垃圾桶上：显示能卖多少
+    if (isOverTrash() && dragFromCell && dragFromCell.card) {
+      const price = battle.sellPrice(dragFromCell.card.def);
+      ctx.fillStyle = 'rgba(255,214,120,0.95)';
+      ctx.fillText('卖出 +' + price, x, y);
+      return;
+    }
+
+    // 加耐久卡：用爱心图标代替文字
     if (def.type === 'heal' || def.kind === 'heal') {
       const hr = size * 0.5;
       drawHeartShape(ctx, '#ff4d6d', x + hr, y, hr);
@@ -640,6 +693,90 @@ function create(options) {
       '    攻速 ' + (def.cdMs || 0) + 'ms' +
       '    数量 ×' + (def.shots || 1);
     ctx.fillText(text, x, y);
+  }
+
+  // 手指（拖拽中）是否在垃圾桶上
+  function isOverTrash() {
+    if (!dragPoint || !dragDef) return false;
+    const p = World.toWorld(dragPoint.x, dragPoint.y);
+    return inside(p.x, p.y, trashRect);
+  }
+
+  // 画商店外壳：有图就按比例塞进盒子，没图就画一块圆角底板
+  function drawShell(ctx) {
+    const s = shop && shop.shell ? shop.shell : null;
+    if (!s) return;
+
+    if (shellImg && shellImg.image) {
+      const ratio = shellImg.width / shellImg.height;
+      let w = s.w;
+      let h = s.w / ratio;
+
+      // 超出盒子就按高度缩
+      if (h > s.h) {
+        h = s.h;
+        w = s.h * ratio;
+      }
+
+      ctx.drawImage(shellImg.image, s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
+      return;
+    }
+
+    // 没图先用深色圆角底板占位
+    ctx.fillStyle = '#1b2230';
+    roundRectPath(ctx, s.x, s.y, s.w, s.h, Math.min(s.w, s.h) * 0.08);
+    ctx.fill();
+  }
+
+  // 画垃圾桶；hover 时变红并掀盖子
+  function drawTrash(ctx, hover) {
+    const r = trashRect;
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+
+    // 底板
+    ctx.fillStyle = hover ? 'rgba(220,70,70,0.3)' : 'rgba(0,0,0,0.35)';
+    roundRectPath(ctx, r.x, r.y, r.w, r.h, r.w * 0.18);
+    ctx.fill();
+
+    const bodyW = r.w * 0.42;
+    const bodyH = r.h * 0.4;
+    const bx = cx - bodyW / 2;
+    const by = cy - bodyH * 0.3;
+    const color = hover ? '#ff9a9a' : '#d6dde8';
+
+    // 桶身
+    ctx.fillStyle = color;
+    roundRectPath(ctx, bx, by, bodyW, bodyH, bodyW * 0.16);
+    ctx.fill();
+
+    // 桶身竖纹
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = Math.max(1, r.w * 0.03);
+    for (let i = -1; i <= 1; i++) {
+      const x = cx + i * bodyW * 0.26;
+      ctx.beginPath();
+      ctx.moveTo(x, by + bodyH * 0.22);
+      ctx.lineTo(x, by + bodyH * 0.78);
+      ctx.stroke();
+    }
+
+    // 盖子：hover 时掀起一个角度
+    const lidW = bodyW * 1.24;
+    const lidH = r.h * 0.09;
+    ctx.fillStyle = color;
+
+    if (hover) {
+      ctx.save();
+      ctx.translate(cx - lidW / 2, by - r.h * 0.12);
+      ctx.rotate(-0.5);
+      roundRectPath(ctx, 0, 0, lidW, lidH, lidH * 0.5);
+      ctx.fill();
+      ctx.restore();
+    } else {
+      roundRectPath(ctx, cx - lidW / 2, by - r.h * 0.12, lidW, lidH, lidH * 0.5);
+      ctx.fill();
+    }
   }
 
   // 画一个按钮：左边文字，右边「银币图标 + 价格」
@@ -775,6 +912,13 @@ function create(options) {
 
     const to = World.toWorld(ex, ey);
     const toCell = cellAtPoint(to.x, to.y);
+
+    // 0. 丢到垃圾桶上：卖掉（只对棋盘上的卡有效）
+    if (fromCell && fromCell.card && inside(to.x, to.y, trashRect)) {
+      const gain = battle.sellCard(fromCell);
+      lastLine = '卖出 +' + gain;
+      return gain > 0;
+    }
 
     // 1. 从商店槽位拖出来：买
     if (fromSlot && !fromSlot.sold && fromSlot.weapon) {

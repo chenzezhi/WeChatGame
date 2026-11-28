@@ -67,6 +67,9 @@ module.exports = {
     // 子弹相对武器的缩小倍数（1 = 和武器图标一样大）
     bulletScale: 0.42,
 
+    // 卖卡返还比例（0.8 = 原价八成）
+    sellRatio: 0.8,
+
     // 怪物画多大，占格子宽度的比例
     monsterSizeRatio: 0.5,
 

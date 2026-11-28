@@ -636,10 +636,14 @@ Battle.prototype.update = function (dt) {
       const def = cell.card.def;
 
       if (def.type === 'heal') {
-        // 加耐久：加上就消耗掉这张卡
-        this.hp += def.heal || 0;
-        this.fireNote = '耐久 +' + (def.heal || 0);
-        cell.card = null;
+        // 加耐久：可以重复触发，但每格有自己的冷却，不会每帧都加
+        const cd = this.tpl.healCdMs == null ? 1500 : this.tpl.healCdMs;
+
+        if (this._time - (cell.lastHeal || -99999) >= cd) {
+          cell.lastHeal = this._time;
+          this.hp += def.heal || 0;
+          this.fireNote = '耐久 +' + (def.heal || 0);
+        }
       } else if (def.type === 'speed') {
         // 加速：同一时间只生效一个，重复踩不叠加
         if (this.speedBoost.left <= 0) {

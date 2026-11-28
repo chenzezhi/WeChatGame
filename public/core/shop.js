@@ -82,22 +82,22 @@ class Shop {
     this._width = width;
     this._height = height;
 
-    // 外壳：以高度为准（占屏高比例），宽度按图片比例算，保证一定在屏幕内
+    // 外壳：一个盒子（由比例决定），里面怎么摆图由绘制层处理
     const shellFrame = e.shellFrame || null;
-    const shellH = height * (c.shellHeightRatio == null ? 0.25 : c.shellHeightRatio);
-    const shellScale = shellFrame && shellFrame.h ? shellH / shellFrame.h : 1;
-    const shellW = shellFrame && shellFrame.w ? shellFrame.w * shellScale : width;
 
-    // 左上角：给了 x / y 就用它；没给就水平居中、贴着屏幕底部往上留 gap
-    const bottomGap = c.bottomGap || 0;
+    // 宽度按比例；高度优先用 shellHeightRatio，否则用 1 - topRatio 推
+    const shellW = width * (c.shellWidthRatio == null ? 1 : c.shellWidthRatio);
+    const topRatio = c.topRatio == null ? 0.75 : c.topRatio;
+    const shellH = c.shellHeightRatio != null ? height * c.shellHeightRatio : height * (1 - topRatio);
 
+    // 左上角：没给 x 就水平居中；没给 y 就用 topRatio
     this.shell = {
       asset: c.shellAsset,
       x: c.x == null ? (width - shellW) / 2 : c.x,
-      y: c.y == null ? height - shellH - bottomGap : c.y,
+      y: c.y == null ? height * topRatio : c.y,
       w: shellW,
       h: shellH,
-      scale: shellScale,
+      scale: shellFrame && shellFrame.w ? shellW / shellFrame.w : 1,
     };
 
     // 槽位：边长按画布宽比例，水平居中排成一排
@@ -126,35 +126,31 @@ class Shop {
     return this.slots[index] || null;
   }
 
-  // 把外壳和槽位底图画到舞台上，并记下对象，方便以后缩放 / 隐藏
+  // 槽位底图交给 cax；外壳交给覆盖层画（因为它可能是图片路径）
   // stage - cax Stage
   // sm - SpriteMap
-  // 返回创建出来的 cax 对象数组（每个带 _baseX / _baseY / _baseScale）
+  // 返回槽位底图对象数组（每个带 _baseX / _baseY / _baseScale）
   render(stage, sm) {
     if (this.sprites) return this.sprites;
 
     const out = [];
 
-    function make(target) {
+    for (let i = 0; i < this.slots.length; i++) {
+      const slot = this.slots[i];
+
       let node = null;
       try {
-        node = sm.add(stage, target.asset, target.x, target.y);
+        node = sm.add(stage, slot.asset, slot.x, slot.y);
       } catch (e) {
-        return null;
+        continue;
       }
-      node.scale = target.scale;
-      node._baseX = target.x;
-      node._baseY = target.y;
-      node._baseScale = target.scale;
+
+      node.scale = slot.scale;
+      node._baseX = slot.x;
+      node._baseY = slot.y;
+      node._baseScale = slot.scale;
       out.push(node);
-      return node;
     }
-
-    // 外壳
-    make(this.shell);
-
-    // 每个槽位的底图
-    for (let i = 0; i < this.slots.length; i++) make(this.slots[i]);
 
     this.sprites = out;
     return out;
