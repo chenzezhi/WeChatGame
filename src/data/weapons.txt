@@ -48,11 +48,11 @@ blade  weapon 3     10     3     1800 240       0    0        0          8      
 blade  weapon 4     13     4     1700 250       0    0        0          8.5     2.8  58     320  #5c82b4 spin
 blade  weapon 5     16     8     1600 260       0    0        0          9       3    62     460  #5c82b4 spin
 
-heart  heal   1     0      0     0    0         1    0        0          0       0    0      20   #ff6f91 heal
-heart  heal   2     0      0     0    0         2    0        0          0       0    0      40   #ff4d7a heal
-heart  heal   3     0      0     0    0         3    0        0          0       0    0      60   #ff2a63 heal
-heart  heal   4     0      0     0    0         5    0        0          0       0    0      80   #e6004c heal
-heart  heal   5     0      0     0    0         7    0        0          0       0    0      100  #e6004c heal
+heart  heal   1     0      0     0    0         10    0        0          0       0    0      20   #ff6f91 heal
+heart  heal   2     0      0     0    0         20    0        0          0       0    0      40   #ff4d7a heal
+heart  heal   3     0      0     0    0         40    0        0          0       0    0      60   #ff2a63 heal
+heart  heal   4     0      0     0    0         60    0        0          0       0    0      80   #e6004c heal
+heart  heal   5     0      0     0    0         100   0        0          0       0    0      100  #e6004c heal
 
 boost  speed  1     0      0     0    0         0    2.5        3000       0       0    0      20   #9fd0ff speed
 boost  speed  2     0      0     0    0         0    4      3500       0       0    0      40   #6fb0ff speed
