@@ -949,15 +949,34 @@ function create(options) {
 
     if (!shellImg || !shellImg.image) return;
 
-    // 2. 图片按 cover 铺满盒子，超出裁掉
-    const scale = Math.max(s.w / shellImg.width, s.h / shellImg.height);
+    // 2. 图片铺进盒子：缩放方式和对齐方式都由配置决定
+    //    cover  按「铺满」缩放（比例不符时四边裁）
+    //    width  按宽度缩放（高度可能溢出，上下按 anchor 裁）
+    //    height 按高度缩放（宽度可能溢出，左右裁）
+    const fit = tpl.shellFit || 'width';
+    const anchor = tpl.shellAnchor || 'top';
+
+    let scale;
+    if (fit === 'height') scale = s.h / shellImg.height;
+    else if (fit === 'cover') scale = Math.max(s.w / shellImg.width, s.h / shellImg.height);
+    else scale = s.w / shellImg.width;
+
     const w = shellImg.width * scale;
     const h = shellImg.height * scale;
+
+    // 水平：默认居中（宽度不会裁时无所谓）
+    const dx = s.x + (s.w - w) / 2;
+
+    // 垂直：top 保住顶部装饰边，bottom 贴底，center 居中裁
+    let dy;
+    if (anchor === 'bottom') dy = s.y + s.h - h;
+    else if (anchor === 'center') dy = s.y + (s.h - h) / 2;
+    else dy = s.y;
 
     ctx.save();
     roundRectPath(ctx, s.x, s.y, s.w, s.h, Math.min(s.w, s.h) * 0.04);
     ctx.clip();
-    ctx.drawImage(shellImg.image, s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
+    ctx.drawImage(shellImg.image, dx, dy, w, h);
     ctx.restore();
 
     // 3. 调试标记：洋红=盒子边框，黄=图片实际范围，红=盒子顶边
