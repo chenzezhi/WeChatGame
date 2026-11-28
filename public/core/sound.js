@@ -23,7 +23,7 @@
 const cax = null;   // 占位：本模块不依赖渲染
 
 // 每个音效建几个播放器轮流用
-const POOL_SIZE = 3;
+const POOL_SIZE = 5;
 
 // 路径 -> { list: [InnerAudioContext], index, lastAt }
 const pools = {};
