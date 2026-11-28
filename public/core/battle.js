@@ -511,7 +511,7 @@ Battle.prototype.aimAt = function (x, y) {
   return Math.atan2(m.y - y, m.x - x);
 };
 
-// 找离某点最近、且已经在屏幕内的怪物
+// 找离某点最近的怪物
 // x, y - 参照点
 // 返回 Monster 或 null
 Battle.prototype._nearestMonster = function (x, y) {
@@ -522,9 +522,7 @@ Battle.prototype._nearestMonster = function (x, y) {
     const m = this.monsters[i];
     if (!m.alive) continue;
 
-    // 屏幕外的不算目标：还没进场就开火会很怪
-    if (m.x < 0 || m.y < 0 || m.x > this.width || m.y > this.height) continue;
-
+    // 屏幕外的也算目标：一开始波就能开打，不用等怪走进来
     const d = (m.x - x) * (m.x - x) + (m.y - y) * (m.y - y);
     if (d < bestD) {
       bestD = d;
@@ -645,11 +643,16 @@ Battle.prototype.update = function (dt) {
           this.fireNote = '耐久 +' + (def.heal || 0);
         }
       } else if (def.type === 'speed') {
-        // 加速：同一时间只生效一个，重复踩不叠加
-        if (this.speedBoost.left <= 0) {
-          this.speedBoost.mul = def.speedMul || 1;
+        // 加速：每张卡有自己的冷却；不叠加，但遇到更高的倍率就刷新时间和倍率
+        const cd = this.tpl.speedCdMs == null ? 2000 : this.tpl.speedCdMs;
+        const mul = def.speedMul || 1;
+        const ready = this._time - (cell.lastSpeed || -99999) >= cd;
+
+        if (ready && (this.speedBoost.left <= 0 || mul > this.speedBoost.mul)) {
+          cell.lastSpeed = this._time;
+          this.speedBoost.mul = mul;
           this.speedBoost.left = def.durationMs || 3000;
-          this.fireNote = '加速 ×' + this.speedBoost.mul;
+          this.fireNote = '加速 ×' + mul;
         }
       } else {
         const n = this._fireFrom(cell);

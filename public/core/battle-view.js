@@ -651,48 +651,42 @@ function create(options) {
     ctx.fillText(numText, startX + iconR * 2 + gap, y);
   }
 
-  // 拖拽时在上方显示这张卡的核心属性；拖到垃圾桶上就改成显示能卖多少钱
+  // 拖拽时在顶部居中显示这张卡的属性；拖到垃圾桶上就改成显示能卖多少钱
   // def - 卡牌表里的一行
   function drawDragHint(ctx, def) {
-    const y = fontPx * 3.2;
-    const size = fontPx;
+    // 顶部留白：不贴边，也不和左上角的银币打架
+    const y = fontPx * 4.2;
+    const size = Math.round(fontPx * 2);
 
-    ctx.font = size + 'px sans-serif';
-    ctx.textAlign = 'left';
+    ctx.font = 'bold ' + size + 'px sans-serif';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(214,222,236,0.85)';
 
-    let x = 16;
+    let text;
 
     // 拖到垃圾桶上：显示能卖多少
     if (isOverTrash() && dragFromCell && dragFromCell.card) {
-      const price = battle.sellPrice(dragFromCell.card.def);
-      ctx.fillStyle = 'rgba(255,214,120,0.95)';
-      ctx.fillText('卖出 +' + price, x, y);
-      return;
+      text = '卖出 +' + battle.sellPrice(dragFromCell.card.def) + ' 银币';
+    } else if (def.type === 'heal' || def.kind === 'heal') {
+      text = '耐久 +' + (def.heal || 0);
+    } else if (def.type === 'speed' || def.kind === 'speed') {
+      const sec = ((def.durationMs || 0) / 1000).toFixed(1).replace(/\.0$/, '');
+      text = '移动速度 ×' + (def.speedMul || 0) + '    持续 ' + sec + ' 秒';
+    } else {
+      // 攻速换成「每秒几次」，比毫秒直观
+      const perSec = def.cdMs ? (1000 / def.cdMs).toFixed(2).replace(/0$/, '') : '0';
+      text = '伤害 ' + (def.damage || 0) +
+        '    攻击速度 ' + perSec + ' 次/秒' +
+        '    数量 ×' + (def.shots || 1);
     }
 
-    // 加耐久卡：用爱心图标代替文字
-    if (def.type === 'heal' || def.kind === 'heal') {
-      const hr = size * 0.5;
-      drawHeartShape(ctx, '#ff4d6d', x + hr, y, hr);
-      x += hr * 2.4;
-      ctx.fillText('+' + (def.heal || 0), x, y);
-      return;
-    }
+    // 文字颜色压暗，外面描一圈浅边保证背景变化也看得清
+    ctx.lineWidth = Math.max(3, size * 0.16);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.strokeText(text, battle.width / 2, y);
 
-    if (def.type === 'speed' || def.kind === 'speed') {
-      const br = size * 0.5;
-      drawBoltShape(ctx, '#8fc9ff', x + br, y, br);
-      x += br * 2.4;
-      ctx.fillText('×' + (def.speedMul || 0), x, y);
-      return;
-    }
-
-    const text = '伤害 ' + (def.damage || 0) +
-      '    攻速 ' + (def.cdMs || 0) + 'ms' +
-      '    数量 ×' + (def.shots || 1);
-    ctx.fillText(text, x, y);
+    ctx.fillStyle = 'rgba(46,56,74,0.95)';
+    ctx.fillText(text, battle.width / 2, y);
   }
 
   // 手指（拖拽中）是否在垃圾桶上
