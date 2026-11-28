@@ -115,6 +115,9 @@ function Battle(deps) {
   this.hitCount = 0;
   this.fireNote = '';
 
+  // 速度卡效果：乘几、还剩多少毫秒
+  this.speedBoost = { mul: 1, left: 0 };
+
   // 外部回调
   this.onWaveStart = null;
   this.onWaveEnd = null;
@@ -518,6 +521,9 @@ Battle.prototype._fireFrom = function (cell) {
   if (!card || !card.def) return 0;
 
   const def = card.def;
+
+  // 功能卡不发射
+  if (def.type && def.type !== 'weapon') return 0;
   const cx = cell.x + cell.w / 2;
   const cy = cell.y + cell.h / 2;
 
@@ -591,19 +597,44 @@ Battle.prototype.update = function (dt) {
   // 只有战斗中才推进一切；布阵和结束都直接返回
   if (this.state !== 'battle') return;
 
-  // 1. 人物所在格子上有武器就尝试开火（靠武器自己的 cdMs 控节奏）
-  // 不只看「刚走到」那一瞬，站在格子上碰到怪进场也能继续打
+  // 1. 人物所在格子：武器开火，功能卡触发效果
   if (this.player && this.player.current) {
     const cell = this.player.current;
 
-    if (cell && cell.card) {
-      const n = this._fireFrom(cell);
-      if (n) this.fireNote = '发射 ' + n;
-      else this.fireNote = '无目标';
+    if (cell && cell.card && cell.card.def) {
+      const def = cell.card.def;
+
+      if (def.type === 'heal') {
+        // 加耐久：加上就消耗掉这张卡
+        this.hp += def.heal || 0;
+        this.fireNote = '耐久 +' + (def.heal || 0);
+        cell.card = null;
+      } else if (def.type === 'speed') {
+        // 加速：同一时间只生效一个，重复踩不叠加
+        if (this.speedBoost.left <= 0) {
+          this.speedBoost.mul = def.speedMul || 1;
+          this.speedBoost.left = def.durationMs || 3000;
+          this.fireNote = '加速 ×' + this.speedBoost.mul;
+        }
+      } else {
+        const n = this._fireFrom(cell);
+        if (n) this.fireNote = '发射 ' + n;
+        else this.fireNote = '无目标';
+      }
     } else {
-      this.fireNote = '无武器';
+      this.fireNote = '无卡牌';
     }
   }
+
+  // 速度加成倒计时
+  if (this.speedBoost.left > 0) {
+    this.speedBoost.left -= dt;
+    if (this.speedBoost.left <= 0) {
+      this.speedBoost.left = 0;
+      this.speedBoost.mul = 1;
+    }
+  }
+  if (this.player) this.player.speedMul = this.speedBoost.mul;
 
   // 1. 把到时间的子弹发出去（多发就是这样一发一发出来的）
   this._flushShots();
@@ -670,7 +701,7 @@ Battle.prototype.update = function (dt) {
     const dx = t.x + b.ox - b.x;
     const dy = t.y + b.oy - b.y;
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const step = (b.def.speed || 0) * (dt / 1000);
+    const step = (b.def.bulletSpd || 0) * (dt / 1000);
 
     b.x += (dx / len) * step;
     b.y += (dy / len) * step;
@@ -727,6 +758,8 @@ Battle.prototype.restart = function () {
 
   this.refreshCount = 0;
   this.selected = null;
+  this.speedBoost = { mul: 1, left: 0 };
+  if (this.player) this.player.speedMul = 1;
 
   // 棋盘上的武器全部清掉
   if (this.board && this.board.cells) {
@@ -743,6 +776,7 @@ Battle.prototype.status = function () {
   return {
     coins: this.coins,
     hp: this.hp,
+    maxHp: this.tpl.cellHp || 0,
     wave: this.wave,
     state: this.state,
     alive: this.monsters.length,

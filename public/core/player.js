@@ -91,6 +91,7 @@ class Player {
 
     this.speed = cfg.speed || 0;      // 每秒走多少格
     this.pauseMs = cfg.pauseMs || 0;  // 每格停留毫秒
+    this.speedMul = 1;                // 速度倍率，速度卡会改它
 
     this.i = 0;      // 当前在路线上的第几个格子
     this.t = 0;      // 段内进度，0 到 1
@@ -148,8 +149,8 @@ class Player {
       this.pause = 0;
     }
 
-    // 按速度推进段内进度
-    this.t += (dt / 1000) * this.speed;
+    // 按速度推进段内进度（speedMul 由速度卡提供）
+    this.t += (dt / 1000) * this.speed * (this.speedMul || 1);
 
     // 走过一格就换到下一格；一帧跨过好几格也能追上
     while (this.t >= 1) {

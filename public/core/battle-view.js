@@ -178,12 +178,68 @@ function drawStaffShape(ctx, color, cx, cy, s) {
   ctx.stroke();
 }
 
+// 爱心：加耐久卡用
+function drawHeartShape(ctx, color, cx, cy, s) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.42);
+  ctx.bezierCurveTo(cx - s * 0.75, cy - s * 0.12, cx - s * 0.34, cy - s * 0.6, cx, cy - s * 0.2);
+  ctx.bezierCurveTo(cx + s * 0.34, cy - s * 0.6, cx + s * 0.75, cy - s * 0.12, cx, cy + s * 0.42);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// 闪电：加速卡用
+function drawBoltShape(ctx, color, cx, cy, s) {
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.12, cy - s * 0.5);
+  ctx.lineTo(cx - s * 0.3, cy + s * 0.08);
+  ctx.lineTo(cx - s * 0.02, cy + s * 0.08);
+  ctx.lineTo(cx - s * 0.14, cy + s * 0.5);
+  ctx.lineTo(cx + s * 0.32, cy - s * 0.1);
+  ctx.lineTo(cx + s * 0.03, cy - s * 0.1);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// 在格子右下角写一个小标签（×2 / +4 这种）
+// text - 要写的字
+// x, y - 右下角坐标
+// size - 字号，单位 px
+function drawBadge(ctx, text, x, y, size) {
+  ctx.font = 'bold ' + Math.round(size) + 'px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'alphabetic';
+
+  // 先描一圈暗边，保证任何背景上都看得清
+  ctx.lineWidth = Math.max(2, size * 0.22);
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.strokeText(text, x, y);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, x, y);
+}
+
+// 一张卡右下角该显示什么数字
+// def - 卡牌表里的一行
+// 返回字符串，不显示时返回空串
+function badgeTextOf(def) {
+  if (!def) return '';
+
+  if (def.kind === 'heal' || def.type === 'heal') return '+' + (def.heal || 0);
+  if (def.kind === 'speed' || def.type === 'speed') return '×' + (def.speedMul || 0);
+  return '×' + (def.shots || 1);
+}
+
 // 按武器表里的 kind 分发
-// def - 武器表里的一行（含 kind / color）
+// def - 卡牌表里的一行（含 kind / color）
 function drawWeapon(ctx, def, cx, cy, s) {
   const kind = def.kind || 'sword';
   const color = def.color || '#d8dee8';
 
+  if (kind === 'heal') return drawHeartShape(ctx, color, cx, cy, s * 0.9);
+  if (kind === 'speed') return drawBoltShape(ctx, color, cx, cy, s * 0.9);
   if (kind === 'axe') return drawAxeShape(ctx, color, cx, cy, s);
   if (kind === 'spear') return drawSpearShape(ctx, color, cx, cy, s);
   if (kind === 'staff') return drawStaffShape(ctx, color, cx, cy, s);
@@ -453,13 +509,23 @@ function create(options) {
     // 1. 篝火
     drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
 
-    // 2. 格子上的武器：不旋转，永远朝上摆着
+    // 1.5 篝火右下角：爱心 + 当前耐久
+    const st = battle.status();
+    const heartSize = campfireSize * 0.26;
+    const hx = battle.campfire.x + campfireSize * 0.3;
+    const hy = battle.campfire.y + campfireSize * 0.34;
+    drawHeartShape(ctx, '#ff4d6d', hx, hy, heartSize);
+    drawBadge(ctx, String(Math.round(st.hp)), hx + heartSize * 1.5, hy + heartSize * 0.55, campfireSize * 0.2);
+
+    // 2. 格子上的卡牌：不旋转，永远朝上摆着
     // 正在被拖走的那一格先空出来，做出「拔出来」的效果
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (!cell.card || !cell.card.def) continue;
       if (cell === dragFromCell) continue;
+
       drawWeapon(ctx, cell.card.def, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
+      drawBadge(ctx, badgeTextOf(cell.card.def), cell.x + cell.w * 0.94, cell.y + cell.h * 0.96, board.cellW * 0.13);
     }
 
     // 4. 商店槽位里的武器（卖掉的槽位不画），每格带一个价格
@@ -469,6 +535,7 @@ function create(options) {
         if (slot.sold || !slot.weapon) continue;
         if (slot === dragFromSlot) continue;   // 正在被拖走
         drawWeapon(ctx, slot.weapon, slot.x + slot.w / 2, slot.y + slot.h * 0.42, slotIconSize);
+        drawBadge(ctx, badgeTextOf(slot.weapon), slot.x + slot.w * 0.94, slot.y + slot.h * 0.62, slot.w * 0.14);
         drawSlotPrice(ctx, slot);
       }
     }
@@ -501,9 +568,10 @@ function create(options) {
       drawButton(ctx, restartButton, COLOR.fightBtn, null, true);
     }
 
-    // 9. 拖拽中的武器跟着手指走（屏幕坐标，不缩放）
+    // 9. 拖拽中的武器跟着手指，并在上方显示核心属性
     if (dragPoint && dragDef) {
       drawWeaponAimed(ctx, dragDef, dragPoint.x, dragPoint.y, slotIconSize * 0.8, -Math.PI / 2);
+      drawDragHint(ctx, dragDef);
     }
 
     // 10. HUD
@@ -534,6 +602,44 @@ function create(options) {
     ctx.textAlign = 'left';
     ctx.fillStyle = afford ? COLOR.btnText : COLOR.btnTextOff;
     ctx.fillText(numText, startX + iconR * 2 + gap, y);
+  }
+
+  // 拖拽时在上方显示这张卡的核心属性
+  // def - 卡牌表里的一行
+  function drawDragHint(ctx, def) {
+    const y = fontPx * 3.2;
+    const size = fontPx;
+
+    ctx.font = size + 'px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    // 颜色压暗一点，有识别度但不抢眼睛
+    ctx.fillStyle = 'rgba(214,222,236,0.85)';
+
+    let x = 16;
+
+    // 加耐久卡：先用爱心图标代替文字，后面跟数字
+    if (def.type === 'heal' || def.kind === 'heal') {
+      const hr = size * 0.5;
+      drawHeartShape(ctx, '#ff4d6d', x + hr, y, hr);
+      x += hr * 2.4;
+      ctx.fillText('+' + (def.heal || 0), x, y);
+      return;
+    }
+
+    if (def.type === 'speed' || def.kind === 'speed') {
+      const br = size * 0.5;
+      drawBoltShape(ctx, '#8fc9ff', x + br, y, br);
+      x += br * 2.4;
+      ctx.fillText('×' + (def.speedMul || 0), x, y);
+      return;
+    }
+
+    const text = '伤害 ' + (def.damage || 0) +
+      '    攻速 ' + (def.cdMs || 0) + 'ms' +
+      '    数量 ×' + (def.shots || 1);
+    ctx.fillText(text, x, y);
   }
 
   // 画一个按钮：左边文字，右边「银币图标 + 价格」
