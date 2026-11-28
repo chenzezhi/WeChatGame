@@ -31,7 +31,7 @@ module.exports = {
     shellWidthRatio: 1,
     x: null,
     y: null,
-    topRatio: 0.8,
+    topRatio: 0.7,
 
     /* ★ 插槽 2：卡牌槽位
      * slotAsset    - 槽位底图，写法同 shellAsset
