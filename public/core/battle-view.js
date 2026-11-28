@@ -394,6 +394,14 @@ function create(options) {
   let dragPoint = null;
   let dragDef = null;
 
+  // 按下时命中的格子 / 槽位（还没确认是不是拖拽）
+  let pendingCell = null;
+  let pendingSlot = null;
+
+  // 真正开始拖之后，源格子 / 槽位要先「空出来」
+  let dragFromCell = null;
+  let dragFromSlot = null;
+
   // 当前世界缩放，逐帧向目标靠拢
   let worldZoom = 1;
 
@@ -446,9 +454,11 @@ function create(options) {
     drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
 
     // 2. 格子上的武器：不旋转，永远朝上摆着
+    // 正在被拖走的那一格先空出来，做出「拔出来」的效果
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (!cell.card || !cell.card.def) continue;
+      if (cell === dragFromCell) continue;
       drawWeapon(ctx, cell.card.def, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
     }
 
@@ -457,6 +467,7 @@ function create(options) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
         if (slot.sold || !slot.weapon) continue;
+        if (slot === dragFromSlot) continue;   // 正在被拖走
         drawWeapon(ctx, slot.weapon, slot.x + slot.w / 2, slot.y + slot.h * 0.42, slotIconSize);
         drawSlotPrice(ctx, slot);
       }
@@ -626,9 +637,16 @@ function create(options) {
     return null;
   }
 
-  // 拖拽中：记下手指位置，用来画跟随的武器
+  // 拖拽中：记下手指位置；第一次移动时把源格子/槽位「拔出来」
   function handleDrag(x, y) {
     if (battle.state !== 'build' || !dragDef) return;
+
+    // 还没标记源：现在确认是在拖，把源空出来
+    if (!dragFromCell && !dragFromSlot) {
+      dragFromCell = pendingCell;
+      dragFromSlot = pendingSlot;
+    }
+
     dragPoint = { x: x, y: y };
   }
 
@@ -636,19 +654,25 @@ function create(options) {
   // sx, sy - 按下的位置；ex, ey - 抬手的位置；moved - 是否真的拖动了
   // 返回 true 表示成功了
   function handleDrop(sx, sy, ex, ey, moved) {
+    // 先取回源，再清状态
+    const fromCell = dragFromCell;
+    const fromSlot = dragFromSlot;
+
     dragPoint = null;
     dragDef = null;
+    pendingCell = null;
+    pendingSlot = null;
+    dragFromCell = null;
+    dragFromSlot = null;
 
     if (!moved || battle.state !== 'build') return false;
 
-    const from = World.toWorld(sx, sy);
     const to = World.toWorld(ex, ey);
     const toCell = cellAtPoint(to.x, to.y);
 
     // 1. 从商店槽位拖出来：买
-    const slot = slotAtPoint(from.x, from.y);
-    if (slot && !slot.sold && slot.weapon) {
-      battle.selectSlot(slot);
+    if (fromSlot && !fromSlot.sold && fromSlot.weapon) {
+      battle.selectSlot(fromSlot);
       if (!toCell) {
         lastLine = '没放到格子上';
         return false;
@@ -659,7 +683,6 @@ function create(options) {
     }
 
     // 2. 从棋盘格子拖出来：移动 或 合成
-    const fromCell = cellAtPoint(from.x, from.y);
     if (fromCell && fromCell.card) {
       if (!toCell) {
         lastLine = '没放到格子上';
@@ -704,6 +727,10 @@ function create(options) {
     const x0 = pt.x;
     const y0 = pt.y;
 
+    // 按下时先记下可能拖的东西，等真移动了才「拔出来」
+    pendingCell = null;
+    pendingSlot = null;
+
     // 商店槽位：选中这把武器（拖拽时用来显示跟随图标）
     if (shop && shop.slots) {
       for (let i = 0; i < shop.slots.length; i++) {
@@ -715,6 +742,7 @@ function create(options) {
         }
         battle.selectSlot(slot);
         dragDef = slot.weapon;
+        pendingSlot = slot;
         lastLine = '选中 ' + slot.weapon.name + ' ' + slot.level + ' 级（' + slot.price + '）';
         return true;
       }
@@ -725,8 +753,12 @@ function create(options) {
       const cell = board.cells[i];
       if (!inside(x0, y0, cell)) continue;
 
-      if (cell.card) dragDef = cell.card.def;
-      else if (battle.selected) dragDef = battle.weaponDef(battle.selected.name, 1);
+      if (cell.card) {
+        dragDef = cell.card.def;
+        pendingCell = cell;
+      } else if (battle.selected) {
+        dragDef = battle.weaponDef(battle.selected.name, 1);
+      }
 
       const before = cell.card ? cell.card.level : 0;
       const ok = battle.placeWeapon(cell, battle.selected);
