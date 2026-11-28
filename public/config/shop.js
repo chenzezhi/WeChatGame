@@ -43,7 +43,7 @@ module.exports = {
     slotAsset: 30,
     slotCount: 3,
     slotRatio: 0.17,
-    gapRatio: 0.02,
-    slotTopRatio: 0.86,
+    gapRatio: 0.1,
+    slotTopRatio: 0.6,
   },
 };
