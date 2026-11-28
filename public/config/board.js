@@ -30,7 +30,7 @@ module.exports = {
     y: null,          // 棋盘左上角 y，单位 px；null = 用 topRatio
     cellRatio: 0.17,  // 格子边长占画布宽度的比例
     gapRatio: 0.012,  // 格子间距占画布宽度的比例
-    topRatio: 0.4,    // 仅当 y 为 null 时生效，占画布高度的比例
+    topRatio: 0.1,    // 仅当 y 为 null 时生效，占画布高度的比例
 
     // 格子用的素材，两种写法都行：
     //   数字            = 图集序号（走 sprite 渲染器，从合图里切）
