@@ -43,8 +43,10 @@ const COLOR = {
   refreshBtn: '#2f5d8b',
   btnText: '#ffe9c9',
   btnTextOff: '#ff6a6a',
-  coin: '#f5c542',
-  coinDark: '#a1761a',
+  // 银币：白银色（不要金色）
+  coin: '#d9dfe8',
+  coinRim: '#8d98a8',
+  coinShine: '#ffffff',
   hud: '#ffffff',
   hudBg: 'rgba(0,0,0,0.45)',
   mask: '#12121a',
@@ -68,16 +70,34 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// 画一枚银币图标
+// 画一枚银币：银色底面 + 深色边 + 一点高光
 // cx, cy - 圆心；r - 半径
 function drawCoin(ctx, cx, cy, r) {
+  // 银底
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = COLOR.coin;
   ctx.fill();
-  ctx.lineWidth = Math.max(1, r * 0.28);
-  ctx.strokeStyle = COLOR.coinDark;
+
+  // 外圈：深一点的银灰
+  ctx.lineWidth = Math.max(1, r * 0.26);
+  ctx.strokeStyle = COLOR.coinRim;
   ctx.stroke();
+
+  // 内圈：压一道浅色环，看起来像币面
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.62, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(1, r * 0.14);
+  ctx.strokeStyle = COLOR.coinRim;
+  ctx.stroke();
+
+  // 高光：左上角一小块
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.28, cy - r * 0.3, r * 0.26, 0, Math.PI * 2);
+  ctx.fillStyle = COLOR.coinShine;
+  ctx.globalAlpha = 0.75;
+  ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 /* ---------------- 四种武器形状 ---------------- */
