@@ -1,0 +1,12 @@
+# 背景音乐表
+#
+# name   - 曲名，方便你自己辨认
+# file   - 音频路径（相对包根）
+# mode   - 播放模式：
+#          loop   单曲循环（默认，一直放这一首）
+#          order  顺序播放（放到下一首）
+#          random 随机播放（放完随机换一首）
+# volume - 音量 0~1，不写就用配置里的默认值
+
+name  file                          mode  volume
+bgm1  src/assets/music/bgm1.mp3     loop  0.45
