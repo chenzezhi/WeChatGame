@@ -71,7 +71,19 @@ module.exports = {
     sellRatio: 0.8,
 
     // 调试：给商店外壳画框（洋红=盒子范围，黄=图片实际范围）
-    debugShell: true,
+    debugShell: false,
+
+    /* ★ 抽奖奖池：三个宝箱，从左到右
+     * label   - 宝箱名字
+     * price   - 开一次要多少银币
+     * weights - 1~4 级的权重，决定抽到高等级的概率
+     */
+    chests: [
+      { label: '初级', price: 30, weights: [70, 25, 5, 0] },
+      { label: '中级', price: 60, weights: [40, 40, 18, 2] },
+      { label: '高级', price: 100, weights: [10, 35, 40, 15] },
+    ],
+    gachaRollMs: 1400,
 
     // 加耐久卡的触发冷却，单位毫秒（可重复触发，但不能每帧都加）
     healCdMs: 1500,

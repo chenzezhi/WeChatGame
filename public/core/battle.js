@@ -229,6 +229,9 @@ Battle.prototype.placeWeapon = function (cell, sel) {
   if (item.slot) item.slot.sold = true;
   else this._consumeSlot(item.name);
 
+  // 抽奖拿了一张：剩下两张作废，恢复抽奖前的卡槽
+  if (this.gacha.phase === 'result') this._closeGacha();
+
   return true;
 };
 
@@ -412,6 +415,9 @@ Battle.prototype.buildWave = function (n) {
 // 返回 true 表示真的开始了
 Battle.prototype.startWave = function () {
   if (this.state !== 'build') return false;
+
+  // 抽奖没结束就开打：先把卡槽恢复
+  if (this.gacha.phase !== 'off') this.exitGacha();
 
   const n = this.wave + 1;
   const plan = this.buildWave(n);
@@ -635,6 +641,24 @@ Battle.prototype.update = function (dt) {
   }
   if (this.player) this.player.speedMul = this.speedBoost.mul;
 
+  // 抽奖滚动：布阵阶段也在跑
+  if (this.gacha.phase === 'rolling') {
+    this.gacha.t += dt;
+    this.gacha.tick += dt;
+
+    // 每 70ms 换一次预览图，看起来就像在转
+    if (this.gacha.tick >= 70) {
+      this.gacha.tick = 0;
+      this.gacha.preview = [
+        this._randomCard(),
+        this._randomCard(),
+        this._randomCard(),
+      ];
+    }
+
+    if (this.gacha.t >= this.gacha.dur) this._finishRoll();
+  }
+
   // 只有战斗中才推进一切；布阵和结束都直接返回
   if (this.state !== 'battle') return;
 
@@ -804,6 +828,11 @@ Battle.prototype.restart = function () {
   this.refreshCount = 0;
   this.selected = null;
   this.speedBoost = { mul: 1, left: 0 };
+
+  this.gacha.phase = 'off';
+  this.gacha.saved = null;
+  this.gacha.tier = -1;
+  this.gacha.t = 0;
   if (this.player) this.player.speedMul = 1;
 
   // 棋盘上的武器全部清掉

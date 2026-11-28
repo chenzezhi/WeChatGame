@@ -916,6 +916,7 @@ function create(options) {
     dragFromSlot = null;
 
     if (!moved || battle.state !== 'build') return false;
+    if (battle.gacha.phase === 'chests' || battle.gacha.phase === 'rolling') return false;
 
     const to = World.toWorld(ex, ey);
     const toCell = cellAtPoint(to.x, to.y);
@@ -969,7 +970,19 @@ function create(options) {
 
     // 按钮是屏幕坐标，不缩放
     if (battle.state === 'build') {
-      if (inside(x, y, refreshButton)) {
+      // 抽奖：没开就进选宝箱，开着就取消恢复
+      if (inside(x, y, gachaBtn)) {
+        if (battle.gacha.phase === 'off') {
+          battle.enterChestSelect();
+          lastLine = '选宝箱';
+        } else {
+          battle.exitGacha();
+          lastLine = '取消抽奖';
+        }
+        return true;
+      }
+
+      if (battle.gacha.phase === 'off' && inside(x, y, refreshButton)) {
         refreshButton.onTap();
         return true;
       }
@@ -997,6 +1010,16 @@ function create(options) {
           lastLine = '槽位空了';
           return false;
         }
+        // 宝箱阶段：点槽位就是开这个宝箱
+        if (battle.gacha.phase === 'chests') {
+          const ok = battle.buyChest(i);
+          lastLine = ok ? '开宝箱' : '银币不够';
+          return ok;
+        }
+
+        // 滚动中不能点
+        if (battle.gacha.phase === 'rolling') return false;
+
         battle.selectSlot(slot);
         dragDef = slot.weapon;
         pendingSlot = slot;
