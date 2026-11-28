@@ -105,9 +105,10 @@ class Board {
     const height = e.height || 0;
 
     // 格子尺寸与间距，单位 px（比例 × 画布宽）
-    this.cellW = width * (cfg.cellRatio || 0);
+    // 配置里必须给齐，默认值由 config/board.js 的模板负责，代码里不兜底
+    this.cellW = width * cfg.cellRatio;
     this.cellH = this.cellW;              // 正方形格子
-    this.gap = width * (cfg.gapRatio || 0);
+    this.gap = width * cfg.gapRatio;
 
     // 棋盘总宽高，单位 px
     this.width = this.colCount * this.cellW + (this.colCount - 1) * this.gap;
@@ -115,7 +116,7 @@ class Board {
 
     // 棋盘左上角：给了 x / y 就用它，没给就自适应
     this.originX = cfg.x == null ? (width - this.width) / 2 : cfg.x;
-    this.originY = cfg.y == null ? height * (cfg.topRatio || 0) : cfg.y;
+    this.originY = cfg.y == null ? height * cfg.topRatio : cfg.y;
 
     // 格子用的素材与缩放倍数
     this.cellAsset = cfg.cellAsset;
