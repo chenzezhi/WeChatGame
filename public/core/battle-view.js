@@ -661,7 +661,7 @@ function create(options) {
   function drawDragHint(ctx, def) {
     // 顶部留白：不贴边，也不和左上角的银币打架
     const y = fontPx * 4.2;
-    const size = Math.round(fontPx * 2);
+    const size = Math.round(fontPx * 1.2);
 
     ctx.font = 'bold ' + size + 'px sans-serif';
     ctx.textAlign = 'center';
