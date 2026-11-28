@@ -1116,11 +1116,8 @@ function create(options) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
         if (!inside(x0, y0, slot)) continue;
-        if (slot.sold || !slot.weapon) {
-          lastLine = '槽位空了';
-          return false;
-        }
-        // 宝箱阶段：点槽位就是开这个宝箱
+
+        // 宝箱阶段：槽位里没有武器，先判抽奖，不能走下面的「槽位空了」
         if (battle.gacha.phase === 'chests') {
           const ok = battle.buyChest(i);
           lastLine = ok ? '开宝箱' : '银币不够';
@@ -1129,6 +1126,12 @@ function create(options) {
 
         // 滚动中不能点
         if (battle.gacha.phase === 'rolling') return false;
+
+        // 正常阶段：卖掉了或没卡就是空的
+        if (slot.sold || !slot.weapon) {
+          lastLine = '槽位空了';
+          return false;
+        }
 
         battle.selectSlot(slot);
         dragDef = slot.weapon;
