@@ -28,7 +28,7 @@ module.exports = {
   template: {
     x: null,          // 棋盘左上角 x，单位 px；null = 水平居中
     y: null,          // 棋盘左上角 y，单位 px；null = 用 topRatio
-    cellRatio: 0.17,  // 格子边长占画布宽度的比例
+    cellRatio: 0.1,  // 格子边长占画布宽度的比例
     gapRatio: 0.012,  // 格子间距占画布宽度的比例
     topRatio: 0.1,    // 仅当 y 为 null 时生效，占画布高度的比例
 
