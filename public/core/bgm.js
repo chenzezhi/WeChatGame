@@ -195,6 +195,11 @@ function setVolume(v) {
   }
 }
 
+// 当前音量
+function getVolume() {
+  return defaultVolume;
+}
+
 // 当前曲目信息
 function current() {
   return tracks[cur] || null;
@@ -206,6 +211,7 @@ module.exports = {
   next: next,
   stop: stop,
   setVolume: setVolume,
+  getVolume: getVolume,
   current: current,
   loadTracks: loadTracks,
 };

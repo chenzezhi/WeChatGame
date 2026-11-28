@@ -22,6 +22,20 @@
 
 const cax = null;   // 占位：本模块不依赖渲染
 
+// 总音量（菜单里的滑条控制它，所有音效乘这个数）
+let master = 1;
+
+// 设置总音量
+// v - 0~1
+function setMaster(v) {
+  master = Math.max(0, Math.min(1, v));
+}
+
+// 当前总音量
+function getMaster() {
+  return master;
+}
+
 // 每个音效建几个播放器轮流用
 const POOL_SIZE = 5;
 
@@ -70,8 +84,12 @@ function poolOf(path, volume) {
 function play(path, volume, gapMs) {
   if (!path) return false;
 
-  const pool = poolOf(path, volume);
+  const vol = (volume == null ? 0.7 : volume) * master;
+  const pool = poolOf(path, vol);
   if (!pool) return false;
+
+  // 音量跟着滑条实时变
+  for (let i = 0; i < pool.list.length; i++) pool.list[i].volume = vol;
 
   // 间隔不足就不播，避免糊成一片噪音
   const now = Date.now();
@@ -92,4 +110,4 @@ function play(path, volume, gapMs) {
   }
 }
 
-module.exports = { play: play };
+module.exports = { play: play, setMaster: setMaster, getMaster: getMaster };
