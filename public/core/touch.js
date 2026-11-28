@@ -80,7 +80,7 @@ function bind(handlers) {
     startY = lastY = t.clientY * k;
     moved = false;
 
-    if (h.tap) h.tap(startX, startY);
+    // 按下时先不派发点击：等抬手再判断，避免和拖拽重复触发
   });
 
   if (wx.onTouchMove) {
@@ -99,8 +99,10 @@ function bind(handlers) {
     });
   }
 
+  // 抬手：没移动才算点击；移动了就是拖拽，交给 drop
   if (wx.onTouchEnd) {
     wx.onTouchEnd(function () {
+      if (!moved && h.tap) h.tap(startX, startY);
       if (h.drop) h.drop(startX, startY, lastX, lastY, moved);
     });
   }

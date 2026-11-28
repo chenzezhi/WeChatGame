@@ -559,6 +559,16 @@ function create(options) {
   // 上一次操作的结果，HUD 最后一段显示
   let lastLine = '';
 
+  // 屏幕中间弹一下的提示
+  let toastText = '';
+  let toastUntil = 0;
+
+  // 弹一句话，默认 2 秒后消失
+  function showToast(text, ms) {
+    toastText = text;
+    toastUntil = battle._time + (ms || 2000);
+  }
+
   // 拖拽中：手指位置（屏幕坐标）和要拖的武器定义
   let dragPoint = null;
   let dragDef = null;
@@ -766,8 +776,8 @@ function create(options) {
       if (build) {
         const ph = battle.gacha.phase;
 
-        // 没抽奖时是「抽奖」，显示宝箱时变成「返回」
-        if (ph === 'off' || ph === 'chests') {
+        // 没抽奖时是「抽奖」；宝箱阶段和出结果阶段都显示「返回」
+        if (ph === 'off' || ph === 'chests' || ph === 'result') {
           gachaBtn.label = ph === 'off' ? '抽奖' : '返回';
           drawButton(ctx, gachaBtn, ph === 'off' ? COLOR.refreshBtn : COLOR.fightBtn, null, true);
         }
@@ -827,23 +837,27 @@ function create(options) {
       ctx.fillText(text, cx, cy);
     }
 
-    if (battle.gacha.phase === 'result') {
-      // 还有免费的卡没用：屏幕中间提示
-      const size = Math.round(fontPx * 1.6);
+    // 弹一下的提示：2 秒后自动消失，最后 0.3 秒淡出
+    if (toastUntil > battle._time && toastText) {
+      const left = toastUntil - battle._time;
+      const alpha = Math.min(1, left / 300);
+
+      const size = Math.round(fontPx * 1.7);
       ctx.font = 'bold ' + size + 'px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const text = '还有免费的卡牌  未使用或卖出';
       const cx = battle.width / 2;
-      const cy = battle.height * 0.62;
+      const cy = battle.height * 0.58;
 
+      ctx.globalAlpha = alpha;
       ctx.lineWidth = Math.max(3, size * 0.16);
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-      ctx.strokeText(text, cx, cy);
+      ctx.strokeText(toastText, cx, cy);
 
       ctx.fillStyle = '#ffe9c9';
-      ctx.fillText(text, cx, cy);
+      ctx.fillText(toastText, cx, cy);
+      ctx.globalAlpha = 1;
     }
 
     // 10. HUD：左上角银币
@@ -1361,6 +1375,14 @@ function create(options) {
           lastLine = '返回';
           return true;
         }
+
+        if (battle.gacha.phase === 'result') {
+          // 还有免费卡没拿：弹提示，不让返回
+          showToast('还有免费的卡牌  未使用', 2000);
+          lastLine = '先拿走免费卡';
+          return false;
+        }
+
         return false;
       }
 
