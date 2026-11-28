@@ -18,7 +18,7 @@
 set -u
 
 REPO="${WX_QR_REPO:-chenzezhi/WeChatGame}"
-TOKEN="${GITHUB_TOKEN:-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}"
+TOKEN="${GITHUB_TOKEN:-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}"
 WAIT_SECONDS="${WX_QR_WAIT:-420}"
 TARGET_DIR="${WX_QR_DIR:-/storage/emulated/0/DCIM/Screenshots}"
 WORKFLOW="deploy.yml"
@@ -108,6 +108,8 @@ while : ; do
     break
   fi
   NOW=$(date +%s)
+  echo "RUN_JSON：$RUNS_JSON"
+  echo "RUN_ID：$RUN_ID"
   if [ "$NOW" -ge "$DEADLINE" ]; then
     break
   fi
