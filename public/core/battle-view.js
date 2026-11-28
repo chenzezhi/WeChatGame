@@ -456,7 +456,12 @@ function create(options) {
   if (shop && shop.shell && /[\/.]/.test(String(shop.shell.asset))) {
     texture.load(
       shop.shell.asset,
-      function (t) { shellImg = t; },
+      function (t) {
+        shellImg = t;
+        console.log('[battle-view] 外壳图 ' + t.width + 'x' + t.height +
+          '，盒子 ' + Math.round(shop.shell.w) + 'x' + Math.round(shop.shell.h) +
+          ' @ ' + Math.round(shop.shell.x) + ',' + Math.round(shop.shell.y));
+      },
       function (err) { console.warn('[battle-view] 外壳图片加载失败：' + err.message); }
     );
   }
@@ -696,29 +701,29 @@ function create(options) {
     return inside(p.x, p.y, trashRect);
   }
 
-  // 画商店外壳：图片按 cover 铺满盒子，超出部分裁掉
+  // 画商店外壳：先垫一层不透明底，再把图片 cover 进去。
+  // 垫底是为了防两种情况：图片带透明区（背景草地会透上来）、图片还没加载完
   function drawShell(ctx) {
     const s = shop && shop.shell ? shop.shell : null;
     if (!s) return;
 
-    if (shellImg && shellImg.image) {
-      // cover：取两个方向里大的缩放，保证铺满整块盒子
-      const scale = Math.max(s.w / shellImg.width, s.h / shellImg.height);
-      const w = shellImg.width * scale;
-      const h = shellImg.height * scale;
-
-      ctx.save();
-      roundRectPath(ctx, s.x, s.y, s.w, s.h, Math.min(s.w, s.h) * 0.04);
-      ctx.clip();
-      ctx.drawImage(shellImg.image, s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
-      ctx.restore();
-      return;
-    }
-
-    // 没图先用深色圆角底板占位
+    // 1. 不透明底板
     ctx.fillStyle = '#1b2230';
-    roundRectPath(ctx, s.x, s.y, s.w, s.h, Math.min(s.w, s.h) * 0.08);
+    roundRectPath(ctx, s.x, s.y, s.w, s.h, Math.min(s.w, s.h) * 0.04);
     ctx.fill();
+
+    if (!shellImg || !shellImg.image) return;
+
+    // 2. 图片按 cover 铺满盒子，超出裁掉
+    const scale = Math.max(s.w / shellImg.width, s.h / shellImg.height);
+    const w = shellImg.width * scale;
+    const h = shellImg.height * scale;
+
+    ctx.save();
+    roundRectPath(ctx, s.x, s.y, s.w, s.h, Math.min(s.w, s.h) * 0.04);
+    ctx.clip();
+    ctx.drawImage(shellImg.image, s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
+    ctx.restore();
   }
 
   // 画垃圾桶；hover 时变红并掀盖子
