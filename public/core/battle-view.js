@@ -199,6 +199,40 @@ function drawStaffShape(ctx, color, cx, cy, s) {
   ctx.stroke();
 }
 
+// 旋刃：三叶飞刀，绕中心转
+function drawSpinShape(ctx, color, cx, cy, s) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  for (let i = 0; i < 3; i++) {
+    ctx.save();
+    ctx.rotate((Math.PI * 2 * i) / 3);
+
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.1);
+    ctx.lineTo(s * 0.46, -s * 0.3);
+    ctx.lineTo(s * 0.2, s * 0.05);
+    ctx.closePath();
+
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    ctx.lineWidth = Math.max(1, s * 0.05);
+    ctx.strokeStyle = COLOR.bladeEdge;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // 轴心
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = COLOR.guard;
+  ctx.fill();
+
+  ctx.restore();
+}
+
 // 爱心：加耐久卡用
 function drawHeartShape(ctx, color, cx, cy, s) {
   ctx.beginPath();
@@ -259,6 +293,7 @@ function drawWeapon(ctx, def, cx, cy, s) {
   const kind = def.kind || 'sword';
   const color = def.color || '#d8dee8';
 
+  if (kind === 'spin') return drawSpinShape(ctx, color, cx, cy, s);
   if (kind === 'heal') return drawHeartShape(ctx, color, cx, cy, s * 0.9);
   if (kind === 'speed') return drawBoltShape(ctx, color, cx, cy, s * 0.9);
   if (kind === 'axe') return drawAxeShape(ctx, color, cx, cy, s);
@@ -607,9 +642,16 @@ function create(options) {
       drawMonster(ctx, m.x, m.y, monsterSize, m.maxHp ? m.hp / m.maxHp : 1, m.rec.kind);
     }
 
-    // 6. 子弹：长得跟武器一样；瞄着目标时朝目标，目标没了就按飞行方向
+    // 6. 子弹：旋刃自转放大，普通子弹朝目标
     for (let i = 0; i < battle.bullets.length; i++) {
       const b = battle.bullets[i];
+
+      if (b.spin) {
+        const size = bulletSize * (b.growScale || 1) * 2;
+        drawWeaponAimed(ctx, b.def, b.x, b.y, size, b.spinAngle || 0);
+        continue;
+      }
+
       const angle = b.target && b.target.alive
         ? Math.atan2(b.target.y + (b.oy || 0) - b.y, b.target.x + (b.ox || 0) - b.x)
         : Math.atan2(b.vy || 0, b.vx || 1);

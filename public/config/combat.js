@@ -34,7 +34,7 @@ module.exports = {
      * levelWeights  - 1~4 级被刷出来的权重（自动归一化）
      * buyMarkup     - 直接买 2 级以上时相对合成价的倍率
      */
-    weaponWeights: { arrow: 30, axe: 22, spear: 18, staff: 14, heart: 12, boost: 12 },
+    weaponWeights: { arrow: 26, axe: 20, spear: 16, staff: 12, blade: 8, heart: 10, boost: 8 },
     levelWeights: [70, 25, 5, 0],
     buyMarkup: 1.2,
 

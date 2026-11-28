@@ -65,6 +65,12 @@ function Bullet(def, x, y, target, ox, oy) {
   // 飞行方向（单位向量）：目标活着时每帧朝它修正，目标没了就按这个方向直飞
   this.vx = 0;
   this.vy = -1;
+
+  // 旋刃专用：自转角度、当前放大倍数、已经打过的怪
+  this.spin = false;
+  this.spinAngle = 0;
+  this.growScale = 1;
+  this.hitIds = [];
 }
 
 // 一局战斗
@@ -573,6 +579,38 @@ Battle.prototype._nearestMonster = function (x, y) {
   return best;
 };
 
+// 某个点是否还在屏幕内（考虑画面缩放）
+// p - 任意带 x / y 的对象
+// margin - 允许超出屏幕多少 px
+// 返回 true 表示还看得见
+Battle.prototype._inView = function (p, margin) {
+  const z = this.viewZoom || 1;
+  const halfW = this.width / (2 * z);
+  const halfH = this.height / (2 * z);
+  const m = margin || 0;
+
+  return (
+    p.x >= this.campfire.x - halfW - m &&
+    p.x <= this.campfire.x + halfW + m &&
+    p.y >= this.campfire.y - halfH - m &&
+    p.y <= this.campfire.y + halfH + m
+  );
+};
+
+// 处理一只怪被打死：给钱、叫音效
+// m - Monster 对象
+Battle.prototype._killMonster = function (m) {
+  m.alive = false;
+
+  // 击杀奖励：基础值 + 波次加成（第 n 波就多 n-1）
+  const base = m.rec.coins || 0;
+  const bonus = Math.max(0, this.wave - 1);
+  const reward = base > 0 ? base + bonus : 0;
+
+  if (reward) this.coins += reward;
+  if (this.onKill) this.onKill(m.rec);
+};
+
 // 从某个格子朝最近的怪物发一轮子弹
 // cell - 有武器的格子
 // 返回本次发了几发
@@ -634,8 +672,27 @@ Battle.prototype._flushShots = function () {
     // 目标已经死了，这一发就不发了
     if (!s.target || !s.target.alive) continue;
 
-    // 多发时散开一点，不要完全重叠
     const a = (Math.PI * 2 * s.index) / Math.max(1, s.total);
+
+    // 旋刃：每个朝一个方向直飞（不追踪），边飞边转边变大
+    if (s.def.kind === 'spin') {
+      const baseA = s.target
+        ? Math.atan2(s.target.y - s.y, s.target.x - s.x)
+        : -Math.PI / 2;
+      const dir = baseA + a;
+
+      const sb = new Bullet(s.def, s.x, s.y, null, 0, 0);
+      sb.spin = true;
+      sb.vx = Math.cos(dir);
+      sb.vy = Math.sin(dir);
+      this.bullets.push(sb);
+
+      this.shotCount += 1;
+      if (this.onShoot) this.onShoot(s.def);
+      continue;
+    }
+
+    // 普通子弹：围绕中心错开
     const ox = Math.cos(a) * s.ring;
     const oy = Math.sin(a) * s.ring;
     const tx = Math.cos(a) * (this.tpl.hitRadius || 20) * 0.6;
@@ -804,8 +861,46 @@ Battle.prototype.update = function (dt) {
     const b = this.bullets[i];
     if (!b.alive) continue;
 
-    const t = b.target;
     const step = (b.def.bulletSpd || 0) * (dt / 1000);
+
+    // 旋刃：直飞 + 自转 + 越飞越大，碰到谁打谁（范围伤害，每只只打一次）
+    if (b.spin) {
+      b.x += b.vx * step;
+      b.y += b.vy * step;
+      b.life += dt;
+
+      b.spinAngle += (b.def.spinSpd || 6) * (dt / 1000);
+
+      // 变大：1 秒内长到满（grow）
+      const growMax = b.def.grow || 2;
+      b.growScale = Math.min(growMax, 1 + (b.life / 1000) * (growMax - 1) * 1.4);
+
+      const radius = (b.def.radius || 40) * b.growScale;
+
+      for (let k = 0; k < this.monsters.length; k++) {
+        const m = this.monsters[k];
+        if (!m.alive) continue;
+        if (b.hitIds.indexOf(m) >= 0) continue;
+
+        const mdx = m.x - b.x;
+        const mdy = m.y - b.y;
+        if (mdx * mdx + mdy * mdy > radius * radius) continue;
+
+        b.hitIds.push(m);
+        m.hp -= b.def.damage || 0;
+        this.hitCount += 1;
+        if (this.onHit) this.onHit();
+
+        if (m.hp <= 0) this._killMonster(m);
+      }
+
+      // 出界 / 超时回收（下面统一处理）
+      b.alive = b.alive && b.life <= lifeMs;
+      if (!this._inView(b, outMargin)) b.alive = false;
+      continue;
+    }
+
+    const t = b.target;
 
     if (t && t.alive) {
       // 追踪：每帧修正方向

@@ -3,44 +3,52 @@
 # name       - 卡名，判断能不能合成靠它
 # type       - weapon 武器 / heal 加耐久 / speed 加速度
 # level      - 等级 1~4，同名的必须从 1 开始连续
-# damage     - 武器：每发伤害
-# shots      - 武器：一次发几发（1/2/4/8），会显示成 ×1/×2/×4/×8
+# damage     - 武器：每次命中伤害
+# shots      - 武器：一次发几个（1/2/4/8 或旋刃的 1/2/3/4）
 # cdMs       - 武器：两轮发射间隔，单位毫秒
-# bulletSpd  - 武器：子弹速度，单位 px/秒
-# heal       - 加耐久卡：每次加多少耐久
-# speedMul   - 速度卡：人物移动速度乘以几
-# durationMs - 速度卡：持续多少毫秒（不显示）
+# bulletSpd  - 武器：飞行速度，单位 px/秒
+# heal       - 加耐久卡：每次加多少
+# speedMul   - 速度卡：移速乘以几
+# durationMs - 速度卡：持续多少毫秒
+# spinSpd    - 旋刃：每秒转多少弧度
+# grow       - 旋刃：最多长到几倍（决定范围伤害大小）
+# radius     - 旋刃：初始伤害半径，单位 px（会随 grow 放大）
 # cost       - 这一级的价格（累加价）
 # color      - 图标颜色
-# kind       - 画什么形状：sword / axe / spear / staff / heal / speed
+# kind       - 形状：sword / axe / spear / staff / spin / heal / speed
 
-name   type   level damage shots cdMs bulletSpd heal speedMul durationMs cost color kind
-arrow  weapon 1     10     1     600  380       0    0        0          15   #d8dee8 sword
-arrow  weapon 2     11     2     580  400       0    0        0          30   #8fc9ff sword
-arrow  weapon 3     13     4     560  420       0    0        0          45   #5aa8ff sword
-arrow  weapon 4     15     8     540  440       0    0        0          60   #2f7fff sword
+name   type   level damage shots cdMs bulletSpd heal speedMul durationMs spinSpd grow radius cost color kind
+arrow  weapon 1     10     1     600  380       0    0        0          0       0    0      15   #d8dee8 sword
+arrow  weapon 2     11     2     580  400       0    0        0          0       0    0      30   #8fc9ff sword
+arrow  weapon 3     13     4     560  420       0    0        0          0       0    0      45   #5aa8ff sword
+arrow  weapon 4     15     8     540  440       0    0        0          0       0    0      60   #2f7fff sword
 
-axe    weapon 1     16     1     1000 260       0    0        0          20   #d8c8b0 axe
-axe    weapon 2     18     2     960  280       0    0        0          40   #e0a86a axe
-axe    weapon 3     21     4     920  300       0    0        0          60   #d98a3f axe
-axe    weapon 4     24     8     880  320       0    0        0          80   #c96a1f axe
+axe    weapon 1     16     1     1000 260       0    0        0          0       0    0      20   #d8c8b0 axe
+axe    weapon 2     18     2     960  280       0    0        0          0       0    0      40   #e0a86a axe
+axe    weapon 3     21     4     920  300       0    0        0          0       0    0      60   #d98a3f axe
+axe    weapon 4     24     8     880  320       0    0        0          0       0    0      80   #c96a1f axe
 
-spear  weapon 1     6      1     420  520       0    0        0          18   #cfe8d8 spear
-spear  weapon 2     7      2     400  540       0    0        0          36   #8fe0a8 spear
-spear  weapon 3     8      4     380  560       0    0        0          54   #4fcf7f spear
-spear  weapon 4     9      8     360  580       0    0        0          72   #1faf5f spear
+spear  weapon 1     6      1     420  520       0    0        0          0       0    0      18   #cfe8d8 spear
+spear  weapon 2     7      2     400  540       0    0        0          0       0    0      36   #8fe0a8 spear
+spear  weapon 3     8      4     380  560       0    0        0          0       0    0      54   #4fcf7f spear
+spear  weapon 4     9      8     360  580       0    0        0          0       0    0      72   #1faf5f spear
 
-staff  weapon 1     12     1     800  300       0    0        0          22   #e8d0f0 staff
-staff  weapon 2     13     2     760  320       0    0        0          44   #c88fe0 staff
-staff  weapon 3     15     4     720  340       0    0        0          66   #a45fd8 staff
-staff  weapon 4     17     8     680  360       0    0        0          88   #7a2fc0 staff
+staff  weapon 1     12     1     800  300       0    0        0          0       0    0      22   #e8d0f0 staff
+staff  weapon 2     13     2     760  320       0    0        0          0       0    0      44   #c88fe0 staff
+staff  weapon 3     15     4     720  340       0    0        0          0       0    0      66   #a45fd8 staff
+staff  weapon 4     17     8     680  360       0    0        0          0       0    0      88   #7a2fc0 staff
 
-heart  heal   1     0      0     0    0         1    0        0          20   #ff6f91 heal
-heart  heal   2     0      0     0    0         2    0        0          40   #ff4d7a heal
-heart  heal   3     0      0     0    0         3    0        0          60   #ff2a63 heal
-heart  heal   4     0      0     0    0         5    0        0          80   #e6004c heal
+blade  weapon 1     6      1     2000 220       0    0        0          7       2.2  46     70   #c9d4e0 spin
+blade  weapon 2     8      2     1900 230       0    0        0          7.5     2.4  50     140  #a8bcd4 spin
+blade  weapon 3     10     3     1800 240       0    0        0          8       2.6  54     220  #86a4c8 spin
+blade  weapon 4     13     4     1700 250       0    0        0          8.5     2.8  58     320  #5c82b4 spin
 
-boost  speed  1     0      0     0    0         0    3        3000       20   #9fd0ff speed
-boost  speed  2     0      0     0    0         0    4.5      3500       40   #6fb0ff speed
-boost  speed  3     0      0     0    0         0    6        4000       60   #3f8fff speed
-boost  speed  4     0      0     0    0         0    7.5      4500       80   #1f6fff speed
+heart  heal   1     0      0     0    0         1    0        0          0       0    0      20   #ff6f91 heal
+heart  heal   2     0      0     0    0         2    0        0          0       0    0      40   #ff4d7a heal
+heart  heal   3     0      0     0    0         3    0        0          0       0    0      60   #ff2a63 heal
+heart  heal   4     0      0     0    0         5    0        0          0       0    0      80   #e6004c heal
+
+boost  speed  1     0      0     0    0         0    3        3000       0       0    0      20   #9fd0ff speed
+boost  speed  2     0      0     0    0         0    4.5      3500       0       0    0      40   #6fb0ff speed
+boost  speed  3     0      0     0    0         0    6        4000       0       0    0      60   #3f8fff speed
+boost  speed  4     0      0     0    0         0    7.5      4500       0       0    0      80   #1f6fff speed
