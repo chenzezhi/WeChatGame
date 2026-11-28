@@ -390,6 +390,25 @@ function create(options) {
   const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 1 : tpl.campfireSizeRatio);
   const fontPx = Math.max(12, Math.round(board.cellW * 0.16));
 
+  /* ---------- 抽奖按钮：商店外壳左上角 ---------- */
+  const gachaBtn = (function () {
+    const shell = shop && shop.shell ? shop.shell : null;
+    const pad = board.cellW * 0.12;
+    const size = board.cellW * 0.5;
+
+    if (!shell) {
+      return { x: pad, y: battle.height * 0.66, w: size * 1.6, h: size, label: '抽奖' };
+    }
+
+    return {
+      x: Math.max(shell.x, 0) + pad,
+      y: Math.max(shell.y, 0) + pad,
+      w: size * 1.6,
+      h: size,
+      label: '抽奖',
+    };
+  })();
+
   /* ---------- 两个按钮：刷新（带价格）+ 开始战斗，大小一样 ---------- */
   const buttonH = board.cellH * 0.55;
   const buttonW = Math.min(board.cellW * 1.45, battle.width * 0.4);
@@ -699,6 +718,70 @@ function create(options) {
     if (!dragPoint || !dragDef) return false;
     const p = World.toWorld(dragPoint.x, dragPoint.y);
     return inside(p.x, p.y, trashRect);
+  }
+
+  // 抽到的卡，价格位显示「免费」
+  function drawFreeLabel(ctx, slot) {
+    const size = Math.max(10, Math.round(slot.h * 0.17));
+    ctx.font = 'bold ' + size + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#8fe0a8';
+    ctx.fillText('免费', slot.x + slot.w / 2, slot.y + slot.h * 0.86);
+  }
+
+  // 画一个宝箱
+  // tier - 0 铜 / 1 银 / 2 金
+  function drawChest(ctx, slot, tier, price) {
+    const themes = [
+      { body: '#8a5a2b', lid: '#a06a33', band: '#d9a441' },
+      { body: '#8f97a3', lid: '#aab3c0', band: '#e6edf5' },
+      { body: '#b8860b', lid: '#d9a520', band: '#ffe680' },
+    ];
+    const th = themes[tier] || themes[0];
+
+    const w = slot.w * 0.62;
+    const h = slot.h * 0.5;
+    const x = slot.x + (slot.w - w) / 2;
+    const y = slot.y + slot.h * 0.18;
+
+    // 箱体
+    ctx.fillStyle = th.body;
+    roundRectPath(ctx, x, y + h * 0.34, w, h * 0.66, w * 0.06);
+    ctx.fill();
+
+    // 箱盖
+    ctx.fillStyle = th.lid;
+    roundRectPath(ctx, x - w * 0.03, y, w * 1.06, h * 0.42, w * 0.06);
+    ctx.fill();
+
+    // 锁扣
+    ctx.fillStyle = th.band;
+    roundRectPath(ctx, x + w * 0.42, y + h * 0.28, w * 0.16, h * 0.36, w * 0.04);
+    ctx.fill();
+
+    // 名字
+    const size = Math.max(10, Math.round(slot.w * 0.13));
+    ctx.font = 'bold ' + size + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(240,244,250,0.95)';
+    ctx.fillText(['初级', '中级', '高级'][tier] || '', slot.x + slot.w / 2, slot.y + slot.h * 0.1);
+
+    // 价格
+    const iconR = size * 0.42;
+    const numText = String(price);
+    const numW = ctx.measureText(numText).width;
+    const gap = size * 0.28;
+    const total = iconR * 2 + gap + numW;
+    const px = slot.x + (slot.w - total) / 2;
+    const py = slot.y + slot.h * 0.86;
+
+    drawCoin(ctx, px + iconR, py, iconR);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = battle.coins >= price ? 'rgba(240,244,250,0.95)' : '#ff6a6a';
+    ctx.fillText(numText, px + iconR * 2 + gap, py);
   }
 
   // 画商店外壳：先垫一层不透明底，再把图片 cover 进去。
@@ -1060,8 +1143,17 @@ function create(options) {
     battle.update(dt);
   });
 
+  // 绘制里任何错误都要打出来，否则会静默变成「半屏不显示」
+  let paintErrLogged = false;
   Overlay.onDraw(function (ctx) {
-    paintAll(ctx);
+    try {
+      paintAll(ctx);
+    } catch (e) {
+      if (!paintErrLogged) {
+        paintErrLogged = true;
+        console.error('[battle-view] 绘制出错：' + ((e && e.stack) || e));
+      }
+    }
   });
 
   // 波次日志（只留必要的，方便在手机上确认流程）
