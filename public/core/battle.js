@@ -550,6 +550,21 @@ Battle.prototype.moveWeapon = function (fromCell, toCell) {
   return true;
 };
 
+// 所有活着的怪，按到某点的距离从近到远排
+// x, y - 参照点
+// 返回 Monster 数组
+Battle.prototype._monstersByDistance = function (x, y) {
+  const list = this.monsters.filter((m) => m.alive);
+
+  list.sort(function (a, b2) {
+    const da = (a.x - x) * (a.x - x) + (a.y - y) * (a.y - y);
+    const db = (b2.x - x) * (b2.x - x) + (b2.y - y) * (b2.y - y);
+    return da - db;
+  });
+
+  return list;
+};
+
 // 从某点看向最近怪物的角度（给画图用：子弹要转过去对准）
 // x, y - 参照点
 // 返回弧度值，没有目标时返回 null
@@ -635,12 +650,31 @@ Battle.prototype._fireFrom = function (cell) {
   // 这一级一次发几发
   const shots = Math.max(1, def.shots || 1);
 
-  // 旋刃是「一把一把生成」：前一把还在变大，下一把才出来，间隔单独配
-  const gap = def.kind === 'spin'
-    ? (this.tpl.spinShotGapMs == null ? 1000 : this.tpl.spinShotGapMs)
-    : (this.tpl.shotGapMs || 60);
+  // 旋刃：一起生成，每把朝不同怪（最近的、第二近的……）
+  if (def.kind === 'spin') {
+    const targets = this._monstersByDistance(cx, cy);
+    if (!targets.length) return 0;
 
-  // 不一次性全吐出去，排进队列按间隔陆续发
+    for (let i = 0; i < shots; i++) {
+      this._shotQueue.push({
+        def: def,
+        x: cx,
+        y: cy,
+        target: targets[i % targets.length],
+        at: this._time,
+        ring: cell.w * 0.16,
+        index: i,
+        total: shots,
+      });
+    }
+
+    cell.lastFire = this._time;
+    return shots;
+  }
+
+  // 其他武器：排进队列按间隔陆续发
+  const gap = this.tpl.shotGapMs || 60;
+
   for (let i = 0; i < shots; i++) {
     this._shotQueue.push({
       def: def,
