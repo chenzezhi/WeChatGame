@@ -959,6 +959,24 @@ function create(options) {
     ctx.clip();
     ctx.drawImage(shellImg.image, s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
     ctx.restore();
+
+    // 3. 调试标记：洋红=盒子边框，黄=图片实际范围，红=盒子顶边
+    if (cfg.template && cfg.template.debugShell) {
+      ctx.strokeStyle = '#ff00ff';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(s.x, s.y, s.w, s.h);
+
+      ctx.strokeStyle = '#ffe000';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
+
+      ctx.strokeStyle = '#ff2020';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x + s.w, s.y);
+      ctx.stroke();
+    }
   }
 
   // 画垃圾桶；hover 时变红并掀盖子

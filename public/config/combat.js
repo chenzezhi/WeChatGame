@@ -77,7 +77,7 @@ module.exports = {
     sellRatio: 0.8,
 
     // 调试：给商店外壳画框（洋红=盒子范围，黄=图片实际范围）
-    debugShell: false,
+    debugShell: true,
 
     /* ★ 抽奖奖池：三个宝箱，从左到右
      * label   - 宝箱名字
