@@ -80,7 +80,8 @@ function bind(handlers) {
     startY = lastY = t.clientY * k;
     moved = false;
 
-    // 按下时先不派发点击：等抬手再判断，避免和拖拽重复触发
+    // 只通知「按下了」，具体动作等抬手判断（点击）或移动（拖拽）
+    if (h.down) h.down(startX, startY);
   });
 
   if (wx.onTouchMove) {

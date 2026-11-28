@@ -222,6 +222,7 @@ function start(env) {
                   Bgm.unlock();           // 首次点击解锁音频
                   return view.handleTap(x, y);
                 },
+                down: view.handlePress,
                 drag: view.handleDrag,
                 drop: view.handleDrop,
               });

@@ -1273,6 +1273,32 @@ function create(options) {
     return null;
   }
 
+  // 按下时只记录「按住的是什么」，不执行任何动作
+  // 拖动要靠这些信息（dragDef 决定跟手的图标，pending* 决定从哪拖出来的）
+  function handlePress(x, y) {
+    pendingCell = null;
+    pendingSlot = null;
+    dragDef = null;
+
+    // 宝箱阶段和滚动中不能拖
+    if (battle.gacha.phase === 'chests' || battle.gacha.phase === 'rolling') return;
+
+    const pt = World.toWorld(x, y);
+
+    const slot = slotAtPoint(pt.x, pt.y);
+    if (slot && !slot.sold && slot.weapon) {
+      pendingSlot = slot;
+      dragDef = slot.weapon;
+      return;
+    }
+
+    const cell = cellAtPoint(pt.x, pt.y);
+    if (cell && cell.card) {
+      pendingCell = cell;
+      dragDef = cell.card.def;
+    }
+  }
+
   // 拖拽中：记下手指位置；第一次移动时把源格子/槽位「拔出来」
   function handleDrag(x, y) {
     if (battle.state !== 'build' || !dragDef) return;
@@ -1497,7 +1523,12 @@ function create(options) {
     ' 尺寸 ' + Math.round(buttonW) + 'x' + Math.round(buttonH) +
     '；篝火 ' + Math.round(battle.campfire.x) + ',' + Math.round(battle.campfire.y));
 
-  return { handleTap: handleTap, handleDrag: handleDrag, handleDrop: handleDrop };
+  return {
+    handleTap: handleTap,
+    handlePress: handlePress,
+    handleDrag: handleDrag,
+    handleDrop: handleDrop,
+  };
 }
 
 module.exports = { create: create };
