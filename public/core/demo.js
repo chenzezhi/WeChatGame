@@ -148,8 +148,8 @@ function start(env) {
               config: COMBAT,
             });
 
-            // 点一下：面板按钮或格子
-            if (view) Touch.bind({ tap: view.handleTap });
+            // 点一下：按钮 → 槽位 → 格子（传 stage 用真实坐标比例）
+            if (view) Touch.bind({ stage: stage, tap: view.handleTap });
           }
         }
       );
