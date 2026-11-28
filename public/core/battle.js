@@ -66,11 +66,11 @@ function Bullet(def, x, y, target, ox, oy) {
   this.vx = 0;
   this.vy = -1;
 
-  // 旋刃专用：自转角度、当前放大倍数、已经打过的怪
+  // 旋刃专用：自转角度、当前放大倍数、每只怪上次挨打的时间
   this.spin = false;
   this.spinAngle = 0;
   this.growScale = 1;
-  this.hitIds = [];
+  this.hitAt = [];   // [{ m: 怪物, at: 时间戳 }]
 }
 
 // 一局战斗
@@ -877,16 +877,35 @@ Battle.prototype.update = function (dt) {
 
       const radius = (b.def.radius || 40) * b.growScale;
 
+      // 怪物身体也算进判定范围：中心附近碰到就算碰到，不用刃尖贴上去
+      const bodyR = (this.board ? this.board.cellW : 80) * (this.tpl.monsterSizeRatio || 0.5) / 2;
+      const reach = radius + bodyR;
+
+      // 同一只怪的再次受伤冷却，单位毫秒
+      const hitCd = this.tpl.spinHitCdMs == null ? 600 : this.tpl.spinHitCdMs;
+
       for (let k = 0; k < this.monsters.length; k++) {
         const m = this.monsters[k];
         if (!m.alive) continue;
-        if (b.hitIds.indexOf(m) >= 0) continue;
 
         const mdx = m.x - b.x;
         const mdy = m.y - b.y;
-        if (mdx * mdx + mdy * mdy > radius * radius) continue;
+        if (mdx * mdx + mdy * mdy > reach * reach) continue;
 
-        b.hitIds.push(m);
+        // 查这只怪上次挨打的时间
+        let rec = null;
+        for (let q = 0; q < b.hitAt.length; q++) {
+          if (b.hitAt[q].m === m) { rec = b.hitAt[q]; break; }
+        }
+
+        // 还在冷却就不打
+        if (rec && this._time - rec.at < hitCd) continue;
+        if (!rec) {
+          rec = { m: m, at: 0 };
+          b.hitAt.push(rec);
+        }
+
+        rec.at = this._time;
         m.hp -= b.def.damage || 0;
         this.hitCount += 1;
         if (this.onHit) this.onHit();
