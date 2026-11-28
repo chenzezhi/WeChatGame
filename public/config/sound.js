@@ -48,7 +48,7 @@ module.exports = {
     gapMs: 120,
   },
 
-  // 银币增加：击杀奖励、卖卡、豹子奖励
+  // 银币增加：只在卖卡 / 豹子奖励时响（击杀不响，否则和阵亡声叠一起太吵）
   coin: {
     file: 'src/assets/music/银币增加.mp3',
     volume: 0.5,
