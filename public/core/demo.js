@@ -32,9 +32,11 @@ const TableMapper = require('./table-mapper.js');
 const SpriteMap = require('./sprite-map.js');
 const AnimMap = require('./anim-map.js');
 const ImageMap = require('./image-map.js');
+const Board = require('./board.js');
 const assets = require('./asset-manager.js');
 const TEMPLATE = require('../config/render.js').template;
 const SHEET = require('../config/assets.js');
+const BOARD = require('../config/board.js');
 
 function start(env) {
   const stage = env.stage;
@@ -63,7 +65,7 @@ function start(env) {
     ],
     () => {
       /* ---------- 2. 表格：第 0 行是字段头，下面是数据 ---------- */
-      const table = buildTable(w, h, am);
+      const table = buildTable(w, h, am, sm);
 
       /* ---------- 3. 表格 → 完整配置数组 ---------- */
       const list = TableMapper.fill(TEMPLATE, table);
@@ -115,7 +117,7 @@ function start(env) {
 }
 
 // 构造表格：只有这里需要改画面内容
-function buildTable(w, h, am) {
+function buildTable(w, h, am, sm) {
   // 按「目标高度」反算 scale，素材尺寸未知时退回 1
   const scaleFor = (name, targetH) => {
     if (!am) return 1;
@@ -133,8 +135,8 @@ function buildTable(w, h, am) {
     // 背景：整屏平铺一张图
     `image src/assets/mapBg/mb1.jpg 0 0 0.25 n n ${w} ${h}`,
 
-    // 图集小图：序号 30，放在左上角
-    `sprite 30 ${w * 0.1} ${h * 0.1} ${(h / 298) * 0.1}`,
+    // 棋盘：格子由 config/board.js 的布局生成
+    ...boardRows(w, h, sm),
 
     // 精灵动画 1：nf1，放在左侧
     // `anim nf1 ${w * 0.2} ${h * 0.2} ${scaleFor('nf1', h * 0.12)}`,
@@ -142,6 +144,27 @@ function buildTable(w, h, am) {
     // 精灵动画 2：nf2，放在右侧
     // `anim nf2 ${w * 0.6} ${h * 0.2} ${scaleFor('nf2', h * 0.12)}`,
   ];
+}
+
+// 生成棋盘的渲染行
+// w, h - 画布物理像素尺寸
+// sm - 图集连接器，用来取格子原图尺寸
+// 返回表格行数组
+function boardRows(w, h, sm) {
+  // 取格子原图尺寸；取不到就让 Board 用 scale 1
+  let frame = null;
+  try {
+    frame = sm.size(BOARD.cellSprite);
+  } catch (err) {
+    console.warn('[demo] 取格子尺寸失败：' + err.message);
+  }
+
+  const board = new Board(BOARD, { width: w, height: h, frame: frame });
+
+  // 打印棋盘规模，排查时一眼看出生成了几个格子
+  console.log('[demo] 棋盘 ' + board.colCount + 'x' + board.rowCount + '，格子 ' + board.cells.length + ' 个');
+
+  return board.toTable();
 }
 
 // 等所有任务完成后再执行（任务 = 一个接收 next 回调的函数）
