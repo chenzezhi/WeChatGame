@@ -20,13 +20,28 @@
  * board.path;              // 同上，作为「人物行走顺序」用
  * board.cellAt(0, 0);      // 按行列取格子，空洞返回 null
  * board.toTable();         // ['sprite 30 100 200 3.2', ...] 直接拼进表格
+ *
+ * // 想挪棋盘：配置里给 x / y，不给就自适应
+ * new Board({ ...CONFIG, x: 0, y: 0 }, env);   // 贴左上角
  * ==============================================*/
 
 /* ==================== 注意 ====================
- * 所有坐标单位都是 px；格子尺寸和间距用「占画布宽度的比例」，换分辨率不会错位。
- * frame 是格子原图的尺寸，用来把格子缩放到目标 px；不传则 scale 为 1。
+ * 坐标单位都是 px；格子尺寸和间距用「占画布宽度的比例」，换分辨率不会错位。
+ *
+ * 位置：x / y 为 null 时自适应（水平居中、纵向用 topRatio）；
+ *       填数字就用那个值当棋盘左上角，0 是合法值（贴边）。
+ *
+ * frame 是格子素材的原始尺寸，用来把格子缩放到目标 px；不传则 scale 为 1。
+ * 用图集序号时传图集里那张图的尺寸，用单张图片时传那张图的尺寸。
+ *
  * 布局里的 '.' 是空洞，不生成格子，也不占 path 的序号。
  * ==============================================*/
+
+// 判断素材写的是「图片路径」还是「图集序号」
+// value - 纯数字或纯数字字符串算序号，含 / 或 . 的算路径
+function isImagePath(value) {
+  return /[\/.]/.test(String(value));
+}
 
 // 格子：棋盘上的一格
 // board - 所属的 Board，用来取格子的尺寸和原点
@@ -47,8 +62,11 @@ class Cell {
     this.w = board.cellW;
     this.h = board.cellH;
 
-    // 画自己用的素材：图集序号 + 缩放倍数
-    this.sprite = board.cellSprite;
+    // 画自己用的素材：图集序号（数字），或图片路径（字符串）
+    this.asset = board.cellAsset;
+    // 按素材形态自动选渲染器：路径走 image，序号走 sprite
+    this.renderer = isImagePath(this.asset) ? 'image' : 'sprite';
+    // 缩放倍数，把素材原始尺寸缩到格子大小
     this.scale = board.cellScale;
 
     // 挂在格子上的卡牌，没有就是 null
@@ -56,17 +74,20 @@ class Cell {
   }
 
   // 这个格子要渲染的表格行
-  // renderer - 用哪个渲染器，默认 sprite
+  // renderer - 强制指定渲染器；不传就按素材形态自动选
   // 返回字符串数组，一行一个渲染项
   toRows(renderer) {
-    const r = renderer || 'sprite';
-    return [`${r} ${this.sprite} ${this.x} ${this.y} ${this.scale}`];
+    const r = renderer || this.renderer;
+    return [`${r} ${this.asset} ${this.x} ${this.y} ${this.scale}`];
   }
 }
 
 // 棋盘：由布局字符串生成格子
-// config - 见 public/config/board.js（map / cellRatio / gapRatio / topRatio / cellSprite）
-// env - { width, height, frame }，画布物理像素尺寸 + 格子原图尺寸
+// config - 见 public/config/board.js：
+//          map / x / y / cellRatio / gapRatio / topRatio / cellAsset
+// env - { width, height, frame }
+//          width, height 画布物理像素尺寸
+//          frame 格子素材原始尺寸 { w, h }，不传则 scale 为 1
 class Board {
   constructor(config, env) {
     const cfg = config || {};
@@ -92,12 +113,12 @@ class Board {
     this.width = this.colCount * this.cellW + (this.colCount - 1) * this.gap;
     this.height = this.rowCount * this.cellH + (this.rowCount - 1) * this.gap;
 
-    // 棋盘左上角：水平居中，纵向按画布高度比例
-    this.originX = (width - this.width) / 2;
-    this.originY = height * (cfg.topRatio || 0);
+    // 棋盘左上角：给了 x / y 就用它，没给就自适应
+    this.originX = cfg.x == null ? (width - this.width) / 2 : cfg.x;
+    this.originY = cfg.y == null ? height * (cfg.topRatio || 0) : cfg.y;
 
-    // 格子用的图集序号，以及缩放到格子宽所需的倍数
-    this.cellSprite = cfg.cellSprite;
+    // 格子用的素材与缩放倍数
+    this.cellAsset = cfg.cellAsset;
     const frame = e.frame || null;
     this.cellScale = frame && frame.w ? this.cellW / frame.w : 1;
 
