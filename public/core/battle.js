@@ -118,6 +118,18 @@ function Battle(deps) {
   // 速度卡效果：乘几、还剩多少毫秒
   this.speedBoost = { mul: 1, left: 0 };
 
+  // 抽奖状态机：off 正常 / chests 选宝箱 / rolling 滚动中 / result 出结果待拿
+  this.gacha = {
+    phase: 'off',
+    saved: null,        // 抽奖前的三个槽位备份
+    tier: -1,           // 买了第几个宝箱
+    t: 0,               // 滚动计时，单位毫秒
+    dur: 1400,          // 滚动总时长，单位毫秒
+    tick: 0,            // 换图计时
+    preview: [null, null, null],   // 滚动时显示的三张随机卡
+    results: [null, null, null],   // 最终结果
+  };
+
   // 外部回调
   this.onWaveStart = null;
   this.onWaveEnd = null;
@@ -802,6 +814,153 @@ Battle.prototype.restart = function () {
   }
 
   this.fillShop();
+};
+
+/* ---------------- 抽奖 ---------------- */
+
+// 按权重挑一个等级
+// weights - 1~4 级的权重数组
+// 返回 1~maxLevel
+Battle.prototype._pickLevelBy = function (weights) {
+  const max = Math.min(this.tpl.maxLevel || 4, weights.length);
+  let total = 0;
+  for (let i = 0; i < max; i++) total += weights[i] || 0;
+  if (total <= 0) return 1;
+
+  let r = Math.random() * total;
+  for (let i = 0; i < max; i++) {
+    r -= weights[i] || 0;
+    if (r <= 0) return i + 1;
+  }
+  return 1;
+};
+
+// 随机一张卡（滚动动画用）
+Battle.prototype._randomCard = function () {
+  const names = this.weaponNames();
+  if (!names.length) return null;
+
+  const name = names[Math.floor(Math.random() * names.length)];
+  const level = 1 + Math.floor(Math.random() * (this.tpl.maxLevel || 4));
+  return this.weaponDef(name, level);
+};
+
+// 按宝箱的奖池抽三张
+// chest - 配置里的宝箱 { name, price, weights }
+// 返回 [def, def, def]
+Battle.prototype._rollChest = function (chest) {
+  const out = [];
+  const names = this.weaponNames();
+  const weights = chest.weights || [70, 25, 5, 0];
+
+  for (let i = 0; i < 3; i++) {
+    if (!names.length) { out.push(null); continue; }
+    const name = names[Math.floor(Math.random() * names.length)];
+    out.push(this.weaponDef(name, this._pickLevelBy(weights)));
+  }
+  return out;
+};
+
+// 进入选宝箱：把三个槽位换成宝箱，并备份原卡槽
+Battle.prototype.enterChestSelect = function () {
+  if (this.gacha.phase !== 'off') return false;
+  if (this.state !== 'build') return false;
+
+  const shop = this.shop;
+  if (!shop || !shop.slots) return false;
+
+  // 备份
+  this.gacha.saved = [];
+  for (let i = 0; i < shop.slots.length; i++) {
+    const s = shop.slots[i];
+    this.gacha.saved.push({ weapon: s.weapon, level: s.level, price: s.price, sold: s.sold });
+  }
+
+  // 换成宝箱
+  for (let i = 0; i < shop.slots.length; i++) {
+    const s = shop.slots[i];
+    s.weapon = null;
+    s.level = 0;
+    s.price = 0;
+    s.sold = false;
+    s.chest = i;
+  }
+
+  this.gacha.phase = 'chests';
+  return true;
+};
+
+// 退出抽奖，恢复抽奖前的卡槽
+Battle.prototype.exitGacha = function () {
+  const shop = this.shop;
+  const saved = this.gacha.saved;
+
+  if (shop && shop.slots && saved) {
+    for (let i = 0; i < shop.slots.length; i++) {
+      const s = shop.slots[i];
+      const b = saved[i];
+      if (!b) continue;
+      s.weapon = b.weapon;
+      s.level = b.level;
+      s.price = b.price;
+      s.sold = b.sold;
+      s.chest = -1;
+    }
+  }
+
+  this.gacha.saved = null;
+  this.gacha.phase = 'off';
+  this.gacha.tier = -1;
+  this.gacha.t = 0;
+};
+
+// 买一个宝箱并开始滚动
+// index - 第几个宝箱（对应槽位）
+// 返回 true 表示开始滚了
+Battle.prototype.buyChest = function (index) {
+  if (this.gacha.phase !== 'chests') return false;
+
+  const chests = this.tpl.chests || [];
+  const chest = chests[index];
+  if (!chest) return false;
+
+  if (this.coins < (chest.price || 0)) {
+    console.log('[battle] 银币不够开宝箱：要 ' + chest.price + '，现有 ' + this.coins);
+    return false;
+  }
+
+  this.coins -= chest.price || 0;
+  this.gacha.tier = index;
+  this.gacha.phase = 'rolling';
+  this.gacha.t = 0;
+  this.gacha.tick = 0;
+  this.gacha.preview = [this._randomCard(), this._randomCard(), this._randomCard()];
+  this.gacha.results = this._rollChest(chest);
+  return true;
+};
+
+// 滚动结束：结果放进槽位，价格归零
+Battle.prototype._finishRoll = function () {
+  const shop = this.shop;
+  if (!shop || !shop.slots) return;
+
+  for (let i = 0; i < shop.slots.length; i++) {
+    const s = shop.slots[i];
+    const def = this.gacha.results[i] || null;
+
+    s.weapon = def;
+    s.level = def ? Number(def.level) : 0;
+    s.price = 0;          // 抽到的卡免费
+    s.sold = false;
+    s.chest = -1;
+  }
+
+  this.gacha.phase = 'result';
+};
+
+// 抽完拿了一张：其余消失，恢复原来的卡槽
+Battle.prototype._closeGacha = function () {
+  this.exitGacha();
 };
 
 // 当前状态快照，给 HUD 用
