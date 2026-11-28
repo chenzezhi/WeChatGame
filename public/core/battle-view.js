@@ -701,8 +701,11 @@ function create(options) {
     if (shop && shop.shell) {
       const build = battle.state === 'build';
 
-      // 4.1 外壳（图片路径也能画）
-      if (build) drawShell(ctx);
+      // 4.1 外壳（图片路径也能画）+ 顶部标题
+      if (build) {
+        drawShell(ctx);
+        drawShopTitle(ctx);
+      }
 
       // 4.2 槽位
       if (shop.slots) {
@@ -919,6 +922,28 @@ function create(options) {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#8fe0a8';
     ctx.fillText('免费', slot.x + slot.w / 2, slot.y + slot.h * 0.86);
+  }
+
+  // 在外壳顶部居中画「商店」两个字
+  function drawShopTitle(ctx) {
+    const s = shop && shop.shell ? shop.shell : null;
+    if (!s || !tpl.title) return;
+
+    const size = Math.max(12, Math.round(s.h * (tpl.titleFontRatio == null ? 0.16 : tpl.titleFontRatio)));
+    const cx = s.x + s.w / 2;
+    const cy = s.y + s.h * (tpl.titleTopRatio == null ? 0.05 : tpl.titleTopRatio);
+
+    ctx.font = 'bold ' + size + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 深色描边，保证花纹背景上也看得清
+    ctx.lineWidth = Math.max(2, size * 0.16);
+    ctx.strokeStyle = 'rgba(30,20,10,0.65)';
+    ctx.strokeText(tpl.title, cx, cy);
+
+    ctx.fillStyle = tpl.titleColor || '#ffe9c9';
+    ctx.fillText(tpl.title, cx, cy);
   }
 
   // 画一个宝箱
