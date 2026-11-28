@@ -445,6 +445,27 @@ Battle.prototype._spawnOne = function () {
 
 /* ---------------- 开火 ---------------- */
 
+// 卖掉格子上的卡，返还表价的 80%
+// def - 卡牌表里的一行
+// 返回能卖多少银币
+Battle.prototype.sellPrice = function (def) {
+  if (!def) return 0;
+  const ratio = this.tpl.sellRatio == null ? 0.8 : this.tpl.sellRatio;
+  return Math.round((def.cost || 0) * ratio);
+};
+
+// 卖掉格子上的卡
+// cell - 有卡的格子
+// 返回实际得到的银币，没卖成返回 0
+Battle.prototype.sellCard = function (cell) {
+  if (!cell || !cell.card) return 0;
+
+  const price = this.sellPrice(cell.card.def);
+  this.coins += price;
+  cell.card = null;
+  return price;
+};
+
 // 把棋盘上的武器移到另一格；同名同等级就合成升级
 // fromCell - 被拖走的格子
 // toCell - 放下的格子
@@ -594,6 +615,16 @@ Battle.prototype._flushShots = function () {
 Battle.prototype.update = function (dt) {
   this._time += dt;
 
+  // 速度卡倒计时：不管在布阵还是战斗中都要走，否则波次结束速度会卡住
+  if (this.speedBoost.left > 0) {
+    this.speedBoost.left -= dt;
+    if (this.speedBoost.left <= 0) {
+      this.speedBoost.left = 0;
+      this.speedBoost.mul = 1;
+    }
+  }
+  if (this.player) this.player.speedMul = this.speedBoost.mul;
+
   // 只有战斗中才推进一切；布阵和结束都直接返回
   if (this.state !== 'battle') return;
 
@@ -626,15 +657,7 @@ Battle.prototype.update = function (dt) {
     }
   }
 
-  // 速度加成倒计时
-  if (this.speedBoost.left > 0) {
-    this.speedBoost.left -= dt;
-    if (this.speedBoost.left <= 0) {
-      this.speedBoost.left = 0;
-      this.speedBoost.mul = 1;
-    }
-  }
-  if (this.player) this.player.speedMul = this.speedBoost.mul;
+  // 速度加成倒计时已经统一放到 update 开头了，这里不再重复
 
   // 1. 把到时间的子弹发出去（多发就是这样一发一发出来的）
   this._flushShots();
@@ -737,6 +760,9 @@ Battle.prototype.update = function (dt) {
     this.state = 'build';
     this.bullets = [];
     this._shotQueue = [];
+    this.speedBoost.mul = 1;      // 波次结束速度恢复原样
+    this.speedBoost.left = 0;
+    if (this.player) this.player.speedMul = 1;
     this.fillShop();          // 每波结束免费补满卡槽
     if (this.onWaveEnd) this.onWaveEnd(this.wave);
   }
