@@ -390,8 +390,9 @@ function create(options) {
   // 上一次操作的结果，HUD 最后一段显示
   let lastLine = '';
 
-  // 拖拽中：手指位置（屏幕坐标）和要放的武器
+  // 拖拽中：手指位置（屏幕坐标）和要拖的武器定义
   let dragPoint = null;
+  let dragDef = null;
 
   // 当前世界缩放，逐帧向目标靠拢
   let worldZoom = 1;
@@ -444,18 +445,11 @@ function create(options) {
     // 1. 篝火
     drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
 
-    // 2. 格子上的武器（人物走覆盖层上层，所以这里不用管遮挡）
-    // 有怪时就转过去对准最近的怪
+    // 2. 格子上的武器：不旋转，永远朝上摆着
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (!cell.card || !cell.card.def) continue;
-
-      const ccx = cell.x + cell.w / 2;
-      const ccy = cell.y + cell.h / 2;
-      const angle = battle.aimAt(ccx, ccy);
-
-      if (angle == null) drawWeapon(ctx, cell.card.def, ccx, ccy, cardSize);
-      else drawWeaponAimed(ctx, cell.card.def, ccx, ccy, cardSize, angle);
+      drawWeapon(ctx, cell.card.def, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
     }
 
     // 4. 商店槽位里的武器（卖掉的槽位不画），每格带一个价格
@@ -497,9 +491,8 @@ function create(options) {
     }
 
     // 9. 拖拽中的武器跟着手指走（屏幕坐标，不缩放）
-    if (dragPoint && battle.selected) {
-      const def = battle.weaponDef(battle.selected.name, 1) || null;
-      drawWeaponAimed(ctx, def || { kind: 'sword', color: '#ffffff' }, dragPoint.x, dragPoint.y, slotIconSize * 0.8, -Math.PI / 2);
+    if (dragPoint && dragDef) {
+      drawWeaponAimed(ctx, dragDef, dragPoint.x, dragPoint.y, slotIconSize * 0.8, -Math.PI / 2);
     }
 
     // 10. HUD
@@ -622,33 +615,63 @@ function create(options) {
     return null;
   }
 
+  // 世界坐标是否落在某个商店槽位上
+  // x, y - 世界坐标
+  // 返回 Slot 或 null
+  function slotAtPoint(x, y) {
+    if (!shop || !shop.slots) return null;
+    for (let i = 0; i < shop.slots.length; i++) {
+      if (inside(x, y, shop.slots[i])) return shop.slots[i];
+    }
+    return null;
+  }
+
   // 拖拽中：记下手指位置，用来画跟随的武器
   function handleDrag(x, y) {
-    if (battle.state !== 'build' || !battle.selected) return;
+    if (battle.state !== 'build' || !dragDef) return;
     dragPoint = { x: x, y: y };
   }
 
-  // 拖拽落地：把选中的武器放到手指下的格子上
+  // 拖拽落地：从商店拖是买，从棋盘拖是移动 / 合成
   // sx, sy - 按下的位置；ex, ey - 抬手的位置；moved - 是否真的拖动了
-  // 返回 true 表示成功放到格子上
+  // 返回 true 表示成功了
   function handleDrop(sx, sy, ex, ey, moved) {
     dragPoint = null;
+    dragDef = null;
 
-    // 没拖动就只是普通点击，已经由 tap 处理过了
     if (!moved || battle.state !== 'build') return false;
-    if (!battle.selected) return false;
 
-    const pt = World.toWorld(ex, ey);
-    const cell = cellAtPoint(pt.x, pt.y);
+    const from = World.toWorld(sx, sy);
+    const to = World.toWorld(ex, ey);
+    const toCell = cellAtPoint(to.x, to.y);
 
-    if (!cell) {
-      lastLine = '没放到格子上';
-      return false;
+    // 1. 从商店槽位拖出来：买
+    const slot = slotAtPoint(from.x, from.y);
+    if (slot && !slot.sold && slot.weapon) {
+      battle.selectSlot(slot);
+      if (!toCell) {
+        lastLine = '没放到格子上';
+        return false;
+      }
+      const ok = battle.placeWeapon(toCell, battle.selected);
+      lastLine = ok ? '买到第 ' + toCell.index + ' 格' : '放不了（不同类/满级/没钱）';
+      return ok;
     }
 
-    const ok = battle.placeWeapon(cell, battle.selected);
-    lastLine = ok ? '拖到第 ' + cell.index + ' 格' : '放不了（不同类/满级/没钱）';
-    return ok;
+    // 2. 从棋盘格子拖出来：移动 或 合成
+    const fromCell = cellAtPoint(from.x, from.y);
+    if (fromCell && fromCell.card) {
+      if (!toCell) {
+        lastLine = '没放到格子上';
+        return false;
+      }
+      const ok = battle.moveWeapon(fromCell, toCell);
+      lastLine = ok ? (toCell.card.level > 1 ? '合到 ' + toCell.card.level + ' 级' : '挪过去了') : '挪不了（不同类/满级）';
+      return ok;
+    }
+
+    lastLine = '没拖动东西';
+    return false;
   }
 
   // 把一次点击派给按钮 / 槽位 / 格子
@@ -681,7 +704,7 @@ function create(options) {
     const x0 = pt.x;
     const y0 = pt.y;
 
-    // 商店槽位：选中这把武器
+    // 商店槽位：选中这把武器（拖拽时用来显示跟随图标）
     if (shop && shop.slots) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
@@ -691,15 +714,19 @@ function create(options) {
           return false;
         }
         battle.selectSlot(slot);
+        dragDef = slot.weapon;
         lastLine = '选中 ' + slot.weapon.name + ' ' + slot.level + ' 级（' + slot.price + '）';
         return true;
       }
     }
 
-    // 棋盘格子：放武器 / 合成
+    // 棋盘格子：放武器 / 合成；同时记下拖的什么，供拖拽显示
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (!inside(x0, y0, cell)) continue;
+
+      if (cell.card) dragDef = cell.card.def;
+      else if (battle.selected) dragDef = battle.weaponDef(battle.selected.name, 1);
 
       const before = cell.card ? cell.card.level : 0;
       const ok = battle.placeWeapon(cell, battle.selected);

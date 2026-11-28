@@ -442,7 +442,43 @@ Battle.prototype._spawnOne = function () {
 
 /* ---------------- 开火 ---------------- */
 
-// 从某点看向最近怪物的角度（给画图用：武器要转过去对准）
+// 把棋盘上的武器移到另一格；同名同等级就合成升级
+// fromCell - 被拖走的格子
+// toCell - 放下的格子
+// 返回 true 表示挪成功 / 合成成功
+Battle.prototype.moveWeapon = function (fromCell, toCell) {
+  if (!fromCell || !toCell) return false;
+  if (fromCell === toCell) return false;
+  if (!fromCell.card) return false;
+
+  const src = fromCell.card;
+
+  // 目标空格：直接搬过去
+  if (!toCell.card) {
+    toCell.card = src;
+    toCell.lastFire = -99999;
+    fromCell.card = null;
+    return true;
+  }
+
+  // 目标有武器：必须同名同等级才能合成
+  if (toCell.card.name !== src.name) return false;
+  if (toCell.card.level !== src.level) return false;
+
+  const maxLevel = this.tpl.maxLevel || 4;
+  if (toCell.card.level >= maxLevel) return false;
+
+  const lv = src.level + 1;
+  const def = this.weaponDef(src.name, lv);
+  if (!def) return false;
+
+  toCell.card = { name: src.name, level: lv, def: def };
+  toCell.lastFire = -99999;
+  fromCell.card = null;
+  return true;
+};
+
+// 从某点看向最近怪物的角度（给画图用：子弹要转过去对准）
 // x, y - 参照点
 // 返回弧度值，没有目标时返回 null
 Battle.prototype.aimAt = function (x, y) {
@@ -487,6 +523,9 @@ Battle.prototype._fireFrom = function (cell) {
 
   const target = this._nearestMonster(cx, cy);
   if (!target) return 0;   // 屏幕上没怪就不开火
+
+  // 同一个格子按武器自己的 cdMs 控节奏，站着也会继续打
+  if (this._time - (cell.lastFire || -99999) < (def.cdMs || 0)) return 0;
 
   // 这一级一次发几发：1 / 2 / 4 / 8
   const shots = Math.max(1, def.shots || 1);
@@ -552,17 +591,17 @@ Battle.prototype.update = function (dt) {
   // 只有战斗中才推进一切；布阵和结束都直接返回
   if (this.state !== 'battle') return;
 
-  // 1. 人物刚踏进一个格子：这格有武器就发一轮
-  // 只在「到格」这一瞬间触发，不会在格子之间重复开火
-  if (this.player && this.player.entered) {
+  // 1. 人物所在格子上有武器就尝试开火（靠武器自己的 cdMs 控节奏）
+  // 不只看「刚走到」那一瞬，站在格子上碰到怪进场也能继续打
+  if (this.player && this.player.current) {
     const cell = this.player.current;
-    if (cell) {
-      if (!cell.card) {
-        this.fireNote = '无武器';
-      } else {
-        const n = this._fireFrom(cell);
-        this.fireNote = n ? '发射 ' + n : '无目标';
-      }
+
+    if (cell && cell.card) {
+      const n = this._fireFrom(cell);
+      if (n) this.fireNote = '发射 ' + n;
+      else this.fireNote = '无目标';
+    } else {
+      this.fireNote = '无武器';
     }
   }
 
