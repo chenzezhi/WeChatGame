@@ -103,6 +103,9 @@ function Battle(deps) {
   this.onWaveStart = null;
   this.onWaveEnd = null;
   this.onOver = null;
+
+  // 当前选中的武器名；null 表示用武器表第一把
+  this.selectedWeapon = null;
 }
 
 // 读一张表，出错时打日志并返回空数组
@@ -127,8 +130,9 @@ function create(deps) {
 
 // 往格子上放一把武器，扣银币
 // cell - Board 里的 Cell 对象
-// 返回 true 表示放上了，false 表示银币不够或格子已有武器
-Battle.prototype.placeWeapon = function (cell) {
+// weaponName - 要放哪把武器（武器表里的 name）；不传就用第一把
+// 返回 true 表示放上了，false 表示银币不够 / 格子已有武器 / 找不到武器
+Battle.prototype.placeWeapon = function (cell, weaponName) {
   if (!cell) return false;
 
   // 已经有了就不覆盖
@@ -140,9 +144,12 @@ Battle.prototype.placeWeapon = function (cell) {
     return false;
   }
 
-  const weapon = this.weapons[0] || null;
+  const weapon = weaponName
+    ? Records.find(this.weapons, 'name', weaponName)
+    : this.weapons[0] || null;
+
   if (!weapon) {
-    console.warn('[battle] 武器表是空的，放不了武器');
+    console.warn('[battle] 找不到武器：' + (weaponName || '（武器表为空）'));
     return false;
   }
 
