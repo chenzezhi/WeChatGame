@@ -521,6 +521,9 @@ function create(options) {
 
     // 13. 设置弹窗：盖在最上面
     if (menuOpen) drawMenu(ctx);
+
+    // 14. 调试：篝火切图预览（打开时盖住整个画面）
+    if (FIRE.preview) drawFirePreview(ctx);
   }
 
   // 画槽位下方的价格：银币图标 + 数字，钱不够变红
@@ -836,6 +839,80 @@ function create(options) {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = Speed.get() > 1 ? '#ffd94a' : COLOR.hud;
     ctx.fillText(text, b.x + b.w / 2, b.y + b.h / 2);
+  }
+
+  // ============ 调试：篝火切图预览 ============
+  // 把整张精灵图铺在屏幕上，把所有切割框画出来，检查有没有切歪
+  function drawFirePreview(ctx) {
+    const img = Fire.image();
+    const sz = Fire.size();
+    if (!img || !sz.w) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, battle.width, battle.height);
+      ctx.fillStyle = '#f66';
+      ctx.font = '30px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('精灵图还没加载好', battle.width / 2, battle.height / 2);
+      return;
+    }
+
+    // 黑底
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, battle.width, battle.height);
+
+    // 整张图按比例铺（留 4% 边距）
+    const k = Math.min((battle.width * 0.96) / sz.w, (battle.height * 0.86) / sz.h);
+    const dw = sz.w * k;
+    const dh = sz.h * k;
+    const dx = (battle.width - dw) / 2;
+    const dy = (battle.height - dh) / 2 - battle.height * 0.02;
+
+    ctx.drawImage(img, 0, 0, sz.w, sz.h, dx, dy, dw, dh);
+
+    // 画一个比例框
+    // p - { x, y, w, h } 比例；color - 描边色；label - 角上文字
+    function box(p, color, label) {
+      const bx = dx + p.x * dw;
+      const by = dy + p.y * dh;
+      const bw = p.w * dw;
+      const bh = p.h * dh;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(bx, by, bw, bh);
+
+      if (label) {
+        const size = Math.max(14, Math.round(battle.width * 0.022));
+        ctx.font = 'bold ' + size + 'px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = color;
+        ctx.fillText(label, bx + 3, by + 2);
+      }
+    }
+
+    // 15 个火焰帧
+    const g = FIRE.grid;
+    for (let r = 0; r < g.rows; r++) {
+      for (let c = 0; c < g.cols; c++) {
+        box({ x: g.x + c * g.cellW, y: g.y + r * g.cellH, w: g.cellW, h: g.cellH },
+          '#ff4040', String(r * g.cols + c + 1));
+      }
+    }
+
+    // 三个静态件
+    box(FIRE.parts.stone, '#40c0ff', 'stone');
+    box(FIRE.parts.log, '#40ff80', 'log');
+    box(FIRE.parts.glow, '#ffd040', 'glow');
+
+    // 顶部信息
+    const info = Math.round(battle.width * 0.026);
+    ctx.font = 'bold ' + info + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('图 ' + sz.w + 'x' + sz.h + '   显示倍率 ' + k.toFixed(2) +
+      '   单帧 ' + Math.round(g.cellW * sz.w) + 'x' + Math.round(g.cellH * sz.h), battle.width / 2, 10);
   }
 
   // 左上角：菜单按钮
