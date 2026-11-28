@@ -50,14 +50,15 @@ class Slot {
   // renderer - 强制指定渲染器；不传就按素材形态自动选
   // 返回字符串数组
   toRows(renderer) {
-    const r = renderer || rendererOf(this.asset);
+    const r = renderer || pickRenderer(this.asset);
     return [`${r} ${this.asset} ${this.x} ${this.y} ${this.scale}`];
   }
 }
 
-// 判断素材写的是「图片路径」还是「图集序号」
-// value - 纯数字或纯数字字符串算序号，含 / 或 . 的算路径
-function rendererOf(value) {
+// 按素材形态选渲染器
+// value - 纯数字或纯数字字符串走 sprite，含 / 或 . 的走 image
+// 返回 'sprite' 或 'image'
+function pickRenderer(value) {
   return /[\/.]/.test(String(value)) ? 'image' : 'sprite';
 }
 
@@ -106,10 +107,10 @@ class Shop {
     for (let i = 0; i < this.slotCount; i++) this.slots.push(new Slot(this, i));
   }
 
-  // 第 index 个槽位要渲染的行
-  // 返回该槽位要画的表格行数组（暂时只有一个）
-  toRows(renderer) {
-    const r = renderer || rendererOf(this.shell.asset);
+  // 外壳要渲染的行
+  // 返回该外壳要画的表格行数组
+  shellRows(renderer) {
+    const r = renderer || pickRenderer(this.shell.asset);
     return [`${r} ${this.shell.asset} ${this.shell.x} ${this.shell.y} ${this.shell.scale}`];
   }
 
@@ -123,7 +124,7 @@ class Shop {
   // 整层要渲染的表格行：外壳在前，槽位在后
   // 返回字符串数组，可直接拼进表格
   toTable() {
-    const out = this.toRows();
+    const out = this.shellRows();
 
     for (let i = 0; i < this.slots.length; i++) {
       const rows = this.slots[i].toRows();

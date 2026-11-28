@@ -36,12 +36,14 @@ const AnimMap = require('./anim-map.js');
 const ImageMap = require('./image-map.js');
 const Board = require('./board.js');
 const BoardText = require('./board-text.js');
+const Shop = require('./shop.js');
 const PlayerView = require('./player-view.js');
 const assets = require('./asset-manager.js');
 const TEMPLATE = require('../config/render.js').template;
 const SHEET = require('../config/assets.js');
 const BOARD = require('../config/board.js');
 const PLAYER = require('../config/player.js');
+const SHOP = require('../config/shop.js');
 
 function start(env) {
   const stage = env.stage;
@@ -69,11 +71,12 @@ function start(env) {
         ),
     ],
     () => {
-      /* ---------- 2. 棋盘：读文本 → 建格子对象 ---------- */
+      /* ---------- 2. 棋盘 + 商店：读文本 / 配置 → 建对象 ---------- */
       const board = createBoard(w, h, sm);
+      const shop = createShop(w, h, sm);
 
       /* ---------- 3. 表格：第 0 行是字段头，下面是数据 ---------- */
-      const table = buildTable(w, h, am, board);
+      const table = buildTable(w, h, am, board, shop);
 
       /* ---------- 4. 表格 → 完整配置数组 ---------- */
       const list = TableMapper.fill(TEMPLATE, table);
@@ -170,11 +173,44 @@ function createBoard(w, h, sm) {
   return board;
 }
 
+// 建立商店对象
+// w, h - 画布物理像素尺寸
+// sm - 图集连接器，用来取两种素材的原始尺寸
+// 返回 Shop 对象
+function createShop(w, h, sm) {
+  const cfg = Object.assign({}, SHOP.template);
+
+  // 取外壳与槽位的原始尺寸，取不到就让 Shop 用 scale 1
+  let shellFrame = null;
+  let slotFrame = null;
+  try {
+    shellFrame = sm.size(cfg.shellAsset);
+  } catch (err) {
+    console.warn('[demo] 取外壳尺寸失败：' + err.message);
+  }
+  try {
+    slotFrame = sm.size(cfg.slotAsset);
+  } catch (err) {
+    console.warn('[demo] 取槽位尺寸失败：' + err.message);
+  }
+
+  const shop = new Shop(cfg, { width: w, height: h, shellFrame: shellFrame, slotFrame: slotFrame });
+
+  // 打印商店规模，排查时一眼看出外壳位置和槽位数量
+  console.log(
+    '[demo] 商店：外壳 ' + Math.round(shop.shell.w) + 'x' + Math.round(shop.shell.h) +
+      '，y=' + Math.round(shop.shell.y) + '，槽位 ' + shop.slots.length + ' 个'
+  );
+
+  return shop;
+}
+
 // 构造表格：只有这里需要改画面内容
 // w, h - 画布物理像素尺寸
 // am - 动画连接器，用来取动画尺寸算 scale
 // board - 棋盘对象，为 null 时不出格子
-function buildTable(w, h, am, board) {
+// shop - 商店对象，为 null 时不出商店
+function buildTable(w, h, am, board, shop) {
   // 按「目标高度」反算 scale，素材尺寸未知时退回 1
   const scaleFor = (name, targetH) => {
     if (!am) return 1;
@@ -194,6 +230,9 @@ function buildTable(w, h, am, board) {
 
     // 棋盘：格子由 boards.txt + config/board.js 生成
     ...(board ? board.toTable() : []),
+
+    // 商店：外壳 + 卡牌槽位，叠在棋盘上面
+    ...(shop ? shop.toTable() : []),
 
     // 精灵动画 1：nf1，放在左侧
     // `anim nf1 ${w * 0.2} ${h * 0.2} ${scaleFor('nf1', h * 0.12)}`,
