@@ -42,12 +42,14 @@ const Battle = require('./battle.js');
 const BattleView = require('./battle-view.js');
 const Touch = require('./touch.js');
 const Sound = require('./sound.js');
+const Bgm = require('./bgm.js');
 const assets = require('./asset-manager.js');
 const TEMPLATE = require('../config/render.js').template;
 const SHEET = require('../config/assets.js');
 const BOARD = require('../config/board.js');
 const PLAYER = require('../config/player.js');
 const SHOP = require('../config/shop.js');
+const BGM = require('../config/bgm.js');
 const COMBAT = require('../config/combat.js');
 
 function start(env) {
@@ -165,6 +167,15 @@ function start(env) {
             }
 
             // 点一下：按钮 / 槽位 / 格子；拖拽：把武器拖到格子上
+            // 背景音乐：系统可能拦着不播，首次点击会由 tap 里的 unlock 补上
+            if (BGM.template.enabled) {
+              Bgm.start({
+                file: BGM.file,
+                volume: BGM.template.volume,
+                mode: BGM.template.mode,
+              });
+            }
+
             // 走路音效：人物每踏进一个格子播一次
             if (battle) {
               battle.onStep = function () {
@@ -175,7 +186,10 @@ function start(env) {
             if (view && battle) {
               Touch.bind({
                 stage: stage,
-                tap: view.handleTap,
+                tap: function (x, y) {
+                  Bgm.unlock();           // 首次点击解锁音频
+                  return view.handleTap(x, y);
+                },
                 drag: view.handleDrag,
                 drop: view.handleDrop,
               });
