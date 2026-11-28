@@ -28,7 +28,7 @@ module.exports = {
      * 超出屏幕的部分交给画布裁掉，不做任何压缩。
      */
     shellAsset: "src/assets/shopBg.png",
-    shellWidthRatio: 0.8,
+    shellWidthRatio: 1.2,
     x: null,
     y: null,
     topRatio: 0.7,
