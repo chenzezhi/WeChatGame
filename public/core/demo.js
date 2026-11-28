@@ -135,26 +135,36 @@ function start(env) {
 
           /* ---------- 8. 战斗：武器 + 怪物 + 点击 ---------- */
           if (board) {
-            const battle = Battle.create({
-              board: board,
-              shop: shop,
-              player: playerView ? playerView.player : null,
-              width: w,
-              height: h,
-              config: COMBAT,
-            });
+            let battle = null;
+            try {
+              battle = Battle.create({
+                board: board,
+                shop: shop,
+                player: playerView ? playerView.player : null,
+                width: w,
+                height: h,
+                config: COMBAT,
+              });
+            } catch (e) {
+              console.error('[demo] 战斗创建失败：' + ((e && e.stack) || e));
+            }
 
-            const view = BattleView.create({
-              stage: stage,
-              sm: sm,
-              board: board,
-              shop: shop,
-              battle: battle,
-              config: COMBAT,
-            });
+            let view = null;
+            try {
+              view = BattleView.create({
+                stage: stage,
+                sm: sm,
+                board: board,
+                shop: shop,
+                battle: battle,
+                config: COMBAT,
+              });
+            } catch (e) {
+              console.error('[demo] 战斗视图创建失败：' + ((e && e.stack) || e));
+            }
 
             // 点一下：按钮 / 槽位 / 格子；拖拽：把武器拖到格子上
-            if (view) {
+            if (view && battle) {
               Touch.bind({
                 stage: stage,
                 tap: view.handleTap,
