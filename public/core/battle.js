@@ -93,6 +93,16 @@ function Battle(deps) {
   this.cx = this.board ? this.board.originX + this.board.width / 2 : this.width / 2;
   this.cy = this.board ? this.board.originY + this.board.height / 2 : this.height / 2;
 
+  // 篝火：怪物要攻打的目栙，也是防守目标
+  // x, y - 中心坐标，单位 px
+  // r - 到达判定半径，单位 px（进这个范围就算攻到）
+  const campR = tpl.campfireRadiusRatio == null ? 0.45 : tpl.campfireRadiusRatio;
+  this.campfire = {
+    x: this.cx,
+    y: this.cy,
+    r: (this.board ? this.board.cellW : 80) * campR,
+  };
+
   this._time = 0;          // 累计毫秒
   this._spawnLeft = 0;     // 这一波还剩几只没生成
   this._spawnTimer = 0;    // 距离下一只生成还要多久，单位毫秒
@@ -283,8 +293,8 @@ Battle.prototype.update = function (dt) {
     m.x += (dx / len) * step;
     m.y += (dy / len) * step;
 
-    // 走到法阵：扣耐久，怪物消失
-    if (len <= (this.board ? this.board.cellW / 2 : 20)) {
+    // 走到篝火：扣耐久，怪物消失
+    if (len <= this.campfire.r) {
       m.alive = false;
       this.hp -= m.rec.damage || 0;
       if (this.hp <= 0) {
