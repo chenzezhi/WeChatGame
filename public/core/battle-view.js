@@ -927,11 +927,12 @@ function create(options) {
   // 在外壳顶部居中画「商店」两个字
   function drawShopTitle(ctx) {
     const s = shop && shop.shell ? shop.shell : null;
-    if (!s || !tpl.title) return;
+    const sc = (shop && shop.cfg) || {};      // 标题配置在商店里，不在战斗配置里
+    if (!s || !sc.title) return;
 
-    const size = Math.max(12, Math.round(s.h * (tpl.titleFontRatio == null ? 0.16 : tpl.titleFontRatio)));
+    const size = Math.max(12, Math.round(s.h * (sc.titleFontRatio == null ? 0.16 : sc.titleFontRatio)));
     const cx = s.x + s.w / 2;
-    const cy = s.y + s.h * (tpl.titleTopRatio == null ? 0.05 : tpl.titleTopRatio);
+    const cy = s.y + s.h * (sc.titleTopRatio == null ? 0.05 : sc.titleTopRatio);
 
     ctx.font = 'bold ' + size + 'px sans-serif';
     ctx.textAlign = 'center';
@@ -940,10 +941,10 @@ function create(options) {
     // 深色描边，保证花纹背景上也看得清
     ctx.lineWidth = Math.max(2, size * 0.16);
     ctx.strokeStyle = 'rgba(30,20,10,0.65)';
-    ctx.strokeText(tpl.title, cx, cy);
+    ctx.strokeText(sc.title, cx, cy);
 
-    ctx.fillStyle = tpl.titleColor || '#ffe9c9';
-    ctx.fillText(tpl.title, cx, cy);
+    ctx.fillStyle = sc.titleColor || '#ffe9c9';
+    ctx.fillText(sc.title, cx, cy);
   }
 
   // 画一个宝箱
@@ -1043,23 +1044,7 @@ function create(options) {
     ctx.drawImage(shellImg.image, dx, dy, w, h);
     ctx.restore();
 
-    // 3. 调试标记：洋红=盒子边框，黄=图片实际范围，红=盒子顶边
-    if (cfg.template && cfg.template.debugShell) {
-      ctx.strokeStyle = '#ff00ff';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(s.x, s.y, s.w, s.h);
-
-      ctx.strokeStyle = '#ffe000';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(s.x + (s.w - w) / 2, s.y + (s.h - h) / 2, w, h);
-
-      ctx.strokeStyle = '#ff2020';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x + s.w, s.y);
-      ctx.stroke();
-    }
+  }
   }
 
   // 画垃圾桶；hover 时变红并掀盖子
