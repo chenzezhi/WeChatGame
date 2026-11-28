@@ -672,8 +672,11 @@ function create(options) {
       drawDragHint(ctx, dragDef);
     }
 
-    // 10. HUD
+    // 10. HUD：左上角银币
     drawHud(ctx);
+
+    // 11. 右上角：第几波
+    drawWave(ctx);
   }
 
   // 画槽位下方的价格：银币图标 + 数字，钱不够变红
@@ -932,6 +935,33 @@ function create(options) {
       ctx.fillStyle = affordable ? COLOR.btnText : COLOR.btnTextOff;
       ctx.fillText(numText, rightX, btn.y + btn.h / 2);
     }
+  }
+
+  // 右上角：第几波
+  function drawWave(ctx) {
+    const wave = battle.wave;
+    const text = wave > 0 ? '第 ' + wave + ' 波' : '待战';
+    const size = Math.round(fontPx * 1.5);
+
+    ctx.font = 'bold ' + size + 'px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    const padX = size * 0.5;
+    const padY = size * 0.35;
+    const tw = ctx.measureText(text).width;
+    const boxW = tw + padX * 2;
+    const boxH = size + padY * 2;
+
+    const x = battle.width - 12 - boxW;
+    const y = 12;
+
+    ctx.fillStyle = COLOR.hudBg;
+    roundRectPath(ctx, x, y, boxW, boxH, boxH * 0.3);
+    ctx.fill();
+
+    ctx.fillStyle = COLOR.hud;
+    ctx.fillText(text, x + boxW - padX, y + boxH / 2);
   }
 
   // 画 HUD：只剩银币图标 + 数量，左上角，字号放大
