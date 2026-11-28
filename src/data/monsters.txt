@@ -1,12 +1,14 @@
-# 怪物表
+# 怪物表：只放基础属性，波次机制会在此基础上加成
 #
-# name   - 怪物名，波次表靠它引用
-# hp     - 血量
+# name   - 怪物名
+# kind   - 种类：normal 普通 / elite 精英 / boss 首领
+# hp     - 基础血量（会按波次放大）
 # speed  - 移动速度，单位 px/秒
 # damage - 走到篝火时扣掉的耐久
 # coins  - 打死它能拿多少银币
-# asset  - 怪物素材（现在用不到，怪物是代码画的）
 
-name  hp speed damage coins asset
-slime 20 70    1      15    30
-bat   10 150   1      10    30
+name  kind   hp  speed damage coins
+slime normal 20  70    1      15
+bat   normal 10  150   1      10
+elite elite  60  60    2      40
+boss  boss   300 45    5      150
