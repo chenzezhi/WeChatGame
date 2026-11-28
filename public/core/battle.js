@@ -126,6 +126,7 @@ function Battle(deps) {
   this.fireNote = '';
   this.lastWaveBonus = 0;   // 最近一次通关奖励了多少银币
   this.viewZoom = 1;        // 画面当前缩放，由 battle-view 每帧写入
+  this.hpPulseT = 0;        // 掉血后爱心脉动剩余时间，单位毫秒
 
   // 速度卡效果：乘几、还剩多少毫秒
   this.speedBoost = { mul: 1, left: 0 };
@@ -756,6 +757,9 @@ Battle.prototype.update = function (dt) {
   // 人物踏进一个格子：先叫一声（走路音效），再干别的
   if (this.player && this.player.entered && this.onStep) this.onStep();
 
+  // 爱心脉动倒计时
+  if (this.hpPulseT > 0) this.hpPulseT -= dt;
+
   // 只有战斗中才推进一切；布阵和结束都直接返回
   if (this.state !== 'battle') return;
 
@@ -828,6 +832,7 @@ Battle.prototype.update = function (dt) {
       if (m.atkTimer <= 0) {
         m.atkTimer = m.rec.atkCd || 1000;
         this.hp -= m.rec.damage || 0;
+        this.hpPulseT = 260;   // 爱心蹦一下
 
         if (this.onCampfireHit) this.onCampfireHit(m.rec);
 

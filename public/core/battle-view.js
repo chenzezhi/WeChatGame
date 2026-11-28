@@ -377,7 +377,15 @@ function drawMonster(ctx, cx, cy, s, hpRatio, kind) {
 }
 
 // 篝火：交叉柴火 + 围石 + 两层火苗
-function drawCampfire(ctx, cx, cy, s) {
+// frame - 0~3，火苗的跳动帧（几帧循环看起来就在烧）
+function drawCampfire(ctx, cx, cy, s, frame) {
+  const f = frame || 0;
+
+  // 火苗每帧的形态：左右轻摆 + 高低起伏
+  const sway = [0, 0.05, 0, -0.05][f];
+  const tall = [1, 1.07, 1.13, 1.05][f];
+  const wide = [1, 1.04, 0.97, 1.02][f];
+
   // 柴火
   ctx.save();
   ctx.translate(cx, cy + s * 0.3);
@@ -400,22 +408,26 @@ function drawCampfire(ctx, cx, cy, s) {
     ctx.fill();
   }
 
-  // 外焰
+  // 外焰（带帧摆动）
+  const topY = cy - s * 0.5 * tall;
+  const swing = s * sway;
+
   ctx.beginPath();
-  ctx.moveTo(cx, cy - s * 0.5);
-  ctx.quadraticCurveTo(cx + s * 0.3, cy - s * 0.05, cx + s * 0.16, cy + s * 0.22);
+  ctx.moveTo(cx + swing, topY);
+  ctx.quadraticCurveTo(cx + s * 0.3 * wide, cy - s * 0.05, cx + s * 0.16, cy + s * 0.22);
   ctx.quadraticCurveTo(cx, cy + s * 0.3, cx - s * 0.16, cy + s * 0.22);
-  ctx.quadraticCurveTo(cx - s * 0.3, cy - s * 0.05, cx, cy - s * 0.5);
+  ctx.quadraticCurveTo(cx - s * 0.3 * wide, cy - s * 0.05, cx + swing, topY);
   ctx.closePath();
   ctx.fillStyle = COLOR.campFlame;
   ctx.fill();
 
   // 内焰
+  const inTop = cy - s * 0.2 * tall;
   ctx.beginPath();
-  ctx.moveTo(cx, cy - s * 0.2);
-  ctx.quadraticCurveTo(cx + s * 0.14, cy + s * 0.02, cx + s * 0.08, cy + s * 0.18);
+  ctx.moveTo(cx + swing * 0.6, inTop);
+  ctx.quadraticCurveTo(cx + s * 0.14 * wide, cy + s * 0.02, cx + s * 0.08, cy + s * 0.18);
   ctx.quadraticCurveTo(cx, cy + s * 0.24, cx - s * 0.08, cy + s * 0.18);
-  ctx.quadraticCurveTo(cx - s * 0.14, cy + s * 0.02, cx, cy - s * 0.2);
+  ctx.quadraticCurveTo(cx - s * 0.14 * wide, cy + s * 0.02, cx + swing * 0.6, inTop);
   ctx.closePath();
   ctx.fillStyle = COLOR.campInner;
   ctx.fill();
@@ -614,16 +626,27 @@ function create(options) {
     ctx.save();
     World.apply(ctx);
 
-    // 1. 篝火
-    drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
+    // 1. 篝火：4 帧循环，看起来在烧
+    const fireFrame = Math.floor(battle._time / 110) % 4;
+    drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize, fireFrame);
 
     // 1.5 篝火右下角：爱心 + 当前耐久
+    // 掉血时爱心会「蹦两下」：先放大再回弹，幅度不大但有反馈
     const st = battle.status();
-    const heartSize = campfireSize * 0.26;
+    const heartBase = campfireSize * 0.26;
+
+    let heartScale = 1;
+    if (battle.hpPulseT > 0) {
+      const t = 1 - battle.hpPulseT / 260;              // 0 → 1
+      heartScale = 1 + Math.sin(t * Math.PI * 3) * (1 - t) * 0.45;
+    }
+
+    const heartSize = heartBase * heartScale;
     const hx = battle.campfire.x + campfireSize * 0.3;
     const hy = battle.campfire.y + campfireSize * 0.34;
+
     drawHeartShape(ctx, '#ff4d6d', hx, hy, heartSize);
-    drawBadge(ctx, String(Math.round(st.hp)), hx + heartSize * 1.5, hy + heartSize * 0.55, campfireSize * 0.2);
+    drawBadge(ctx, String(Math.round(st.hp)), hx + heartBase * 1.5, hy + heartBase * 0.55, campfireSize * 0.2);
 
     // 2. 格子上的卡牌：不旋转，永远朝上摆着
     // 正在被拖走的那一格先空出来，做出「拔出来」的效果
