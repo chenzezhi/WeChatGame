@@ -6,10 +6,10 @@
 # speed  - 移动速度，单位 px/秒
 # damage - 每次攻击篝火扣掉多少耐久
 # atkCd  - 攻击间隔，单位毫秒（走到篝火旁边就按这个节奏打）
-# coins  - 打死它能拿多少银币
+# coins  - 击杀基础奖励银币（实际奖励还要加波次加成）
 
 name  kind   hp  speed damage atkCd coins
-slime normal 20  70    1      1200  15
-bat   normal 10  150   1      900   10
-elite elite  60  60    2      1000  40
-boss  boss   300 45    5      800   150
+slime normal 20  70    1      1200  1
+bat   normal 10  150   1      900   2
+elite elite  60  60    2      1000  4
+boss  boss   300 45    5      800   8

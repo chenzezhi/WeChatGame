@@ -807,8 +807,10 @@ Battle.prototype.update = function (dt) {
       if (t.hp <= 0) {
         t.alive = false;
 
-        // 击杀奖励
-        const reward = t.rec.coins || 0;
+        // 击杀奖励：基础值 + 波次加成（第 n 波就多 n-1）
+        const base = t.rec.coins || 0;
+        const bonus = Math.max(0, this.wave - 1);
+        const reward = base > 0 ? base + bonus : 0;
         if (reward) this.coins += reward;
 
         if (this.onKill) this.onKill(t.rec);
