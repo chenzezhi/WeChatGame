@@ -22,7 +22,7 @@ module.exports = {
   // 模板：战斗的默认参数
   template: {
     coins: 80,           // 开局银币
-    cellHp: 10,          // 篝火耐久（怪物走到篝火扣它的 damage）
+    cellHp: 100,          // 篝火耐久（怪物走到篝火扣它的 damage）
     maxLevel: 4,         // 武器最高等级，到顶就不能再合成
 
     refreshCost: 15,     // 刷新商店的价格，单位银币
