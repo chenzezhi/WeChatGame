@@ -598,17 +598,44 @@ function create(options) {
           ctx.fill();
 
           if (!build) continue;
+
+          const phase = battle.gacha.phase;
+
+          // 选宝箱：三个槽位显示宝箱 + 价格
+          if (phase === 'chests') {
+            const chests = tpl.chests || [];
+            const chest = chests[i] || chests[0];
+            if (chest) drawChest(ctx, slot, i, chest.price || 0);
+            continue;
+          }
+
+          // 滚动中：显示随机预览卡，带一点上移
+          if (phase === 'rolling') {
+            const pv = battle.gacha.preview[i];
+            if (pv) {
+              const drift = ((battle.gacha.t % 120) / 120) * slot.h * 0.12;
+              drawWeapon(ctx, pv, slot.x + slot.w / 2, slot.y + slot.h * 0.4 + drift, slotIconSize);
+            }
+            continue;
+          }
+
           if (slot.sold || !slot.weapon) continue;
           if (slot === dragFromSlot) continue;   // 正在被拖走
 
           drawWeapon(ctx, slot.weapon, slot.x + slot.w / 2, slot.y + slot.h * 0.42, slotIconSize);
           drawBadge(ctx, badgeTextOf(slot.weapon), slot.x + slot.w * 0.84, slot.y + slot.h * 0.58, slot.w * 0.14);
-          drawSlotPrice(ctx, slot);
+
+          // 抽奖结果：价格位写「免费」
+          if (phase === 'result') drawFreeLabel(ctx, slot);
+          else drawSlotPrice(ctx, slot);
         }
       }
 
-      // 4.3 垃圾桶（拖到它上面就变红、掀盖子）
-      if (build) drawTrash(ctx, isOverTrash());
+      // 4.3 抽奖按钮 + 垃圾桶
+      if (build) {
+        drawButton(ctx, gachaBtn, COLOR.refreshBtn, null, true);
+        drawTrash(ctx, isOverTrash());
+      }
     }
 
     // 5. 怪物

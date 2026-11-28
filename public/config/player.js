@@ -40,6 +40,13 @@ module.exports = {
    * jumpMs     - 一下跳多久，单位毫秒
    * jumpHeight - 跳多高，占人物高度的比例
    */
+  /* ★ 插槽 5：走路音效
+   * stepSound  - 每踏进一个格子播一次；留空就不播
+   * stepVolume - 音量 0~1
+   */
+  stepSound: 'src/assets/music/walk.mp3',
+  stepVolume: 0.6,
+
   jumpMs: 220,
   jumpHeight: 0,   // 设 0 = 不跳，直接走过去
 

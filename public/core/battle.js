@@ -134,6 +134,7 @@ function Battle(deps) {
   this.onWaveStart = null;
   this.onWaveEnd = null;
   this.onOver = null;
+  this.onStep = null;      // 人物踏进一个格子时叫一声（走路音效用）
 
   // 当前选中的商品 { name, level, price, slot }；null 表示用第一把 1 级
   this.selected = null;
@@ -658,6 +659,9 @@ Battle.prototype.update = function (dt) {
 
     if (this.gacha.t >= this.gacha.dur) this._finishRoll();
   }
+
+  // 人物踏进一个格子：先叫一声（走路音效），再干别的
+  if (this.player && this.player.entered && this.onStep) this.onStep();
 
   // 只有战斗中才推进一切；布阵和结束都直接返回
   if (this.state !== 'battle') return;

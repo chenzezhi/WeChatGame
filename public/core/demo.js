@@ -41,6 +41,7 @@ const PlayerView = require('./player-view.js');
 const Battle = require('./battle.js');
 const BattleView = require('./battle-view.js');
 const Touch = require('./touch.js');
+const Sound = require('./sound.js');
 const assets = require('./asset-manager.js');
 const TEMPLATE = require('../config/render.js').template;
 const SHEET = require('../config/assets.js');
@@ -164,6 +165,13 @@ function start(env) {
             }
 
             // 点一下：按钮 / 槽位 / 格子；拖拽：把武器拖到格子上
+            // 走路音效：人物每踏进一个格子播一次
+            if (battle) {
+              battle.onStep = function () {
+                Sound.play(PLAYER.stepSound, PLAYER.stepVolume);
+              };
+            }
+
             if (view && battle) {
               Touch.bind({
                 stage: stage,
