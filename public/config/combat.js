@@ -55,5 +55,12 @@ module.exports = {
 
     // 子弹相对武器的缩小倍数（1 = 和武器图标一样大）
     bulletScale: 0.42,
+
+    /* ★ 战斗表现
+     * shotGapMs  - 多发之间的间隔，单位毫秒（8 发就是分 8 次发出）
+     * battleZoom - 战斗时画面缩小到多少（1 = 不缩，0.62 = 缩到 62%）
+     */
+    shotGapMs: 70,
+    battleZoom: 0.62,
   },
 };
