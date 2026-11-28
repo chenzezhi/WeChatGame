@@ -26,6 +26,8 @@ const Overlay = require('./overlay.js');
 const Ticker = require('./ticker.js');
 const World = require('./world.js');
 const Speed = require('./speed.js');
+const Sound = require('./sound.js');
+const Bgm = require('./bgm.js');
 const texture = require('./texture.js');
 
 // 界面色
@@ -469,6 +471,39 @@ function create(options) {
   const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 1 : tpl.campfireSizeRatio);
   const fontPx = Math.max(12, Math.round(board.cellW * 0.16));
 
+  /* ---------- 左上角第二行：菜单按钮 ---------- */
+  const coinSize = Math.round(fontPx * 1.7);
+  const coinBoxH = Math.round(coinSize * 1.7);
+
+  const menuBtn = {
+    x: 12,
+    y: 12 + coinBoxH + 8,
+    w: Math.round(coinBoxH * 1.9),
+    h: coinBoxH,
+  };
+
+  // 设置弹窗：屏幕居中
+  const modal = {
+    w: battle.width * 0.72,
+    h: battle.height * 0.42,
+    x: 0,
+    y: 0,
+  };
+  modal.x = (battle.width - modal.w) / 2;
+  modal.y = (battle.height - modal.h) / 2;
+
+  const mPad = modal.w * 0.1;
+  const rowW = modal.w - mPad * 2;
+
+  // 两条滑条 + 关闭按钮
+  const sfxRow = { x: modal.x + mPad, y: modal.y + modal.h * 0.26, w: rowW, h: modal.h * 0.1 };
+  const bgmRow = { x: modal.x + mPad, y: modal.y + modal.h * 0.48, w: rowW, h: modal.h * 0.1 };
+  const closeBtn = { x: modal.x + mPad, y: modal.y + modal.h * 0.74, w: rowW, h: modal.h * 0.16, label: '返回游戏' };
+
+  // 菜单是否打开；正在拖哪条滑条
+  let menuOpen = false;
+  let sliderActive = null;
+
   /* ---------- 右上角 UI：波次徽章 + 速度按钮 ---------- */
   const uiSize = Math.round(fontPx * 1.5);
   const uiPadX = uiSize * 0.5;
@@ -866,6 +901,12 @@ function create(options) {
     // 11. 右上角：第几波 + 速度按钮
     drawWave(ctx);
     drawSpeedBtn(ctx);
+
+    // 12. 左上角菜单按钮
+    drawMenuBtn(ctx);
+
+    // 13. 设置弹窗：盖在最上面
+    if (menuOpen) drawMenu(ctx);
   }
 
   // 画槽位下方的价格：银币图标 + 数字，钱不够变红
@@ -1181,6 +1222,105 @@ function create(options) {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = Speed.get() > 1 ? '#ffd94a' : COLOR.hud;
     ctx.fillText(text, b.x + b.w / 2, b.y + b.h / 2);
+  }
+
+  // 左上角：菜单按钮
+  function drawMenuBtn(ctx) {
+    const b = menuBtn;
+    ctx.fillStyle = COLOR.hudBg;
+    roundRectPath(ctx, b.x, b.y, b.w, b.h, b.h * 0.3);
+    ctx.fill();
+
+    // 三条横线当菜单图标
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const half = b.w * 0.22;
+    const lineH = Math.max(2, b.h * 0.08);
+
+    ctx.fillStyle = COLOR.hud;
+    for (let i = -1; i <= 1; i++) {
+      roundRectPath(ctx, cx - half, cy + i * b.h * 0.18 - lineH / 2, half * 2, lineH, lineH * 0.5);
+      ctx.fill();
+    }
+  }
+
+  // 画一条音量滑条
+  // row - 行的位置
+  // label - 文字
+  // value - 0~1
+  function drawSlider(ctx, row, label, value) {
+    const size = Math.round(fontPx * 1.2);
+
+    // 文字 + 百分比
+    ctx.font = size + 'px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e6ecf5';
+    ctx.fillText(label, row.x, row.y - size * 0.9);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#a8bcd4';
+    ctx.fillText(Math.round(value * 100) + '%', row.x + row.w, row.y - size * 0.9);
+
+    // 轨道
+    const trackH = Math.max(6, row.h * 0.32);
+    const ty = row.y + row.h * 0.4;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    roundRectPath(ctx, row.x, ty - trackH / 2, row.w, trackH, trackH / 2);
+    ctx.fill();
+
+    // 已填充部分
+    ctx.fillStyle = '#6fb0ff';
+    roundRectPath(ctx, row.x, ty - trackH / 2, Math.max(trackH, row.w * value), trackH, trackH / 2);
+    ctx.fill();
+
+    // 滑块
+    const knobR = trackH * 0.9;
+    const kx = row.x + row.w * value;
+    ctx.beginPath();
+    ctx.arc(kx, ty, knobR, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  }
+
+  // 画设置弹窗（盖在一切上面）
+  function drawMenu(ctx) {
+    // 全屏压暗
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, battle.width, battle.height);
+
+    // 面板
+    ctx.fillStyle = '#1b2433';
+    roundRectPath(ctx, modal.x, modal.y, modal.w, modal.h, modal.w * 0.04);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 标题
+    const titleSize = Math.round(fontPx * 1.6);
+    ctx.font = 'bold ' + titleSize + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffe9c9';
+    ctx.fillText('设置', modal.x + modal.w / 2, modal.y + modal.h * 0.12);
+
+    // 两条滑条
+    drawSlider(ctx, sfxRow, '游戏音效', Sound.getMaster());
+    drawSlider(ctx, bgmRow, '游戏音乐', Bgm.getVolume());
+
+    // 返回游戏
+    roundRectPath(ctx, closeBtn.x, closeBtn.y, closeBtn.w, closeBtn.h, closeBtn.h * 0.25);
+    ctx.fillStyle = COLOR.fightBtn;
+    ctx.fill();
+
+    ctx.fillStyle = COLOR.btnText;
+    ctx.font = 'bold ' + Math.round(closeBtn.h * 0.45) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(closeBtn.label, closeBtn.x + closeBtn.w / 2, closeBtn.y + closeBtn.h / 2);
   }
 
   // 右上角：第几波
