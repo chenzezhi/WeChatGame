@@ -119,6 +119,7 @@ function Battle(deps) {
   this.hitCount = 0;
   this.fireNote = '';
   this.lastWaveBonus = 0;   // 最近一次通关奖励了多少银币
+  this.viewZoom = 1;        // 画面当前缩放，由 battle-view 每帧写入
 
   // 速度卡效果：乘几、还剩多少毫秒
   this.speedBoost = { mul: 1, left: 0 };
@@ -850,8 +851,18 @@ Battle.prototype.update = function (dt) {
       continue;
     }
 
-    // 飞出屏幕（留一点余量）就回收
-    if (b.x < -outMargin || b.y < -outMargin || b.x > this.width + outMargin || b.y > this.height + outMargin) {
+    // 飞出「屏幕」才回收。
+    // 注意：战斗时画面被缩放（viewZoom），世界坐标的边界不等于屏幕边界，
+    // 直接用 width/height 会导致子弹在屏幕边缘还没到头就被回收，看起来像钻进地里。
+    const z = this.viewZoom || 1;
+    const halfW = this.width / (2 * z);
+    const halfH = this.height / (2 * z);
+    const left = this.campfire.x - halfW - outMargin;
+    const right = this.campfire.x + halfW + outMargin;
+    const top = this.campfire.y - halfH - outMargin;
+    const bottom = this.campfire.y + halfH + outMargin;
+
+    if (b.x < left || b.x > right || b.y < top || b.y > bottom) {
       b.alive = false;
     }
   }
