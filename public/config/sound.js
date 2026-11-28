@@ -48,6 +48,20 @@ module.exports = {
     gapMs: 120,
   },
 
+  // 银币增加：击杀奖励、卖卡、豹子奖励
+  coin: {
+    file: 'src/assets/music/银币增加.mp3',
+    volume: 0.5,
+    gapMs: 50,
+  },
+
+  // 游戏失败：篝火耐久归零
+  lose: {
+    file: 'src/assets/music/游戏失败.mp3',
+    volume: 0.7,
+    gapMs: 0,
+  },
+
   // 放牌：卡牌放到格子上 / 合成成功
   place: {
     file: 'src/assets/music/卡牌放到格子.mp3',

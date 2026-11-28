@@ -652,10 +652,12 @@ function create(options) {
       drawMonster(ctx, m.x, m.y, monsterSize, m.maxHp ? m.hp / m.maxHp : 1, m.rec.kind);
     }
 
-    // 6. 子弹：长得跟武器一样，朝着一目标的方向转
+    // 6. 子弹：长得跟武器一样；瞄着目标时朝目标，目标没了就按飞行方向
     for (let i = 0; i < battle.bullets.length; i++) {
       const b = battle.bullets[i];
-      const angle = b.target ? Math.atan2(b.target.y - b.y, b.target.x - b.x) : 0;
+      const angle = b.target && b.target.alive
+        ? Math.atan2(b.target.y + (b.oy || 0) - b.y, b.target.x + (b.ox || 0) - b.x)
+        : Math.atan2(b.vy || 0, b.vx || 1);
       drawWeaponAimed(ctx, b.def, b.x, b.y, bulletSize, angle);
     }
 

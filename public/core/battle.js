@@ -146,6 +146,7 @@ function Battle(deps) {
   this.onKill = null;      // 怪物阵亡
   this.onCampfireHit = null;  // 篝火被咬
   this.onPlace = null;     // 卡牌放上格子
+  this.onCoin = null;      // 银币增加（击杀 / 卖卡 / 豹子）
 
   // 当前选中的商品 { name, level, price, slot }；null 表示用第一把 1 级
   this.selected = null;
@@ -495,6 +496,7 @@ Battle.prototype.sellCard = function (cell) {
 
   const price = this.sellPrice(cell.card.def);
   this.coins += price;
+  if (this.onCoin) this.onCoin(price);
   cell.card = null;
 
   // 抽奖结果里卖掉一张，同样算「拿走」，回到宝箱界面
@@ -829,7 +831,10 @@ Battle.prototype.update = function (dt) {
           const base = t.rec.coins || 0;
           const bonus = Math.max(0, this.wave - 1);
           const reward = base > 0 ? base + bonus : 0;
-          if (reward) this.coins += reward;
+          if (reward) {
+            this.coins += reward;
+            if (this.onCoin) this.onCoin(reward);
+          }
 
           if (this.onKill) this.onKill(t.rec);
         }
@@ -1045,6 +1050,7 @@ Battle.prototype._finishRoll = function () {
     const reward = Math.round((chest.price || 0) * 2);
 
     this.coins += reward;
+    if (this.onCoin) this.onCoin(reward);
     this.gacha.reward = reward;
     this.gacha.jackpotT = 2000;
     this.gacha.phase = 'jackpot';
