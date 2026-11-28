@@ -362,6 +362,20 @@ function create(options) {
     },
   };
 
+  // 重新开始按钮：结束时出现在屏幕中间
+  const restartButton = {
+    x: (battle.width - buttonW) / 2,
+    y: (battle.height - buttonH) / 2,
+    w: buttonW,
+    h: buttonH,
+    label: '重新开始',
+    cost: null,
+    onTap: function () {
+      battle.restart();
+      lastLine = '重新开始';
+    },
+  };
+
   // 上一次操作的结果，HUD 最后一段显示
   let lastLine = '';
 
@@ -412,6 +426,11 @@ function create(options) {
       const rp = battle.refreshPrice();
       drawButton(ctx, refreshButton, COLOR.refreshBtn, rp, battle.coins >= rp);
       drawButton(ctx, fightButton, COLOR.fightBtn, null, true);
+    } else if (battle.state === 'over') {
+      // 全屏压暗，中间出一个重新开始
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(0, 0, battle.width, battle.height);
+      drawButton(ctx, restartButton, COLOR.fightBtn, null, true);
     }
 
     // 9. HUD
@@ -460,13 +479,21 @@ function create(options) {
     ctx.font = 'bold ' + fontSize + 'px sans-serif';
     ctx.textBaseline = 'middle';
 
+    // 没有价格的就居中写（开始战斗 / 重新开始）
+    if (!cost) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLOR.btnText;
+      ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
+      return;
+    }
+
     // 左边：按钮名字
     ctx.textAlign = 'left';
     ctx.fillStyle = COLOR.btnText;
     ctx.fillText(btn.label, btn.x + pad, btn.y + btn.h / 2);
 
     // 右边：银币图标 + 数字
-    if (cost) {
+    {
       const numText = String(cost);
       ctx.font = fontSize + 'px sans-serif';
       const numW = ctx.measureText(numText).width;
@@ -483,10 +510,12 @@ function create(options) {
     }
   }
 
-  // 画 HUD：银币 / 耐久 / 波次 / 剩余怪
+  // 画 HUD：银币 / 耐久 / 波次 / 剩余怪 / 发射计数
   function drawHud(ctxRef) {
     const s = battle.status();
     let text = '银币 ' + s.coins + '   耐久 ' + s.hp + '   第 ' + s.wave + ' 波   怪 ' + s.alive;
+    text += '   发射 ' + s.shots + ' 中 ' + s.hits;
+    if (s.note) text += '  ' + s.note;
     if (lastLine) text += '   ' + lastLine;
 
     ctxRef.font = fontPx + 'px sans-serif';
@@ -516,6 +545,15 @@ function create(options) {
   // 把一次点击派给按钮 / 槽位 / 格子
   function handleTap(x, y) {
     lastLine = '';
+
+    // 结束了只认重新开始
+    if (battle.state === 'over') {
+      if (inside(x, y, restartButton)) {
+        restartButton.onTap();
+        return true;
+      }
+      return false;
+    }
 
     if (battle.state === 'build') {
       if (inside(x, y, refreshButton)) {

@@ -105,6 +105,11 @@ function Battle(deps) {
   this._spawnTimer = 0;   // 距离下一只生成还要多久，单位毫秒
   this._gapMs = 1000;     // 生成间隔，单位毫秒
 
+  // 调试计数：已发射多少发、命中多少次、上一次到格没开火的原因
+  this.shotCount = 0;
+  this.hitCount = 0;
+  this.fireNote = '';
+
   // 外部回调
   this.onWaveStart = null;
   this.onWaveEnd = null;
@@ -471,6 +476,7 @@ Battle.prototype._fireFrom = function (cell) {
 
   // 这一级一次发几发：1 / 2 / 4 / 8
   const shots = Math.max(1, def.shots || 1);
+  this.shotCount += shots;
   const ring = cell.w * 0.16;   // 多发时围绕中心错开，单位 px
 
   for (let i = 0; i < shots; i++) {
@@ -501,9 +507,15 @@ Battle.prototype.update = function (dt) {
 
   // 1. 人物刚踏进一个格子：这格有武器就发一轮
   // 只在「到格」这一瞬间触发，不会在格子之间重复开火
-  if (this.player) {
-    if (this.player.entered && this.player.current && this.player.current.card) {
-      this._fireFrom(this.player.current);
+  if (this.player && this.player.entered) {
+    const cell = this.player.current;
+    if (cell) {
+      if (!cell.card) {
+        this.fireNote = '无武器';
+      } else {
+        const n = this._fireFrom(cell);
+        this.fireNote = n ? '发射 ' + n : '无目标';
+      }
     }
   }
 
@@ -573,6 +585,7 @@ Battle.prototype.update = function (dt) {
     // 命中
     if (len <= (this.tpl.hitRadius || 20) + step) {
       t.hp -= b.def.damage || 0;
+      this.hitCount += 1;
       b.alive = false;
 
       if (t.hp <= 0) {
@@ -631,6 +644,9 @@ Battle.prototype.status = function () {
     wave: this.wave,
     state: this.state,
     alive: this.monsters.length,
+    shots: this.shotCount,
+    hits: this.hitCount,
+    note: this.fireNote,
   };
 };
 
