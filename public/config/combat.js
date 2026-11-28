@@ -26,6 +26,17 @@ module.exports = {
     maxLevel: 4,         // 武器最高等级，到顶就不能再合成
 
     refreshCost: 15,     // 刷新商店的价格，单位银币
+    refreshCostBase: 15, // 第一次刷新多少钱
+    refreshCostStep: 1,  // 每刷一次加多少钱
+
+    /* ★ 商店随机规则（名字对应 src/data/weapons.txt）
+     * weaponWeights - 每种卡被刷出来的权重
+     * levelWeights  - 1~4 级被刷出来的权重（自动归一化）
+     * buyMarkup     - 直接买 2 级以上时相对合成价的倍率
+     */
+    weaponWeights: { arrow: 30, axe: 22, spear: 18, staff: 14, heart: 12, boost: 12 },
+    levelWeights: [70, 25, 5, 0],
+    buyMarkup: 1.2,
 
     spawnMargin: 220,    // 怪物出生点离屏幕边缘的距离，单位 px（大于 0 就在屏幕外）（负数在外，正数在内）
     hitRadius: 30,       // 子弹命中判定半径，单位 px
