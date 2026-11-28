@@ -61,6 +61,10 @@ function Bullet(def, x, y, target, ox, oy) {
   this.target = target;
   this.life = 0;
   this.alive = true;
+
+  // 飞行方向（单位向量）：目标活着时每帧朝它修正，目标没了就按这个方向直飞
+  this.vx = 0;
+  this.vy = -1;
 }
 
 // 一局战斗
@@ -787,50 +791,64 @@ Battle.prototype.update = function (dt) {
     m.y += (dy / len) * step;
   }
 
-  // 3. 子弹追踪
+  // 3. 子弹：目标活着就追踪，目标死了就按最后方向直飞
+  const hitR = this.tpl.hitRadius || 20;
+  const lifeMs = this.tpl.bulletLifeMs || 6000;
+  const outMargin = hitR * 3;
+
   for (let i = 0; i < this.bullets.length; i++) {
     const b = this.bullets[i];
     if (!b.alive) continue;
 
     const t = b.target;
-    if (!t || !t.alive) {
-      b.alive = false;
-      continue;
-    }
-
-    const dx = t.x + b.ox - b.x;
-    const dy = t.y + b.oy - b.y;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
     const step = (b.def.bulletSpd || 0) * (dt / 1000);
 
-    b.x += (dx / len) * step;
-    b.y += (dy / len) * step;
+    if (t && t.alive) {
+      // 追踪：每帧修正方向
+      const dx = t.x + b.ox - b.x;
+      const dy = t.y + b.oy - b.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      b.vx = dx / len;
+      b.vy = dy / len;
+      b.x += b.vx * step;
+      b.y += b.vy * step;
+
+      // 命中
+      if (len <= hitR + step) {
+        t.hp -= b.def.damage || 0;
+        this.hitCount += 1;
+        b.alive = false;
+
+        if (this.onHit) this.onHit();
+
+        if (t.hp <= 0) {
+          t.alive = false;
+
+          // 击杀奖励：基础值 + 波次加成（第 n 波就多 n-1）
+          const base = t.rec.coins || 0;
+          const bonus = Math.max(0, this.wave - 1);
+          const reward = base > 0 ? base + bonus : 0;
+          if (reward) this.coins += reward;
+
+          if (this.onKill) this.onKill(t.rec);
+        }
+      }
+    } else {
+      // 目标没了：保持最后的方向直飞，不消失
+      b.x += b.vx * step;
+      b.y += b.vy * step;
+    }
 
     b.life += dt;
-    if (b.life > (this.tpl.bulletLifeMs || 6000)) {
+    if (b.life > lifeMs) {
       b.alive = false;
       continue;
     }
 
-    // 命中
-    if (len <= (this.tpl.hitRadius || 20) + step) {
-      t.hp -= b.def.damage || 0;
-      this.hitCount += 1;
+    // 飞出屏幕（留一点余量）就回收
+    if (b.x < -outMargin || b.y < -outMargin || b.x > this.width + outMargin || b.y > this.height + outMargin) {
       b.alive = false;
-
-      if (this.onHit) this.onHit();
-
-      if (t.hp <= 0) {
-        t.alive = false;
-
-        // 击杀奖励：基础值 + 波次加成（第 n 波就多 n-1）
-        const base = t.rec.coins || 0;
-        const bonus = Math.max(0, this.wave - 1);
-        const reward = base > 0 ? base + bonus : 0;
-        if (reward) this.coins += reward;
-
-        if (this.onKill) this.onKill(t.rec);
-      }
     }
   }
 

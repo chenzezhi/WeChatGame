@@ -631,10 +631,18 @@ function create(options) {
         }
       }
 
-      // 4.3 抽奖按钮 + 垃圾桶
+      // 4.3 抽奖 / 返回 按钮 + 垃圾桶
       if (build) {
-        drawButton(ctx, gachaBtn, COLOR.refreshBtn, null, true);
-        drawTrash(ctx, isOverTrash());
+        const ph = battle.gacha.phase;
+
+        // 没抽奖时是「抽奖」，显示宝箱时变成「返回」
+        if (ph === 'off' || ph === 'chests') {
+          gachaBtn.label = ph === 'off' ? '抽奖' : '返回';
+          drawButton(ctx, gachaBtn, ph === 'off' ? COLOR.refreshBtn : COLOR.fightBtn, null, true);
+        }
+
+        // 垃圾桶只在正常阶段和出结果阶段有用
+        if (ph === 'off' || ph === 'result') drawTrash(ctx, isOverTrash());
       }
     }
 
@@ -670,6 +678,53 @@ function create(options) {
     if (dragPoint && dragDef) {
       drawWeaponAimed(ctx, dragDef, dragPoint.x, dragPoint.y, slotIconSize * 0.8, -Math.PI / 2);
       drawDragHint(ctx, dragDef);
+    }
+
+    // 9.5 抽奖的两种提示
+    if (battle.gacha.phase === 'jackpot') {
+      // 三个槽位压暗，中间写奖励多少银币
+      if (shop && shop.slots && shop.slots.length) {
+        const a = shop.slots[0];
+        const b2 = shop.slots[shop.slots.length - 1];
+        ctx.fillStyle = 'rgba(10,12,18,0.62)';
+        roundRectPath(ctx, a.x, a.y, (b2.x + b2.w) - a.x, a.h, a.w * 0.1);
+        ctx.fill();
+      }
+
+      const size = Math.round(fontPx * 2.2);
+      ctx.font = 'bold ' + size + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const text = '豹子！+' + battle.gacha.reward + ' 银币';
+      const cx = battle.width / 2;
+      const cy = shop && shop.slots && shop.slots[0] ? shop.slots[0].y + shop.slots[0].h / 2 : battle.height * 0.85;
+
+      ctx.lineWidth = Math.max(3, size * 0.14);
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.strokeText(text, cx, cy);
+
+      ctx.fillStyle = '#ffd94a';
+      ctx.fillText(text, cx, cy);
+    }
+
+    if (battle.gacha.phase === 'result') {
+      // 还有免费的卡没用：屏幕中间提示
+      const size = Math.round(fontPx * 1.6);
+      ctx.font = 'bold ' + size + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const text = '还有免费的卡牌  未使用或卖出';
+      const cx = battle.width / 2;
+      const cy = battle.height * 0.62;
+
+      ctx.lineWidth = Math.max(3, size * 0.16);
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.strokeText(text, cx, cy);
+
+      ctx.fillStyle = '#ffe9c9';
+      ctx.fillText(text, cx, cy);
     }
 
     // 10. HUD：左上角银币
@@ -1115,11 +1170,14 @@ function create(options) {
         if (battle.gacha.phase === 'off') {
           battle.enterChestSelect();
           lastLine = '选宝箱';
-        } else {
-          battle.exitGacha();
-          lastLine = '取消抽奖';
+          return true;
         }
-        return true;
+        if (battle.gacha.phase === 'chests') {
+          battle.exitGacha();     // 返回：恢复抽奖前的卡槽
+          lastLine = '返回';
+          return true;
+        }
+        return false;
       }
 
       if (battle.gacha.phase === 'off' && inside(x, y, refreshButton)) {
