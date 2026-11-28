@@ -190,6 +190,16 @@ function drawWeapon(ctx, def, cx, cy, s) {
   return drawSwordShape(ctx, color, cx, cy, s);
 }
 
+// 带旋转的武器：绕自身中心转
+// angle - 弧度，0 表示朝右；图形本身是朝上的，所以加 90°
+function drawWeaponAimed(ctx, def, cx, cy, s, angle) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((angle || 0) + Math.PI / 2);
+  drawWeapon(ctx, def, 0, 0, s);
+  ctx.restore();
+}
+
 /* ---------------- 怪物 / 篝火 ---------------- */
 
 // 小怪：圆身子 + 角 + 眼睛 + 嘴 + 血条
@@ -380,6 +390,9 @@ function create(options) {
   // 上一次操作的结果，HUD 最后一段显示
   let lastLine = '';
 
+  // 拖拽中：手指位置（屏幕坐标）和要放的武器
+  let dragPoint = null;
+
   // 当前世界缩放，逐帧向目标靠拢
   let worldZoom = 1;
 
@@ -432,10 +445,17 @@ function create(options) {
     drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
 
     // 2. 格子上的武器（人物走覆盖层上层，所以这里不用管遮挡）
+    // 有怪时就转过去对准最近的怪
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
       if (!cell.card || !cell.card.def) continue;
-      drawWeapon(ctx, cell.card.def, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
+
+      const ccx = cell.x + cell.w / 2;
+      const ccy = cell.y + cell.h / 2;
+      const angle = battle.aimAt(ccx, ccy);
+
+      if (angle == null) drawWeapon(ctx, cell.card.def, ccx, ccy, cardSize);
+      else drawWeaponAimed(ctx, cell.card.def, ccx, ccy, cardSize, angle);
     }
 
     // 4. 商店槽位里的武器（卖掉的槽位不画），每格带一个价格
@@ -454,10 +474,11 @@ function create(options) {
       drawMonster(ctx, m.x, m.y, monsterSize, m.maxHp ? m.hp / m.maxHp : 1, m.rec.kind);
     }
 
-    // 6. 子弹：长得跟武器一样，只是小一号
+    // 6. 子弹：长得跟武器一样，朝着一目标的方向转
     for (let i = 0; i < battle.bullets.length; i++) {
       const b = battle.bullets[i];
-      drawWeapon(ctx, b.def, b.x, b.y, bulletSize);
+      const angle = b.target ? Math.atan2(b.target.y - b.y, b.target.x - b.x) : 0;
+      drawWeaponAimed(ctx, b.def, b.x, b.y, bulletSize, angle);
     }
 
     // 世界内容画完，恢复屏幕坐标，按钮和 HUD 不跟着缩
@@ -475,7 +496,13 @@ function create(options) {
       drawButton(ctx, restartButton, COLOR.fightBtn, null, true);
     }
 
-    // 9. HUD
+    // 9. 拖拽中的武器跟着手指走（屏幕坐标，不缩放）
+    if (dragPoint && battle.selected) {
+      const def = battle.weaponDef(battle.selected.name, 1) || null;
+      drawWeaponAimed(ctx, def || { kind: 'sword', color: '#ffffff' }, dragPoint.x, dragPoint.y, slotIconSize * 0.8, -Math.PI / 2);
+    }
+
+    // 10. HUD
     drawHud(ctx);
   }
 
@@ -584,6 +611,46 @@ function create(options) {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
+  // 屏幕坐标是否落在某个格子上
+  // x, y - 世界坐标
+  // 返回 Cell 或 null
+  function cellAtPoint(x, y) {
+    for (let i = 0; i < board.cells.length; i++) {
+      const cell = board.cells[i];
+      if (inside(x, y, cell)) return cell;
+    }
+    return null;
+  }
+
+  // 拖拽中：记下手指位置，用来画跟随的武器
+  function handleDrag(x, y) {
+    if (battle.state !== 'build' || !battle.selected) return;
+    dragPoint = { x: x, y: y };
+  }
+
+  // 拖拽落地：把选中的武器放到手指下的格子上
+  // sx, sy - 按下的位置；ex, ey - 抬手的位置；moved - 是否真的拖动了
+  // 返回 true 表示成功放到格子上
+  function handleDrop(sx, sy, ex, ey, moved) {
+    dragPoint = null;
+
+    // 没拖动就只是普通点击，已经由 tap 处理过了
+    if (!moved || battle.state !== 'build') return false;
+    if (!battle.selected) return false;
+
+    const pt = World.toWorld(ex, ey);
+    const cell = cellAtPoint(pt.x, pt.y);
+
+    if (!cell) {
+      lastLine = '没放到格子上';
+      return false;
+    }
+
+    const ok = battle.placeWeapon(cell, battle.selected);
+    lastLine = ok ? '拖到第 ' + cell.index + ' 格' : '放不了（不同类/满级/没钱）';
+    return ok;
+  }
+
   // 把一次点击派给按钮 / 槽位 / 格子
   function handleTap(x, y) {
     lastLine = '';
@@ -673,7 +740,7 @@ function create(options) {
     ' 尺寸 ' + Math.round(buttonW) + 'x' + Math.round(buttonH) +
     '；篝火 ' + Math.round(battle.campfire.x) + ',' + Math.round(battle.campfire.y));
 
-  return { handleTap: handleTap };
+  return { handleTap: handleTap, handleDrag: handleDrag, handleDrop: handleDrop };
 }
 
 module.exports = { create: create };

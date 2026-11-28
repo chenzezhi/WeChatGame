@@ -153,8 +153,15 @@ function start(env) {
               config: COMBAT,
             });
 
-            // 点一下：按钮 → 槽位 → 格子（传 stage 用真实坐标比例）
-            if (view) Touch.bind({ stage: stage, tap: view.handleTap });
+            // 点一下：按钮 / 槽位 / 格子；拖拽：把武器拖到格子上
+            if (view) {
+              Touch.bind({
+                stage: stage,
+                tap: view.handleTap,
+                drag: view.handleDrag,
+                drop: view.handleDrop,
+              });
+            }
           }
         }
       );

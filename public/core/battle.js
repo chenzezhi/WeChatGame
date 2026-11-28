@@ -442,6 +442,15 @@ Battle.prototype._spawnOne = function () {
 
 /* ---------------- 开火 ---------------- */
 
+// 从某点看向最近怪物的角度（给画图用：武器要转过去对准）
+// x, y - 参照点
+// 返回弧度值，没有目标时返回 null
+Battle.prototype.aimAt = function (x, y) {
+  const m = this._nearestMonster(x, y);
+  if (!m) return null;
+  return Math.atan2(m.y - y, m.x - x);
+};
+
 // 找离某点最近、且已经在屏幕内的怪物
 // x, y - 参照点
 // 返回 Monster 或 null

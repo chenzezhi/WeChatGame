@@ -23,9 +23,9 @@ module.exports = {
    */
   clips: {
     up: 'nf1',
-    down: 'nf1',
+    down: 'nf2',
     left: 'nf1',
-    right: 'nf1',
+    right: 'nf2',
   },
 
   /* ★ 插槽 2：人物大小与位置
@@ -42,4 +42,10 @@ module.exports = {
    */
   jumpMs: 220,
   jumpHeight: 0,   // 设 0 = 不跳，直接走过去
+
+  /* ★ 插槽 4：到格判定误差
+   * arriveToleranceRatio - 离格子中心多近就算「到了」，占格子边长的比例
+   * 0 = 必须到格心；0.3 = 走到离格心 30% 格子宽的地方就算到
+   */
+  arriveToleranceRatio: 0.3,
 };

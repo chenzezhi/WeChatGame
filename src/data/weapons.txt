@@ -6,28 +6,28 @@
 # damage - 每一发的伤害（多发时乘算）
 # shots  - 一次发射几发：1 / 2 / 4 / 8
 # cdMs   - 两次发射的最小间隔，单位毫秒
-# speed  - 子弹飞行速度，单位 px/秒
+# speed  - 子弹飞行速度，单位 px/秒（越小越慢、看得越清楚）
 # cost   - 这一级的价格（累加价：2 级 ≈ 两个 1 级）
 #          商店直接卖 2 级以上时会再加 20%
 # color  - 图标和子弹的颜色，等级越高越亮
 
 name   kind  level damage shots cdMs speed cost color
-arrow  sword 1     10     1     600  950   15   #d8dee8
-arrow  sword 2     11     2     580  1000  30   #8fc9ff
-arrow  sword 3     13     4     560  1050  45   #5aa8ff
-arrow  sword 4     15     8     540  1100  60   #2f7fff
+arrow  sword 1     10     1     600  380   15   #d8dee8
+arrow  sword 2     11     2     580  400   30   #8fc9ff
+arrow  sword 3     13     4     560  420   45   #5aa8ff
+arrow  sword 4     15     8     540  440   60   #2f7fff
 
-axe    axe   1     16     1     1000 700   20   #d8c8b0
-axe    axe   2     18     2     960  740   40   #e0a86a
-axe    axe   3     21     4     920  780   60   #d98a3f
-axe    axe   4     24     8     880  820   80   #c96a1f
+axe    axe   1     16     1     1000 260   20   #d8c8b0
+axe    axe   2     18     2     960  280   40   #e0a86a
+axe    axe   3     21     4     920  300   60   #d98a3f
+axe    axe   4     24     8     880  320   80   #c96a1f
 
-spear  spear 1     6      1     420  1300  18   #cfe8d8
-spear  spear 2     7      2     400  1350  36   #8fe0a8
-spear  spear 3     8      4     380  1400  54   #4fcf7f
-spear  spear 4     9      8     360  1450  72   #1faf5f
+spear  spear 1     6      1     420  520   18   #cfe8d8
+spear  spear 2     7      2     400  540   36   #8fe0a8
+spear  spear 3     8      4     380  560   54   #4fcf7f
+spear  spear 4     9      8     360  580   72   #1faf5f
 
-staff  staff 1     12     1     800  600   22   #e8d0f0
-staff  staff 2     13     2     760  640   44   #c88fe0
-staff  staff 3     15     4     720  680   66   #a45fd8
-staff  staff 4     17     8     680  720   88   #7a2fc0
+staff  staff 1     12     1     800  300   22   #e8d0f0
+staff  staff 2     13     2     760  320   44   #c88fe0
+staff  staff 3     15     4     720  340   66   #a45fd8
+staff  staff 4     17     8     680  360   88   #7a2fc0

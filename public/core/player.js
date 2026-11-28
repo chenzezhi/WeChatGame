@@ -102,6 +102,11 @@ class Player {
     // 跳跃动画：计时（毫秒）与时长
     this.jumpT = 99999;
     this.jumpMs = cfg.jumpMs || 220;
+
+    // 到格判定误差：离目标格中心小于这个距离就算到了，单位 px
+    // 0 就是必须走到格心；给一点误差提前触发，跑起来更顺
+    const w = this.route.length ? this.route[0].w : 0;
+    this.arriveTolerance = (cfg.arriveToleranceRatio || 0) * w;
   }
 
   // 跳跃动画的抬升比例 0~1：0 在地上，1 在最高点
@@ -160,6 +165,26 @@ class Player {
         this.t = 0;
         this.pause = this.pauseMs;
         break;
+      }
+    }
+
+    // 误差判定：离下一格中心很近了也算到达，不用恰好踩在格心
+    if (this.arriveTolerance > 0) {
+      const a = this.current;
+      const b = this.next;
+
+      if (a && b) {
+        const px = a.x + (b.x - a.x) * this.t;
+        const py = a.y + (b.y - a.y) * this.t;
+        const dx = b.x - px;
+        const dy = b.y - py;
+
+        if (Math.sqrt(dx * dx + dy * dy) <= this.arriveTolerance) {
+          this.i = (this.i + 1) % this.route.length;
+          this.t = 0;
+          this.entered = true;
+          this.jumpT = 0;
+        }
       }
     }
   }
