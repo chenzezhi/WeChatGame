@@ -41,5 +41,5 @@ module.exports = {
    * jumpHeight - 跳多高，占人物高度的比例
    */
   jumpMs: 220,
-  jumpHeight: 0.35,
+  jumpHeight: 0,   // 设 0 = 不跳，直接走过去
 };

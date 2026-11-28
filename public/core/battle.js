@@ -104,6 +104,7 @@ function Battle(deps) {
   this._plan = [];        // 这一波还没生成的怪物计划
   this._spawnTimer = 0;   // 距离下一只生成还要多久，单位毫秒
   this._gapMs = 1000;     // 生成间隔，单位毫秒
+  this._shotQueue = [];   // 待发射的子弹（多发时间隔发出）
 
   // 调试计数：已发射多少发、命中多少次、上一次到格没开火的原因
   this.shotCount = 0;
@@ -476,23 +477,56 @@ Battle.prototype._fireFrom = function (cell) {
 
   // 这一级一次发几发：1 / 2 / 4 / 8
   const shots = Math.max(1, def.shots || 1);
-  this.shotCount += shots;
-  const ring = cell.w * 0.16;   // 多发时围绕中心错开，单位 px
+  const gap = this.tpl.shotGapMs || 60;
 
+  // 不一次性全吐出去，排进队列按间隔陆续发
   for (let i = 0; i < shots; i++) {
-    const a = (Math.PI * 2 * i) / shots;
-    const ox = Math.cos(a) * ring;
-    const oy = Math.sin(a) * ring;
-
-    // 落点也错开一点，否则多发完全重叠看着像一发
-    const tx = Math.cos(a) * (this.tpl.hitRadius || 20) * 0.6;
-    const ty = Math.sin(a) * (this.tpl.hitRadius || 20) * 0.6;
-
-    this.bullets.push(new Bullet(def, cx + ox, cy + oy, target, tx, ty));
+    this._shotQueue.push({
+      def: def,
+      x: cx,
+      y: cy,
+      target: target,
+      at: this._time + i * gap,
+      ring: cell.w * 0.16,
+      index: i,
+      total: shots,
+    });
   }
 
   cell.lastFire = this._time;
   return shots;
+};
+
+// 把到时间的待发射子弹真的发出去
+// 一发一个间隔，看起来就是连续的
+Battle.prototype._flushShots = function () {
+  if (!this._shotQueue.length) return;
+
+  const keep = [];
+  for (let i = 0; i < this._shotQueue.length; i++) {
+    const s = this._shotQueue[i];
+
+    // 还没到时间，留到下一帧
+    if (s.at > this._time) {
+      keep.push(s);
+      continue;
+    }
+
+    // 目标已经死了，这一发就不发了
+    if (!s.target || !s.target.alive) continue;
+
+    // 多发时散开一点，不要完全重叠
+    const a = (Math.PI * 2 * s.index) / Math.max(1, s.total);
+    const ox = Math.cos(a) * s.ring;
+    const oy = Math.sin(a) * s.ring;
+    const tx = Math.cos(a) * (this.tpl.hitRadius || 20) * 0.6;
+    const ty = Math.sin(a) * (this.tpl.hitRadius || 20) * 0.6;
+
+    this.bullets.push(new Bullet(s.def, s.x + ox, s.y + oy, s.target, tx, ty));
+    this.shotCount += 1;
+  }
+
+  this._shotQueue = keep;
 };
 
 /* ---------------- 主循环 ---------------- */
@@ -519,7 +553,10 @@ Battle.prototype.update = function (dt) {
     }
   }
 
-  // 1. 按间隔生成
+  // 1. 把到时间的子弹发出去（多发就是这样一发一发出来的）
+  this._flushShots();
+
+  // 2. 按间隔生成
   if (this._plan.length) {
     this._spawnTimer -= dt;
     if (this._spawnTimer <= 0) {
@@ -602,10 +639,12 @@ Battle.prototype.update = function (dt) {
   this.monsters = this.monsters.filter((m) => m.alive);
   this.bullets = this.bullets.filter((b) => b.alive);
 
-  // 5. 这一波打完了
+  // 5. 这一波打完了：自动刷新商店，回到布阵
   if (!this._plan.length && this.monsters.length === 0) {
     this.state = 'build';
     this.bullets = [];
+    this._shotQueue = [];
+    this.fillShop();          // 每波结束免费补满卡槽
     if (this.onWaveEnd) this.onWaveEnd(this.wave);
   }
 };
@@ -620,6 +659,7 @@ Battle.prototype.restart = function () {
   this.monsters = [];
   this.bullets = [];
   this._plan = [];
+  this._shotQueue = [];
   this._spawnTimer = 0;
   this._time = 0;
 

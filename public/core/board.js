@@ -139,6 +139,35 @@ class Board {
     }
   }
 
+  // 把格子画到舞台上，并记下对象，方便以后缩放 / 隐藏
+  // stage - cax Stage
+  // sm - SpriteMap
+  // 返回创建出来的 cax 对象数组（每个带 _baseX / _baseY / _baseScale）
+  render(stage, sm) {
+    if (this.sprites) return this.sprites;
+
+    const out = [];
+    for (let i = 0; i < this.cells.length; i++) {
+      const cell = this.cells[i];
+
+      let node = null;
+      try {
+        node = sm.add(stage, cell.asset, cell.x, cell.y);
+      } catch (e) {
+        continue;
+      }
+
+      node.scale = cell.scale;
+      node._baseX = cell.x;
+      node._baseY = cell.y;
+      node._baseScale = cell.scale;
+      out.push(node);
+    }
+
+    this.sprites = out;
+    return out;
+  }
+
   // 按行列取格子
   // row, col - 行列，从 0 开始
   // 返回 Cell，越界或是空洞则返回 null

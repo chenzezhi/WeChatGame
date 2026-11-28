@@ -126,6 +126,40 @@ class Shop {
     return this.slots[index] || null;
   }
 
+  // 把外壳和槽位底图画到舞台上，并记下对象，方便以后缩放 / 隐藏
+  // stage - cax Stage
+  // sm - SpriteMap
+  // 返回创建出来的 cax 对象数组（每个带 _baseX / _baseY / _baseScale）
+  render(stage, sm) {
+    if (this.sprites) return this.sprites;
+
+    const out = [];
+
+    function make(target) {
+      let node = null;
+      try {
+        node = sm.add(stage, target.asset, target.x, target.y);
+      } catch (e) {
+        return null;
+      }
+      node.scale = target.scale;
+      node._baseX = target.x;
+      node._baseY = target.y;
+      node._baseScale = target.scale;
+      out.push(node);
+      return node;
+    }
+
+    // 外壳
+    make(this.shell);
+
+    // 每个槽位的底图
+    for (let i = 0; i < this.slots.length; i++) make(this.slots[i]);
+
+    this.sprites = out;
+    return out;
+  }
+
   // 整层要渲染的表格行：外壳在前，槽位在后
   // 返回字符串数组，可直接拼进表格
   toTable() {
