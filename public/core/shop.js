@@ -3,7 +3,7 @@
 /* ==================== 功能 ====================
  * Shop —— 商店
  *
- * 屏幕最下方的一层：一副外壳 + 一排卡牌槽位。
+ * 屏幕下方的一层：一副外壳 + 一排卡牌槽位。
  * 只算位置和尺寸，生成表格行；不管购买、拖拽、银币。
  * ==============================================*/
 
@@ -13,16 +13,17 @@
  *
  * const shop = new Shop(SHOP.template, { width: w, height: h, shellFrame, slotFrame });
  *
- * shop.shell;              // { x, y, w, h, scale } 外壳
- * shop.slots;              // [{ index, x, y, w, h, scale, card, price }]
- * shop.slotAt(index);      // 按序号取槽位
- * shop.toTable();          // ['sprite 30 0 1800 1.2', ...] 拼进表格
+ * shop.shell;             // { x, y, w, h, scale } 外壳
+ * shop.slots;             // [{ index, x, y, w, h, scale, card }]
+ * shop.slotAt(index);     // 按序号取槽位
+ * shop.toTable();         // ['sprite 30 0 1944 3.2', ...] 拼进表格
  * ==============================================*/
 
 /* ==================== 注意 ====================
- * 坐标单位 px；尺寸用「占画布宽度的比例」，换分辨率不会错位。
- * 外壳高度由图片比例决定，只按宽度缩放，不拉伸。
- * 槽位在画布上水平居中，底边按 slotBottomRatio 抬离外壳底边。
+ * 坐标单位 px；尺寸用「占画布宽/高的比例」，换分辨率不会错位。
+ *
+ * 外壳只按宽度等比缩放，绝不拉伸；高度超出屏幕时由画布自然裁掉。
+ * 槽位按画布高度单独定位，不跟外壳走——外壳挪出屏幕也不影响槽位可见。
  * ==============================================*/
 
 // 卡牌槽位：商店里的一格
@@ -77,16 +78,23 @@ class Shop {
     const width = e.width || 0;
     const height = e.height || 0;
 
-    // 外壳：底边贴住 bottom，宽度按比例，高度由图片比例决定
+    // 画布尺寸留着算槽位坐标，单位 px
+    this._width = width;
+    this._height = height;
+
+    // 外壳宽度：按比例，只缩不拉伸
     const shellW = width * (c.shellWidthRatio == null ? 1 : c.shellWidthRatio);
     const shellFrame = e.shellFrame || null;
     const shellScale = shellFrame && shellFrame.w ? shellW / shellFrame.w : 1;
+
+    // 外壳高度由图片比例决定
     const shellH = shellFrame && shellFrame.h ? shellFrame.h * shellScale : 0;
 
+    // 左上角：给了 x / y 就用它，没给就水平居中 + 用 topRatio
     this.shell = {
       asset: c.shellAsset,
-      x: (width - shellW) / 2,
-      y: height - (c.bottom || 0) - shellH,
+      x: c.x == null ? (width - shellW) / 2 : c.x,
+      y: c.y == null ? height * (c.topRatio == null ? 0.8 : c.topRatio) : c.y,
       w: shellW,
       h: shellH,
       scale: shellScale,
@@ -99,9 +107,6 @@ class Shop {
 
     const slotFrame = e.slotFrame || null;
     this.slotScale = slotFrame && slotFrame.w ? this.slotSize / slotFrame.w : 1;
-
-    // 存下画布宽，算槽位横坐标时用
-    this._width = width;
 
     this.slots = [];
     for (let i = 0; i < this.slotCount; i++) this.slots.push(new Slot(this, i));
@@ -141,10 +146,9 @@ class Shop {
     return left + index * (this.slotSize + this.slotGap);
   }
 
-  // 槽位的左上角 y：底边抬离外壳底边一段
+  // 槽位的左上角 y：按画布高度定位，不跟外壳走
   _slotY() {
-    const bottomGap = this.shell.h * (this.cfg.slotBottomRatio || 0);
-    return this.shell.y + this.shell.h - bottomGap - this.slotSize;
+    return this._height * (this.cfg.slotTopRatio || 0);
   }
 }
 
