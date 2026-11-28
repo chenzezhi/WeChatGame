@@ -68,8 +68,14 @@ function paintBackground(cax, stage) {
  * @param {Object} stage
  */
 function startLoop(stage) {
+  // 每帧回调的登记处，人物等会动的东西挂在这里
+  var Ticker = require('./public/core/ticker.js');
+
   function frame() {
-    // 提交这一帧
+    // 先推进逻辑：会动的东西在这一步改坐标
+    Ticker.tick();
+
+    // 再提交这一帧
     stage.update();
 
     // 请求下一帧，形成循环
