@@ -25,7 +25,7 @@ const cax = null;   // 占位：本模块不依赖渲染
 // 每个音效建几个播放器轮流用
 const POOL_SIZE = 3;
 
-// 路径 -> { list: [InnerAudioContext], index }
+// 路径 -> { list: [InnerAudioContext], index, lastAt }
 const pools = {};
 
 // 取（或创建）某个路径的播放池
@@ -65,12 +65,18 @@ function poolOf(path, volume) {
 // 播一次
 // path - 音频路径
 // volume - 音量 0~1，不传用默认 0.7
+// gapMs - 最小间隔毫秒，两次调用得太近就忽略（防止高频音效刷屏）
 // 返回是否播出去了
-function play(path, volume) {
+function play(path, volume, gapMs) {
   if (!path) return false;
 
   const pool = poolOf(path, volume);
   if (!pool) return false;
+
+  // 间隔不足就不播，避免糊成一片噪音
+  const now = Date.now();
+  if (gapMs && pool.lastAt && now - pool.lastAt < gapMs) return false;
+  pool.lastAt = now;
 
   const ctx = pool.list[pool.index % pool.list.length];
   pool.index += 1;
