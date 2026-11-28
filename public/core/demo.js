@@ -133,6 +133,7 @@ function start(env) {
           if (board) {
             const battle = Battle.create({
               board: board,
+              shop: shop,
               player: playerView ? playerView.player : null,
               width: w,
               height: h,

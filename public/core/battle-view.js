@@ -39,6 +39,7 @@ const COLOR = {
   campInner: '#f7d24a',
   campLog: '#7a5433',
   button: '#8b2f2f',
+  refresh: '#2f6b8b',
   buttonText: '#ffe9c9',
   hud: '#ffffff',
   hudBg: 'rgba(0,0,0,0.45)',
@@ -237,9 +238,11 @@ function create(options) {
   const campfireSize = board.cellW * (tpl.campfireSizeRatio == null ? 1 : tpl.campfireSizeRatio);
   const fontPx = Math.max(12, Math.round(board.cellW * 0.16));
 
-  /* ---------- 按钮位置：卡牌槽下面 ---------- */
-  const buttonW = board.cellW * 1.8;
-  const buttonH = board.cellH * 0.5;
+  /* ---------- 两个按钮：刷新（左）+ 开始战斗（右），大小一样 ---------- */
+  const buttonH = board.cellH * 0.55;
+  const buttonW = Math.min(board.cellW * 1.45, battle.width * 0.4);
+  const buttonGap = board.cellW * 0.18;
+
   const slot0 = shop && shop.slots && shop.slots[0] ? shop.slots[0] : null;
   const slotY = slot0 ? slot0.y : battle.height * 0.82;
   const slotH = slot0 ? slot0.h : 0;
@@ -247,11 +250,29 @@ function create(options) {
   let by = slotY + slotH + board.cellH * 0.12;
   by = Math.min(by, battle.height - buttonH - 8);
 
-  const button = {
-    x: (battle.width - buttonW) / 2,
+  const totalW = buttonW * 2 + buttonGap;
+  const leftX = (battle.width - totalW) / 2;
+
+  // 刷新按钮：花银币把卡槽补满
+  const refreshButton = {
+    x: leftX,
     y: by,
     w: buttonW,
     h: buttonH,
+    label: '刷新',
+    onTap: function () {
+      const ok = battle.refreshShop();
+      lastLine = ok ? '已刷新（-' + (tpl.refreshCost || 0) + ' 银币）' : '银币不够刷新';
+    },
+  };
+
+  // 开始战斗按钮：进入下一波
+  const fightButton = {
+    x: leftX + buttonW + buttonGap,
+    y: by,
+    w: buttonW,
+    h: buttonH,
+    label: '开始战斗',
     onTap: function () {
       if (battle.state === 'over') {
         lastLine = '本局已结束';
@@ -280,10 +301,11 @@ function create(options) {
       drawSword(ctx, cell.x + cell.w / 2, cell.y + cell.h / 2, cardSize);
     }
 
-    // 3. 商店槽位里的武器图标
+    // 3. 商店槽位里的武器图标（卖掉的槽位不画）
     if (shop && shop.slots && battle.state === 'build') {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
+        if (slot.sold || !slot.weapon) continue;
         drawSword(ctx, slot.x + slot.w / 2, slot.y + slot.h / 2, slotIconSize);
       }
     }
@@ -306,17 +328,23 @@ function create(options) {
       ctx.fillRect(shop.shell.x, shop.shell.y, shop.shell.w, shop.shell.h);
     }
 
-    // 7. 开始战斗按钮（布阵阶段才显示）
+    // 7. 两个按钮：刷新 + 开始战斗（布阵阶段才显示）
     if (battle.state === 'build') {
-      roundRectPath(ctx, button.x, button.y, button.w, button.h, buttonH * 0.25);
-      ctx.fillStyle = COLOR.button;
-      ctx.fill();
+      const buttons = [refreshButton, fightButton];
 
-      ctx.fillStyle = COLOR.buttonText;
-      ctx.font = 'bold ' + Math.round(buttonH * 0.5) + 'px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('开始战斗', button.x + button.w / 2, button.y + button.h / 2);
+      for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+
+        roundRectPath(ctx, btn.x, btn.y, btn.w, btn.h, btn.h * 0.25);
+        ctx.fillStyle = i === 0 ? COLOR.refresh : COLOR.button;
+        ctx.fill();
+
+        ctx.fillStyle = COLOR.buttonText;
+        ctx.font = 'bold ' + Math.round(btn.h * 0.42) + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
+      }
     }
 
     // 8. HUD
@@ -360,10 +388,16 @@ function create(options) {
     lastTap = { x: x, y: y, at: Date.now() };
     lastLine = '未命中';
 
-    // 1. 按钮
-    if (battle.state === 'build' && inside(x, y, button)) {
-      button.onTap();
-      return true;
+    // 1. 两个按钮
+    if (battle.state === 'build') {
+      if (inside(x, y, refreshButton)) {
+        refreshButton.onTap();
+        return true;
+      }
+      if (inside(x, y, fightButton)) {
+        fightButton.onTap();
+        return true;
+      }
     }
 
     // 2. 商店槽位
@@ -371,8 +405,12 @@ function create(options) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
         if (inside(x, y, slot)) {
-          battle.selectedWeapon = slot.weaponName || null;
-          lastLine = '选中 ' + (battle.selectedWeapon || '默认');
+          if (slot.sold || !slot.weapon) {
+            lastLine = '这个槽位空了';
+            return false;
+          }
+          battle.selectedWeapon = slot.weapon.name;
+          lastLine = '选中 ' + battle.selectedWeapon;
           return true;
         }
       }
@@ -413,7 +451,8 @@ function create(options) {
 
   console.log('[battle-view] 用原生 ctx 绘制；篝火 ' +
     Math.round(battle.campfire.x) + ',' + Math.round(battle.campfire.y) +
-    '；按钮 ' + Math.round(button.x) + ',' + Math.round(button.y));
+    '；按钮 ' + Math.round(leftX) + ',' + Math.round(by) +
+    ' 尺寸 ' + Math.round(buttonW) + 'x' + Math.round(buttonH));
 
   return { handleTap: handleTap, refresh: function () {} };
 }
