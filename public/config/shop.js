@@ -27,7 +27,7 @@ module.exports = {
      * 高度由图片自身比例决定，只按宽度等比缩放，绝不拉伸。
      * 超出屏幕的部分交给画布裁掉，不做任何压缩。
      */
-    shellAsset: 30,
+    shellAsset: "src/assets/shopBg.png",
     shellWidthRatio: 1,
     x: null,
     y: null,
