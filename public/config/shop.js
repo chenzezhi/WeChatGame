@@ -50,7 +50,7 @@ module.exports = {
      * titleColor     - 文字颜色
      */
     title: '商店',
-    titleTopRatio: 0.2,
+    titleTopRatio: 0.13,
     titleFontRatio: 0.16,
     titleColor: '#ffe9c9',
 

@@ -632,9 +632,13 @@ Battle.prototype._fireFrom = function (cell) {
   // 同一个格子按武器自己的 cdMs 控节奏，站着也会继续打
   if (this._time - (cell.lastFire || -99999) < (def.cdMs || 0)) return 0;
 
-  // 这一级一次发几发：1 / 2 / 4 / 8
+  // 这一级一次发几发
   const shots = Math.max(1, def.shots || 1);
-  const gap = this.tpl.shotGapMs || 60;
+
+  // 旋刃是「一把一把生成」：前一把还在变大，下一把才出来，间隔单独配
+  const gap = def.kind === 'spin'
+    ? (this.tpl.spinShotGapMs == null ? 1000 : this.tpl.spinShotGapMs)
+    : (this.tpl.shotGapMs || 60);
 
   // 不一次性全吐出去，排进队列按间隔陆续发
   for (let i = 0; i < shots; i++) {
@@ -900,7 +904,8 @@ Battle.prototype.update = function (dt) {
       const bodyR = (this.board ? this.board.cellW : 80) * (this.tpl.monsterSizeRatio || 0.5) / 2;
       const reach = radius + bodyR;
 
-      // 同一只怪的再次受伤冷却，单位毫秒
+      // 冷却记在「这一把刃」自己身上：每把刃对每只怪各自算 0.6 秒
+      // 所以 5 把刃同时扫一只怪 = 5 份伤害，不会被别的刃的冷却挡住
       const hitCd = this.tpl.spinHitCdMs == null ? 600 : this.tpl.spinHitCdMs;
 
       for (let k = 0; k < this.monsters.length; k++) {
@@ -911,20 +916,20 @@ Battle.prototype.update = function (dt) {
         const mdy = m.y - b.y;
         if (mdx * mdx + mdy * mdy > reach * reach) continue;
 
-        // 查这只怪上次挨打的时间
+        // 只查「这把刃」对这只怪的记录
         let rec = null;
         for (let q = 0; q < b.hitAt.length; q++) {
           if (b.hitAt[q].m === m) { rec = b.hitAt[q]; break; }
         }
 
-        // 还在冷却就不打
         if (rec && this._time - rec.at < hitCd) continue;
+
         if (!rec) {
           rec = { m: m, at: 0 };
           b.hitAt.push(rec);
         }
-
         rec.at = this._time;
+
         m.hp -= b.def.damage || 0;
         this.hitCount += 1;
         if (this.onHit) this.onHit();
