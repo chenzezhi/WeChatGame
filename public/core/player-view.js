@@ -26,6 +26,7 @@
 const Player = require('./player.js');
 const Ticker = require('./ticker.js');
 const Overlay = require('./overlay.js');
+const World = require('./world.js');
 
 // 人物所在层：数字越大越在上面
 const LAYER = 10;
@@ -128,7 +129,11 @@ function create(options) {
     const jump = player.jumpRatio * showH * (cfg.jumpHeight == null ? 0.35 : cfg.jumpHeight);
     const dy = pos.y + (board.cellH - showH) + (cfg.offsetY || 0) - jump;
 
+    // 跟棋盘、武器用同一个世界缩放，战斗时一起缩
+    ctx.save();
+    World.apply(ctx);
     ctx.drawImage(atlas.image, r[0], r[1], r[2], r[3], dx, dy, w, showH);
+    ctx.restore();
   }, LAYER);
 
   console.log('[player] 已创建，路线 ' + player.route.length + ' 格，速度 ' + player.speed + ' 格/秒');

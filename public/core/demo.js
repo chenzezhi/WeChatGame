@@ -124,7 +124,11 @@ function start(env) {
 
           console.log('[demo] 已渲染 ' + list.length + ' 项');
 
-          /* ---------- 7. 人物：会动的东西不走表格，单独挂 ---------- */
+          /* ---------- 7. 棋盘与商店：自己建对象，留着引用好缩放 / 隐藏 ---------- */
+          if (board && board.render) board.render(stage, sm);
+          if (shop && shop.render) shop.render(stage, sm);
+
+          /* ---------- 8. 人物：会动的东西不走表格，单独挂 ---------- */
           const playerView = board
             ? PlayerView.create({ stage: stage, am: am, board: board, config: PLAYER })
             : null;
@@ -258,11 +262,8 @@ function buildTable(w, h, am, board, shop) {
     // 背景：整屏平铺一张图
     `image src/assets/mapBg/mb1.jpg 0 0 0.25 n n ${w} ${h}`,
 
-    // 棋盘：格子由 boards.txt + config/board.js 生成
-    ...(board ? board.toTable() : []),
-
-    // 商店：外壳 + 卡牌槽位，叠在棋盘上面
-    ...(shop ? shop.toTable() : []),
+    // 棋盘和商店**不走表格**：它们需要能缩小、能隐藏，
+    // 所以由 board.render / shop.render 自己建对象并留着引用
 
     // 精灵动画 1：nf1，放在左侧
     // `anim nf1 ${w * 0.2} ${h * 0.2} ${scaleFor('nf1', h * 0.12)}`,

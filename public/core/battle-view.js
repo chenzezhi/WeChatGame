@@ -24,6 +24,7 @@
 
 const Overlay = require('./overlay.js');
 const Ticker = require('./ticker.js');
+const World = require('./world.js');
 
 // 界面色
 const COLOR = {
@@ -379,10 +380,54 @@ function create(options) {
   // 上一次操作的结果，HUD 最后一段显示
   let lastLine = '';
 
+  // 当前世界缩放，逐帧向目标靠拢
+  let worldZoom = 1;
+
+  // 把一组 cax 对象按世界缩放摆好（围绕篝火中心）
+  // sprites - 带 _baseX / _baseY / _baseScale 的对象数组
+  // z - 缩放倍数
+  function scaleSprites(sprites, z) {
+    if (!sprites) return;
+    const c = battle.campfire;
+
+    for (let i = 0; i < sprites.length; i++) {
+      const n = sprites[i];
+      n.x = c.x + (n._baseX - c.x) * z;
+      n.y = c.y + (n._baseY - c.y) * z;
+      n.scale = (n._baseScale || 1) * z;
+    }
+  }
+
+  // 统一显隐
+  // sprites - cax 对象数组
+  // v - true 显示 / false 隐藏
+  function setVisible(sprites, v) {
+    if (!sprites) return;
+    for (let i = 0; i < sprites.length; i++) sprites[i].visible = v;
+  }
+
   /* ---------- 绘制 ---------- */
   // 把这一帧所有动态内容画出来
   // ctx - Canvas 2D 上下文，坐标是画布物理像素
   function paintAll(ctx) {
+    // 0. 世界缩放：布阵 1，战斗时缩小（平滑过渡）
+    const targetZoom = battle.state === 'build' ? 1 : (tpl.battleZoom || 0.62);
+    worldZoom += (targetZoom - worldZoom) * 0.18;
+    if (Math.abs(targetZoom - worldZoom) < 0.002) worldZoom = targetZoom;
+
+    World.set(worldZoom, battle.campfire.x, battle.campfire.y);
+
+    // 棋盘与商店是 cax 对象，只能手改坐标和 scale 来跟着缩
+    scaleSprites(board.sprites, worldZoom);
+    scaleSprites(shop && shop.sprites, worldZoom);
+
+    // 战斗时把商店整块藏起来（外壳 + 槽位），打完再露出来
+    setVisible(shop && shop.sprites, battle.state === 'build');
+
+    // 下面画的东西都在世界坐标里，统一套缩放
+    ctx.save();
+    World.apply(ctx);
+
     // 1. 篝火
     drawCampfire(ctx, battle.campfire.x, battle.campfire.y, campfireSize);
 
@@ -415,11 +460,8 @@ function create(options) {
       drawWeapon(ctx, b.def, b.x, b.y, bulletSize);
     }
 
-    // 7. 战斗时盖住商店
-    if (shop && shop.shell && battle.state !== 'build') {
-      ctx.fillStyle = COLOR.mask;
-      ctx.fillRect(shop.shell.x, shop.shell.y, shop.shell.w, shop.shell.h);
-    }
+    // 世界内容画完，恢复屏幕坐标，按钮和 HUD 不跟着缩
+    ctx.restore();
 
     // 8. 两个按钮（刷新价格每次会涨，实时读）
     if (battle.state === 'build') {
@@ -555,6 +597,7 @@ function create(options) {
       return false;
     }
 
+    // 按钮是屏幕坐标，不缩放
     if (battle.state === 'build') {
       if (inside(x, y, refreshButton)) {
         refreshButton.onTap();
@@ -566,11 +609,16 @@ function create(options) {
       }
     }
 
+    // 槽位和格子在世界上，先把点击位置换算回世界坐标
+    const pt = World.toWorld(x, y);
+    const x0 = pt.x;
+    const y0 = pt.y;
+
     // 商店槽位：选中这把武器
     if (shop && shop.slots) {
       for (let i = 0; i < shop.slots.length; i++) {
         const slot = shop.slots[i];
-        if (!inside(x, y, slot)) continue;
+        if (!inside(x0, y0, slot)) continue;
         if (slot.sold || !slot.weapon) {
           lastLine = '槽位空了';
           return false;
@@ -584,7 +632,7 @@ function create(options) {
     // 棋盘格子：放武器 / 合成
     for (let i = 0; i < board.cells.length; i++) {
       const cell = board.cells[i];
-      if (!inside(x, y, cell)) continue;
+      if (!inside(x0, y0, cell)) continue;
 
       const before = cell.card ? cell.card.level : 0;
       const ok = battle.placeWeapon(cell, battle.selected);
