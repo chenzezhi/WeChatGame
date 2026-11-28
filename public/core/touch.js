@@ -3,46 +3,56 @@
 /* ==================== 功能 ====================
  * Touch —— 触摸层
  *
- * 把微信的原始触摸事件整理成两个简单动作：点一下（tap）、拖（可选）。
- * 坐标已经换算成「画布物理像素」，调用方不用管 dpr。
+ * 把微信的原始触摸事件整理成「按下即点击」，坐标统一换算成画布物理像素。
+ * 调用方不用管 dpr，也不用管逻辑像素。
  * ==============================================*/
 
 /* ==================== 用法 ====================
  * const Touch = require('./touch.js');
  *
  * Touch.bind({
- *   tap: (x, y) => { ... },
- *   drag: (x, y) => { ... },   // 可选，按住移动时触发
+ *   stage: stage,                 // 用来算坐标比例
+ *   tap: (x, y) => { ... },       // 画布物理像素坐标
+ *   drag: (x, y) => { ... },      // 可选，按住移动时触发
  * });
  * ==============================================*/
 
 /* ==================== 注意 ====================
- * 微信给的 clientX/clientY 是逻辑像素，画布是物理像素，所以这里统一乘以比例。
- * 手指移动超过 12px 或按住超过 400ms 就不算 tap，避免拖拽被误判成点击。
- * 同一个页面只绑定一次。
+ * 比例用「画布宽 ÷ 窗口宽」现算，不假设等于 pixelRatio：
+ * 不同机型、不同建 canvas 的方式，这两个数不一定一致，猜错就点不中。
+ *
+ * 按下就发 tap。等抬手的写法要判断移动距离和按住时长，多一个失败点，
+ * MVP 阶段不需要——以后要做拖拽时，把 tap 换成 end 时触发即可。
  * ==============================================*/
 
-// 划走多远就不算点击，单位：逻辑像素
+// 划走多少逻辑像素就算拖动（现在只记录，不阻止 tap）
 const TAP_MOVE_LIMIT = 12;
-
-// 按住超过多久就不算点击，单位毫秒
-const TAP_TIME_LIMIT = 400;
 
 let bound = false;
 
-// 取得「逻辑像素 → 物理像素」的比例
-// 返回数字，取不到时按 1 算
-function ratio() {
+// 算「逻辑像素 → 画布物理像素」的比例
+// stage - cax Stage，要有 canvas
+// 返回数字，取不到时按 pixelRatio，再取不到按 1
+function scaleOf(stage) {
+  let windowW = 0;
   try {
-    const info = wx.getSystemInfoSync();
-    return info.pixelRatio || 1;
+    windowW = wx.getSystemInfoSync().windowWidth || 0;
+  } catch (e) {
+    windowW = 0;
+  }
+
+  const canvasW = stage && stage.canvas ? stage.canvas.width : 0;
+  if (canvasW && windowW) return canvasW / windowW;
+
+  try {
+    return wx.getSystemInfoSync().pixelRatio || 1;
   } catch (e) {
     return 1;
   }
 }
 
 // 绑定触摸事件
-// handlers - { tap(x, y), drag(x, y) }，都能不传
+// handlers - { stage, tap(x, y), drag(x, y) }，tap / drag 都能不传
 // 返回是否绑定成功
 function bind(handlers) {
   if (bound) {
@@ -55,20 +65,32 @@ function bind(handlers) {
   }
 
   const h = handlers || {};
-  const k = ratio();
+  const k = scaleOf(h.stage);
+
+  // 把画布和窗口的真实尺寸打出来，坐标对不上时一眼看得出
+  let winW = 0;
+  try {
+    winW = wx.getSystemInfoSync().windowWidth || 0;
+  } catch (e) {
+    winW = 0;
+  }
+  const cvsW = h.stage && h.stage.canvas ? h.stage.canvas.width : 0;
+  console.log('[touch] 画布宽 ' + cvsW + '，窗口宽 ' + winW + '，比例 ' + k.toFixed(3));
 
   let startX = 0;
   let startY = 0;
-  let startAt = 0;
   let moved = false;
 
   wx.onTouchStart(function (e) {
     const t = e.touches && e.touches[0];
     if (!t) return;
+
     startX = t.clientX * k;
     startY = t.clientY * k;
-    startAt = Date.now();
     moved = false;
+
+    // 按下就算点击
+    if (h.tap) h.tap(startX, startY);
   });
 
   if (wx.onTouchMove) {
@@ -79,7 +101,6 @@ function bind(handlers) {
       const x = t.clientX * k;
       const y = t.clientY * k;
 
-      // 移动超过阈值就不再算点击
       if (Math.abs(x - startX) > TAP_MOVE_LIMIT * k || Math.abs(y - startY) > TAP_MOVE_LIMIT * k) {
         moved = true;
       }
@@ -88,10 +109,10 @@ function bind(handlers) {
     });
   }
 
+  // 抬手只用来通知，不影响点击
   if (wx.onTouchEnd) {
     wx.onTouchEnd(function () {
-      const ok = !moved && Date.now() - startAt <= TAP_TIME_LIMIT;
-      if (ok && h.tap) h.tap(startX, startY);
+      if (h.end) h.end(startX, startY, moved);
     });
   }
 
