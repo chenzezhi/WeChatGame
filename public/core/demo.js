@@ -205,6 +205,14 @@ function start(env) {
               battle.onPlace = function () {
                 playSfx('place');
               };
+              battle.onCoin = function () {
+                playSfx('coin');
+              };
+              // 失败音效：篝火耐久归零
+              battle.onOver = function () {
+                console.log('[battle] 篝火灭了，本局结束');
+                playSfx('lose');
+              };
             }
 
             if (view && battle) {

@@ -831,10 +831,8 @@ Battle.prototype.update = function (dt) {
           const base = t.rec.coins || 0;
           const bonus = Math.max(0, this.wave - 1);
           const reward = base > 0 ? base + bonus : 0;
-          if (reward) {
-            this.coins += reward;
-            if (this.onCoin) this.onCoin(reward);
-          }
+          // 击杀奖励只加钱，不叫音效（和阵亡声叠在一起太吵）
+          if (reward) this.coins += reward;
 
           if (this.onKill) this.onKill(t.rec);
         }
